@@ -5,6 +5,27 @@ export const tvSourceActionSchema = z.object({
   notes: z.string().trim().max(1_000).optional(),
 });
 
+export const tvSourceConfigurationSchema = z.object({
+  sourceType: z.enum([
+    "authorized_hls",
+    "authorized_srt",
+    "authorized_rtmp",
+    "authorized_rtsp",
+    "satellite_receiver",
+    "licensed_iptv",
+    "partner_file_upload",
+    "manual_upload",
+    "sandbox_fixture",
+  ]),
+  secretReference: z.string().trim().min(3).max(255),
+  expectedSchedule: z.string().trim().min(3).max(255),
+  sourceTimezone: z.string().trim().min(2).max(64),
+  verificationStatus: z
+    .enum(["pending_authorization", "awaiting_authorized_feed", "verified", "sandbox_ready"])
+    .default("pending_authorization"),
+  notes: z.string().trim().max(1_000).optional(),
+});
+
 export const tvSourceTestSchema = tvSourceActionSchema.extend({
   diagnosticSeconds: z.number().int().min(5).max(60).default(20),
 });
@@ -54,6 +75,7 @@ export const tvOccurrenceFilterSchema = z.object({
 });
 
 export type TvSourceTestInput = z.infer<typeof tvSourceTestSchema>;
+export type TvSourceConfigurationInput = z.infer<typeof tvSourceConfigurationSchema>;
 export type TvReviewInput = z.infer<typeof tvReviewSchema>;
 export type TvRegenerateClipInput = z.infer<typeof tvRegenerateClipSchema>;
 export type TvUploadManifestInput = z.infer<typeof tvUploadManifestSchema>;

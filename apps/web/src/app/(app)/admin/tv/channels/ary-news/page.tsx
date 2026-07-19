@@ -1,5 +1,6 @@
 import { unstable_noStore as noStore } from "next/cache";
 
+import { SourceConfigurationPanel } from "@/components/tv/source-configuration-panel";
 import { SourceControlPanel } from "@/components/tv/source-control-panel";
 import { StatusBadge } from "@/components/tv/status-badge";
 import { UploadManifestPanel } from "@/components/tv/upload-manifest-panel";
@@ -43,6 +44,15 @@ export default async function AdminAryNewsChannelPage() {
         />
         <UploadManifestPanel />
       </div>
+
+      <SourceConfigurationPanel
+        initialExpectedSchedule={channel.source?.expectedSchedule ?? channel.expectedSchedule ?? "24/7 expected after authorization"}
+        initialSecretReference={channel.source?.secretReference ?? ""}
+        initialSourceTimezone={channel.source?.sourceTimezone ?? channel.sourceTimezone}
+        initialSourceType={channel.source?.sourceType ?? "sandbox_fixture"}
+        initialVerificationStatus={channel.source?.verificationStatus ?? "pending_authorization"}
+        sourceId={channel.source?.id ?? null}
+      />
 
       <div className="grid gap-6 xl:grid-cols-3">
         <InfoCard title="Secret reference" value={channel.source?.secretReference ?? "Not configured"} />

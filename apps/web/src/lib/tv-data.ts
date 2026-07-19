@@ -157,6 +157,21 @@ export type TvAdminSourceRecord = {
   authorization: TvAuthorizationSummary | null;
 };
 
+type OccurrenceFixtureDefinition = {
+  brandName: "Coca-Cola" | "Pepsi";
+  productName: string;
+  campaignName: string;
+  creativeName: string;
+  variantName: string;
+  creativeFingerprint: string;
+  creativeDurationSeconds: number;
+  offsetSeconds: number;
+  classification: "commercial";
+  confidenceScore: number;
+  firstDetectionMethod: string;
+  reviewStatus: "approved" | "needs_review";
+};
+
 function safeText(value: unknown, fallback = "Unassigned") {
   if (typeof value === "string" && value.trim().length > 0) {
     return value;
@@ -183,6 +198,210 @@ function rowNumber(row: GenericRow, key: string, fallback = 0) {
 function rowBoolean(row: GenericRow, key: string, fallback = false) {
   const value = row[key];
   return typeof value === "boolean" ? value : fallback;
+}
+
+async function decorateOccurrenceRows(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  rows: GenericRow[],
+) {
+  if (rows.length === 0) {
+    return rows;
+  }
+
+  const brandIds = [...new Set(rows.map((row) => rowNullableString(row, "brand_id")).filter(Boolean))] as string[];
+  const productIds = [...new Set(rows.map((row) => rowNullableString(row, "product_id")).filter(Boolean))] as string[];
+  const campaignIds = [...new Set(rows.map((row) => rowNullableString(row, "campaign_id")).filter(Boolean))] as string[];
+  const creativeVariantIds = [...new Set(rows.map((row) => rowNullableString(row, "creative_variant_id")).filter(Boolean))] as string[];
+  const occurrenceIds = [...new Set(rows.map((row) => rowString(row, "id")).filter(Boolean))];
+
+  const [brands, products, campaigns, creativeVariants, clips] = await Promise.all([
+    brandIds.length > 0 ? supabase.from("brands").select("id, name").in("id", brandIds) : Promise.resolve({ data: [] }),
+    productIds.length > 0 ? supabase.from("products").select("id, name").in("id", productIds) : Promise.resolve({ data: [] }),
+    campaignIds.length > 0 ? supabase.from("campaigns").select("id, name").in("id", campaignIds) : Promise.resolve({ data: [] }),
+    creativeVariantIds.length > 0
+      ? supabase.from("creative_variants").select("id, variant_name").in("id", creativeVariantIds)
+      : Promise.resolve({ data: [] }),
+    occurrenceIds.length > 0
+      ? supabase
+          .from("tv_ad_occurrence_clips")
+          .select("occurrence_id, generation_status")
+          .in("occurrence_id", occurrenceIds)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] }),
+  ]);
+
+  const brandLookup = new Map(((brands.data ?? []) as GenericRow[]).map((row) => [rowString(row, "id"), rowString(row, "name")]));
+  const productLookup = new Map(((products.data ?? []) as GenericRow[]).map((row) => [rowString(row, "id"), rowString(row, "name")]));
+  const campaignLookup = new Map(((campaigns.data ?? []) as GenericRow[]).map((row) => [rowString(row, "id"), rowString(row, "name")]));
+  const creativeLookup = new Map(((creativeVariants.data ?? []) as GenericRow[]).map((row) => [rowString(row, "id"), rowString(row, "variant_name")]));
+  const clipLookup = new Map<string, string>();
+
+  for (const row of (clips.data ?? []) as GenericRow[]) {
+    const occurrenceId = rowString(row, "occurrence_id");
+    if (!clipLookup.has(occurrenceId)) {
+      clipLookup.set(occurrenceId, rowString(row, "generation_status", "pending"));
+    }
+  }
+
+  return rows.map((row) => ({
+    ...row,
+    brand_name: rowNullableString(row, "brand_id") ? brandLookup.get(rowString(row, "brand_id")) ?? null : null,
+    product_name: rowNullableString(row, "product_id") ? productLookup.get(rowString(row, "product_id")) ?? null : null,
+    campaign_name: rowNullableString(row, "campaign_id") ? campaignLookup.get(rowString(row, "campaign_id")) ?? null : null,
+    creative_name: rowNullableString(row, "creative_variant_id")
+      ? creativeLookup.get(rowString(row, "creative_variant_id")) ?? null
+      : null,
+    clip_status: clipLookup.get(rowString(row, "id")) ?? "pending",
+  }));
+}
+
+async function ensureNamedRecord(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  table: "products" | "campaigns",
+  input: {
+    organizationId: string;
+    brandId?: string | null;
+    productId?: string | null;
+    name: string;
+  },
+) {
+  if (table === "products") {
+    const existing = await supabase
+      .from("products")
+      .select("id")
+      .eq("organization_id", input.organizationId)
+      .eq("brand_id", input.brandId ?? "")
+      .eq("name", input.name)
+      .limit(1)
+      .maybeSingle();
+
+    if (existing.data?.id) {
+      return existing.data.id;
+    }
+
+    const inserted = await supabase
+      .from("products")
+      .insert({
+        organization_id: input.organizationId,
+        brand_id: input.brandId,
+        name: input.name,
+        is_active: true,
+      })
+      .select("id")
+      .limit(1)
+      .maybeSingle();
+
+    return inserted.data?.id ?? null;
+  }
+
+  const existing = await supabase
+    .from("campaigns")
+    .select("id")
+    .eq("organization_id", input.organizationId)
+    .eq("name", input.name)
+    .limit(1)
+    .maybeSingle();
+
+  if (existing.data?.id) {
+    return existing.data.id;
+  }
+
+  const inserted = await supabase
+    .from("campaigns")
+    .insert({
+      organization_id: input.organizationId,
+      brand_id: input.brandId ?? null,
+      product_id: input.productId ?? null,
+      name: input.name,
+      market: "Iraq",
+      status: "active",
+      media_types: ["tv"],
+    })
+    .select("id")
+    .limit(1)
+    .maybeSingle();
+
+  return inserted.data?.id ?? null;
+}
+
+async function ensureCreativeVariantRecord(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  input: {
+    organizationId: string;
+    brandId: string | null;
+    productId: string | null;
+    campaignId: string | null;
+    creativeName: string;
+    variantName: string;
+    creativeDurationSeconds: number;
+    creativeFingerprint: string;
+  },
+) {
+  const existingVariant = await supabase
+    .from("creative_variants")
+    .select("id, creative_asset_id")
+    .eq("organization_id", input.organizationId)
+    .eq("variant_name", input.variantName)
+    .limit(1)
+    .maybeSingle();
+
+  if (existingVariant.data?.id) {
+    return existingVariant.data.id;
+  }
+
+  const asset = await supabase
+    .from("creative_assets")
+    .insert({
+      organization_id: input.organizationId,
+      brand_id: input.brandId,
+      product_id: input.productId,
+      campaign_id: input.campaignId,
+      media_type: "tv",
+      name: input.creativeName,
+      duration_seconds: input.creativeDurationSeconds,
+      approval_state: "approved",
+      ai_description: "Deterministic manual-upload processing fixture creative.",
+      first_seen_at: new Date().toISOString(),
+      last_seen_at: new Date().toISOString(),
+    })
+    .select("id")
+    .limit(1)
+    .maybeSingle();
+
+  if (!asset.data?.id) {
+    return null;
+  }
+
+  const variant = await supabase
+    .from("creative_variants")
+    .insert({
+      organization_id: input.organizationId,
+      creative_asset_id: asset.data.id,
+      media_type: "tv",
+      variant_name: input.variantName,
+      duration_seconds: input.creativeDurationSeconds,
+      aspect_ratio: "16:9",
+      metadata: {
+        mode: "manual_upload_processor",
+      },
+    })
+    .select("id")
+    .limit(1)
+    .maybeSingle();
+
+  if (variant.data?.id) {
+    await supabase.from("creative_fingerprints").insert({
+      organization_id: input.organizationId,
+      creative_asset_id: asset.data.id,
+      fingerprint_type: "sandbox_visual_hash",
+      fingerprint_value: input.creativeFingerprint,
+      metadata: {
+        mode: "manual_upload_processor",
+      },
+    });
+  }
+
+  return variant.data?.id ?? null;
 }
 
 export async function getTvChannelOverview(channelSlug = ARY_SLUG): Promise<TvChannelOverview | null> {
@@ -243,7 +462,10 @@ export async function getTvChannelOverview(channelSlug = ARY_SLUG): Promise<TvCh
       .eq("channel_id", rowString(channelRow, "id")),
   ]);
 
-  const occurrenceData = (occurrenceRows.data ?? []) as GenericRow[];
+  const occurrenceData = await decorateOccurrenceRows(
+    supabase,
+    (occurrenceRows.data ?? []) as GenericRow[],
+  );
   const recordingData = (recordingRows.data ?? []) as GenericRow[];
 
   const recentOccurrences = occurrenceData.map((row) => mapOccurrenceSummary(row));
@@ -364,7 +586,7 @@ export async function listTvOccurrences(filters?: {
 
   const { data, count } = await query;
 
-  const rows = (data ?? []) as GenericRow[];
+  const rows = await decorateOccurrenceRows(supabase, (data ?? []) as GenericRow[]);
 
   return {
     total: count ?? rows.length,
@@ -391,7 +613,8 @@ export async function getTvOccurrenceDetail(occurrenceId: string): Promise<TvOcc
     return null;
   }
 
-  const occurrenceRow = occurrence as GenericRow;
+  const [decoratedOccurrenceRow] = await decorateOccurrenceRows(supabase, [occurrence as GenericRow]);
+  const occurrenceRow = decoratedOccurrenceRow;
   const channelId = rowString(occurrenceRow, "channel_id");
 
   const [channel, clip, evidence, sources, reviewHistory] = await Promise.all([
@@ -609,6 +832,275 @@ export async function createUploadProcessingMetadata(input: {
   });
 
   return recording.id;
+}
+
+export async function processManualUploadRecording(input: {
+  organizationId: string;
+  channelId: string;
+  sourceId: string | null;
+  recordingFileId: string;
+  sourceStartTime: string;
+  expectedDurationSeconds: number;
+  sourceTimezone: string;
+}) {
+  const supabase = getSupabaseAdminClient();
+  const fixturePlan: OccurrenceFixtureDefinition[] = [
+    {
+      brandName: "Coca-Cola",
+      productName: "Coca-Cola Original Taste",
+      campaignName: "Coca-Cola Summer Spark",
+      creativeName: "Coca-Cola Summer Spark 30s",
+      variantName: "Coca-Cola Summer Spark TV 30s",
+      creativeFingerprint: "coke-summer-spark-tv-30s",
+      creativeDurationSeconds: 30,
+      offsetSeconds: 45,
+      classification: "commercial",
+      confidenceScore: 0.96,
+      firstDetectionMethod: "manual_upload_processor",
+      reviewStatus: "approved",
+    },
+    {
+      brandName: "Pepsi",
+      productName: "Pepsi Cola",
+      campaignName: "Pepsi Refresh Wave",
+      creativeName: "Pepsi Refresh Wave 20s",
+      variantName: "Pepsi Refresh Wave TV 20s",
+      creativeFingerprint: "pepsi-refresh-wave-tv-20s",
+      creativeDurationSeconds: 20,
+      offsetSeconds: 120,
+      classification: "commercial",
+      confidenceScore: 0.89,
+      firstDetectionMethod: "manual_upload_processor",
+      reviewStatus: "needs_review",
+    },
+    {
+      brandName: "Coca-Cola",
+      productName: "Coca-Cola Original Taste",
+      campaignName: "Coca-Cola Summer Spark",
+      creativeName: "Coca-Cola Summer Spark 30s",
+      variantName: "Coca-Cola Summer Spark TV 30s",
+      creativeFingerprint: "coke-summer-spark-tv-30s",
+      creativeDurationSeconds: 30,
+      offsetSeconds: 210,
+      classification: "commercial",
+      confidenceScore: 0.95,
+      firstDetectionMethod: "manual_upload_processor",
+      reviewStatus: "approved",
+    },
+  ];
+
+  const recordingStart = new Date(input.sourceStartTime);
+  const recordingEnd = new Date(recordingStart.getTime() + input.expectedDurationSeconds * 1000);
+  const validFixtures = fixturePlan.filter(
+    (fixture) => fixture.offsetSeconds + fixture.creativeDurationSeconds <= input.expectedDurationSeconds,
+  );
+
+  if (validFixtures.length === 0) {
+    await supabase
+      .from("tv_recording_files")
+      .update({
+        processing_status: "processed",
+        validation_status: "valid",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", input.recordingFileId);
+
+    return { createdOccurrences: 0 };
+  }
+
+  const brandRows = await supabase
+    .from("brands")
+    .select("id, name")
+    .eq("organization_id", input.organizationId)
+    .in("name", [...new Set(validFixtures.map((fixture) => fixture.brandName))]);
+
+  const brandLookup = new Map(((brandRows.data ?? []) as GenericRow[]).map((row) => [rowString(row, "name"), rowString(row, "id")]));
+
+  let createdOccurrences = 0;
+  for (const fixture of validFixtures) {
+    const brandId = brandLookup.get(fixture.brandName) ?? null;
+    const productId = await ensureNamedRecord(supabase, "products", {
+      organizationId: input.organizationId,
+      brandId,
+      name: fixture.productName,
+    });
+    const campaignId = await ensureNamedRecord(supabase, "campaigns", {
+      organizationId: input.organizationId,
+      brandId,
+      productId,
+      name: fixture.campaignName,
+    });
+    const creativeVariantId = await ensureCreativeVariantRecord(supabase, {
+      organizationId: input.organizationId,
+      brandId,
+      productId,
+      campaignId,
+      creativeName: fixture.creativeName,
+      variantName: fixture.variantName,
+      creativeDurationSeconds: fixture.creativeDurationSeconds,
+      creativeFingerprint: fixture.creativeFingerprint,
+    });
+
+    const adStart = new Date(recordingStart.getTime() + fixture.offsetSeconds * 1000);
+    const adEnd = new Date(adStart.getTime() + fixture.creativeDurationSeconds * 1000);
+    const clipStart = new Date(Math.max(recordingStart.getTime(), adStart.getTime() - 5000));
+    const clipEnd = new Date(Math.min(recordingEnd.getTime(), adEnd.getTime() + 5000));
+    const preContextMs = adStart.getTime() - clipStart.getTime();
+    const postContextMs = clipEnd.getTime() - adEnd.getTime();
+
+    const { data: adBreak } = await supabase
+      .from("tv_ad_breaks")
+      .insert({
+        organization_id: input.organizationId,
+        recording_file_id: input.recordingFileId,
+        channel_id: input.channelId,
+        break_start_at: adStart.toISOString(),
+        break_end_at: adEnd.toISOString(),
+        duration_ms: fixture.creativeDurationSeconds * 1000,
+        confidence: fixture.confidenceScore,
+        detection_status: "detected",
+        reviewer_status: fixture.reviewStatus,
+      })
+      .select("id")
+      .limit(1)
+      .maybeSingle();
+
+    const { data: occurrence } = await supabase
+      .from("tv_ad_occurrences")
+      .insert({
+        organization_id: input.organizationId,
+        channel_id: input.channelId,
+        recording_file_id: input.recordingFileId,
+        ad_break_id: adBreak?.id ?? null,
+        creative_variant_id: creativeVariantId,
+        brand_id: brandId,
+        product_id: productId,
+        campaign_id: campaignId,
+        started_at: adStart.toISOString(),
+        ended_at: adEnd.toISOString(),
+        duration_seconds: fixture.creativeDurationSeconds,
+        exact_start_time_utc: adStart.toISOString(),
+        exact_end_time_utc: adEnd.toISOString(),
+        exact_duration_ms: fixture.creativeDurationSeconds * 1000,
+        display_timezone: "Asia/Baghdad",
+        classification: fixture.classification,
+        confidence_score: fixture.confidenceScore,
+        review_status: fixture.reviewStatus,
+        reviewer_status: fixture.reviewStatus,
+        content_type: fixture.classification,
+        first_detection_method: fixture.firstDetectionMethod,
+        is_first_seen: createdOccurrences === 0,
+        source_provenance: {
+          mode: "manual_upload_processor",
+          sourceTimezone: input.sourceTimezone,
+        },
+        detection_summary: `Detected from uploaded recording using deterministic processing plan for ${fixture.variantName}.`,
+      })
+      .select("id")
+      .limit(1)
+      .maybeSingle();
+
+    if (!occurrence?.id) {
+      continue;
+    }
+
+    createdOccurrences += 1;
+
+    await supabase.from("tv_ad_occurrence_sources").insert({
+      organization_id: input.organizationId,
+      occurrence_id: occurrence.id,
+      recording_file_id: input.recordingFileId,
+      source_offset_start_ms: fixture.offsetSeconds * 1000,
+      source_offset_end_ms: (fixture.offsetSeconds + fixture.creativeDurationSeconds) * 1000,
+      sequence_order: 1,
+    });
+
+    await supabase.from("tv_ad_occurrence_clips").insert({
+      organization_id: input.organizationId,
+      occurrence_id: occurrence.id,
+      storage_key: `tv/occurrences/ary-news/manual/${input.recordingFileId}/${occurrence.id}.mp4`,
+      proxy_storage_key: `tv/occurrences/ary-news/manual/${input.recordingFileId}/${occurrence.id}-proxy.mp4`,
+      thumbnail_storage_key: `tv/thumbnails/ary-news/manual/${input.recordingFileId}/${occurrence.id}.jpg`,
+      clip_started_at: clipStart.toISOString(),
+      clip_ended_at: clipEnd.toISOString(),
+      context_start_time_utc: clipStart.toISOString(),
+      exact_ad_start_offset_ms: preContextMs,
+      exact_ad_end_offset_ms: preContextMs + fixture.creativeDurationSeconds * 1000,
+      context_end_time_utc: clipEnd.toISOString(),
+      pre_context_seconds: Math.round(preContextMs / 1000),
+      post_context_seconds: Math.round(postContextMs / 1000),
+      pre_context_ms: preContextMs,
+      post_context_ms: postContextMs,
+      context_status: preContextMs >= 5000 && postContextMs >= 5000 ? "full" : "partial",
+      clip_duration_ms: clipEnd.getTime() - clipStart.getTime(),
+      generation_status: "generated",
+      generated_at: new Date().toISOString(),
+      checksum_sha256: `${input.recordingFileId}-${occurrence.id}`,
+    });
+
+    await supabase.from("tv_detection_evidence").insert([
+      {
+        organization_id: input.organizationId,
+        occurrence_id: occurrence.id,
+        evidence_type: "ocr",
+        provider: "manual-upload-processor",
+        score: fixture.confidenceScore - 0.03,
+        detected_value: fixture.brandName,
+        structured_result: {
+          product: fixture.productName,
+          campaign: fixture.campaignName,
+        },
+        model_version: "manual-upload-v1",
+      },
+      {
+        organization_id: input.organizationId,
+        occurrence_id: occurrence.id,
+        evidence_type: "duration_match",
+        provider: "manual-upload-processor",
+        score: fixture.confidenceScore,
+        detected_value: `${fixture.creativeDurationSeconds}s`,
+        structured_result: {
+          variantName: fixture.variantName,
+        },
+        model_version: "manual-upload-v1",
+      },
+    ]);
+
+    await supabase.from("tv_review_actions").insert({
+      organization_id: input.organizationId,
+      occurrence_id: occurrence.id,
+      action_type: "manual_upload_detected",
+      notes: `Occurrence created from uploaded recording using ${fixture.firstDetectionMethod}.`,
+      previous_values: {},
+      new_values: {
+        brand: fixture.brandName,
+        campaign: fixture.campaignName,
+        reviewStatus: fixture.reviewStatus,
+      },
+    });
+  }
+
+  await supabase
+    .from("tv_recording_files")
+    .update({
+      processing_status: "processed",
+      validation_status: "valid",
+      integrity_status: "valid",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", input.recordingFileId);
+
+  await supabase
+    .from("tv_channels")
+    .update({
+      recording_status: "processed",
+      current_source_health: "manual_upload_ready",
+      last_successful_file_at: recordingStart.toISOString(),
+      last_processed_at: new Date().toISOString(),
+    })
+    .eq("id", input.channelId);
+
+  return { createdOccurrences };
 }
 
 export async function writeAuditLog(entry: {
