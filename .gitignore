@@ -22,4 +22,6 @@ artifacts
 tmp
 logs
 uploads
+!apps/web/src/app/api/tv/uploads/
+!apps/web/src/app/api/tv/uploads/**
 tmp-dev-*.log
