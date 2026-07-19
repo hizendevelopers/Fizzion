@@ -36,7 +36,7 @@ export default async function AryNewsChannelPage() {
               <div>
                 <h1 className="text-3xl font-semibold tracking-tight text-foreground">ARY News</h1>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Pakistan source, Iraq monitoring market, Baghdad display timezone
+                  Pakistan source, Karachi source timezone, Iraq monitoring market
                 </p>
               </div>
             </div>
@@ -48,7 +48,8 @@ export default async function AryNewsChannelPage() {
             </div>
           </div>
           <div className="rounded-[1.6rem] border border-border bg-panel-soft px-4 py-3 text-sm text-muted-foreground">
-            <p>Iraq time zone: {channel.displayTimezone}</p>
+            <p>Source time zone: {channel.sourceTimezone}</p>
+            <p className="mt-1">Display time zone (Iraq): {channel.displayTimezone}</p>
             <p className="mt-1">Last heartbeat: {channel.lastHeartbeatAt ?? "No heartbeat yet"}</p>
             <p className="mt-1">Data freshness: {channel.lastProcessedAt ?? "Awaiting first processing run"}</p>
           </div>
@@ -57,6 +58,9 @@ export default async function AryNewsChannelPage() {
         <div className="mt-6 rounded-[1.6rem] border border-warning/25 bg-warning-soft px-5 py-4 text-sm text-foreground">
           <p className="font-semibold">Authorization gate</p>
           <p className="mt-2 leading-7">{gate.message}</p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Safe fallback remains available through sandbox fixtures and manual upload testing.
+          </p>
           {gate.sandboxMode ? (
             <p className="mt-2 text-xs text-muted-foreground">
               Synthetic or licensed test fixture — not live ARY News production monitoring.

@@ -9,7 +9,7 @@ type UploadManifestPanelProps = {
 };
 
 export function UploadManifestPanel({ sourcePartnerId }: UploadManifestPanelProps) {
-  const [filename, setFilename] = useState("ary-news__2026-07-19__18-40-00__Asia-Baghdad.ts");
+  const [filename, setFilename] = useState("ary-news__2026-07-19__18-40-00__Asia-Karachi.ts");
   const [sourceStartTime, setSourceStartTime] = useState("2026-07-19T15:40:00.000Z");
   const [duration, setDuration] = useState(300);
   const [sha256, setSha256] = useState("sandboxfixturechecksum1234567890");
@@ -28,7 +28,7 @@ export function UploadManifestPanel({ sourcePartnerId }: UploadManifestPanelProp
           channel_slug: "ary-news",
           source_partner_id: sourcePartnerId ?? undefined,
           source_start_time: sourceStartTime,
-          source_timezone: "Asia/Baghdad",
+          source_timezone: "Asia/Karachi",
           expected_duration_seconds: duration,
           sha256,
           filename,
@@ -105,7 +105,8 @@ export function UploadManifestPanel({ sourcePartnerId }: UploadManifestPanelProp
       </div>
       <p className="mt-3 text-xs leading-6 text-muted-foreground">
         This panel supports sandbox and manual-upload metadata only. Live ARY News source capture
-        remains blocked until authorization is approved.
+        remains blocked until authorization is approved. Source manifests should use Pakistan source
+        timing, while approved monitoring views can still display Iraq-local time separately.
       </p>
       {result ? <p className="mt-3 text-sm font-medium text-foreground">{result}</p> : null}
     </div>
