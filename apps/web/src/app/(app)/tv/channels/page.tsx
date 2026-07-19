@@ -59,7 +59,8 @@ export default async function TvChannelsPage() {
           </Link>
         ) : (
           <p className="text-sm text-muted-foreground">
-            No TV channel rows are available yet. Run the latest TV seed data first.
+            The TV workspace is not ready yet. Check the latest Supabase migrations, TV seed data,
+            and server-side environment variables first.
           </p>
         )}
       </section>

@@ -41,3 +41,11 @@ export function getSupabaseAdminClient() {
 
   return adminServerClient;
 }
+
+export function getOptionalSupabaseAdminClient() {
+  try {
+    return getSupabaseAdminClient();
+  } catch {
+    return null;
+  }
+}

@@ -15,8 +15,8 @@ export default async function AryNewsChannelPage() {
       <div className="rounded-[2rem] border border-border bg-white p-6 shadow-[var(--shadow-card)]">
         <h1 className="text-2xl font-semibold text-foreground">ARY News</h1>
         <p className="mt-3 text-sm leading-7 text-muted-foreground">
-          The ARY News channel seed has not been created yet. Run the latest Supabase migration and
-          seed SQL before opening this page.
+          The TV workspace is not ready yet. Verify the latest Supabase migrations, TV seed data,
+          and server-side environment variables before opening this page.
         </p>
       </div>
     );

@@ -1,4 +1,4 @@
-import { getSupabaseAdminClient } from "@/lib/supabase/server";
+import { getOptionalSupabaseAdminClient, getSupabaseAdminClient } from "@/lib/supabase/server";
 import {
   buildTvRecordingFilename,
   isSourceAuthorizedForRecording,
@@ -186,7 +186,11 @@ function rowBoolean(row: GenericRow, key: string, fallback = false) {
 }
 
 export async function getTvChannelOverview(channelSlug = ARY_SLUG): Promise<TvChannelOverview | null> {
-  const supabase = getSupabaseAdminClient();
+  const supabase = getOptionalSupabaseAdminClient();
+  if (!supabase) {
+    return null;
+  }
+
   const { data: channel, error } = await supabase
     .from("tv_channels")
     .select("*")
@@ -324,9 +328,19 @@ export async function listTvOccurrences(filters?: {
   limit?: string | number;
   page?: string | number;
 }) {
-  const supabase = getSupabaseAdminClient();
   const limit = Math.min(Number(filters?.limit ?? 25) || 25, 100);
   const page = Math.max(Number(filters?.page ?? 1) || 1, 1);
+  const supabase = getOptionalSupabaseAdminClient();
+
+  if (!supabase) {
+    return {
+      total: 0,
+      page,
+      limit,
+      items: [],
+    };
+  }
+
   const from = (page - 1) * limit;
   const to = from + limit - 1;
 
@@ -361,7 +375,11 @@ export async function listTvOccurrences(filters?: {
 }
 
 export async function getTvOccurrenceDetail(occurrenceId: string): Promise<TvOccurrenceDetail | null> {
-  const supabase = getSupabaseAdminClient();
+  const supabase = getOptionalSupabaseAdminClient();
+  if (!supabase) {
+    return null;
+  }
+
   const { data: occurrence, error } = await supabase
     .from("tv_ad_occurrences")
     .select("*")
@@ -472,7 +490,11 @@ export async function getTvOccurrenceDetail(occurrenceId: string): Promise<TvOcc
 }
 
 export async function listTvAdminSources(): Promise<TvAdminSourceRecord[]> {
-  const supabase = getSupabaseAdminClient();
+  const supabase = getOptionalSupabaseAdminClient();
+  if (!supabase) {
+    return [];
+  }
+
   const { data: sources } = await supabase.from("tv_sources").select("*").order("created_at");
   const sourceRows = (sources ?? []) as GenericRow[];
 
