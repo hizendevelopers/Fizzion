@@ -56,16 +56,16 @@ export function Sidebar({ labels }: SidebarProps) {
                   className={cn(
                     "flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm font-semibold transition duration-200",
                     active || isOpen
-                      ? "bg-white text-sidebar shadow-[var(--shadow-soft)]"
+                      ? "bg-brand-red text-white shadow-[0_16px_32px_rgba(244,0,9,0.28)] ring-1 ring-white/20"
                       : "text-white/72 hover:bg-white/10 hover:text-white",
                   )}
                   onClick={() => toggleSection(item.key)}
                   type="button"
-                >
-                  <span>{labels[item.key] ?? item.key}</span>
-                  <span
-                    className={cn(
-                      "text-xs transition duration-200",
+                  >
+                    <span>{labels[item.key] ?? item.key}</span>
+                    <span
+                      className={cn(
+                        "text-xs transition duration-200",
                       isOpen ? "rotate-180" : "rotate-0",
                     )}
                   >
@@ -78,7 +78,7 @@ export function Sidebar({ labels }: SidebarProps) {
                   className={cn(
                     "flex items-center rounded-2xl px-4 py-3 text-sm font-semibold transition duration-200",
                     active
-                      ? "bg-white text-sidebar shadow-[var(--shadow-soft)]"
+                      ? "bg-brand-red text-white shadow-[0_16px_32px_rgba(244,0,9,0.28)] ring-1 ring-white/20"
                       : "text-white/72 hover:bg-white/10 hover:text-white",
                   )}
                 >
@@ -97,7 +97,7 @@ export function Sidebar({ labels }: SidebarProps) {
                         className={cn(
                           "flex rounded-xl px-3 py-2 text-sm transition duration-200",
                           childActive
-                            ? "bg-white/12 text-white"
+                            ? "bg-brand-red/22 text-white ring-1 ring-brand-red/55"
                             : "text-white/55 hover:bg-white/8 hover:text-white/88",
                         )}
                       >
