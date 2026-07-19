@@ -6,12 +6,18 @@ import {
   getSupabaseUrl,
 } from "@/lib/env";
 
-let publicServerClient: ReturnType<typeof createClient> | null = null;
-let adminServerClient: ReturnType<typeof createClient> | null = null;
+// The ARY TV module adds migration-driven tables before generated database types are refreshed.
+// We keep the server client intentionally loose for now so the app can compile against the evolving schema.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type LooseSupabaseClient = ReturnType<typeof createClient<any>>;
+
+let publicServerClient: LooseSupabaseClient | null = null;
+let adminServerClient: LooseSupabaseClient | null = null;
 
 export function getSupabaseServerClient() {
   if (!publicServerClient) {
-    publicServerClient = createClient(getSupabaseUrl(), getSupabasePublishableKey(), {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    publicServerClient = createClient<any>(getSupabaseUrl(), getSupabasePublishableKey(), {
       auth: {
         persistSession: false,
         autoRefreshToken: false,
@@ -24,7 +30,8 @@ export function getSupabaseServerClient() {
 
 export function getSupabaseAdminClient() {
   if (!adminServerClient) {
-    adminServerClient = createClient(getSupabaseUrl(), getSupabaseSecretKey(), {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    adminServerClient = createClient<any>(getSupabaseUrl(), getSupabaseSecretKey(), {
       auth: {
         persistSession: false,
         autoRefreshToken: false,
@@ -34,4 +41,3 @@ export function getSupabaseAdminClient() {
 
   return adminServerClient;
 }
-
