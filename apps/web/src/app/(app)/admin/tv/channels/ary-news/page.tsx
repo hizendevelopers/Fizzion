@@ -35,7 +35,12 @@ export default async function AdminAryNewsChannelPage() {
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-        <SourceControlPanel canStart={gate.canRecord} channelSlug={channel.slug} sourceId={channel.source?.id ?? null} />
+        <SourceControlPanel
+          canStart={gate.canRecord}
+          channelSlug={channel.slug}
+          sourceId={channel.source?.id ?? null}
+          sourceType={channel.source?.sourceType ?? null}
+        />
         <UploadManifestPanel />
       </div>
 

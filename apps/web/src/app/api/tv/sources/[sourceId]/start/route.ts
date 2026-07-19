@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import {
+  ensureSandboxFixtureData,
   getAuthorizationGateSummary,
   getSourceRecord,
   writeAuditLog,
@@ -33,7 +34,9 @@ export async function POST(
   }
 
   const gate = getAuthorizationGateSummary(record.source, record.authorization);
-  if (!gate.canRecord) {
+  const isSandboxSource = record.source.sourceType === "sandbox_fixture";
+
+  if (!gate.canRecord && !isSandboxSource) {
     return tvApiError(
       "SOURCE_NOT_AUTHORIZED",
       "Recording cannot start until the source authorization is approved.",
@@ -43,13 +46,56 @@ export async function POST(
   }
 
   const supabase = getSupabaseAdminClient();
+  const nowIso = new Date().toISOString();
+
+  if (isSandboxSource) {
+    const fixture = await ensureSandboxFixtureData({
+      organizationId: record.organizationId,
+      channelId: record.channelId,
+      sourceId,
+    });
+
+    await supabase
+      .from("tv_channels")
+      .update({
+        recording_status: "sandbox_active",
+        current_source_health: "sandbox_ready",
+        last_heartbeat_at: nowIso,
+        last_processed_at: nowIso,
+      })
+      .eq("id", record.channelId);
+
+    await writeAuditLog({
+      organizationId: record.organizationId,
+      action: "tv.source.start_sandbox",
+      entityType: "tv_source",
+      entityId: sourceId,
+      payload: {
+        requestId,
+        notes: parsed.data.notes ?? null,
+        occurrenceId: fixture.occurrenceId,
+        created: fixture.created,
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      requestId,
+      sandbox: true,
+      occurrenceId: fixture.occurrenceId,
+      message: fixture.created
+        ? "Sandbox session started and deterministic fixture data is ready for review."
+        : "Sandbox session started. Existing deterministic fixture data is ready for review.",
+    });
+  }
+
   await supabase.from("tv_recorder_sessions").insert({
     organization_id: record.organizationId,
     channel_id: record.channelId,
     source_id: sourceId,
     worker_id: "manual-api-start",
     status: "queued",
-    last_heartbeat_at: new Date().toISOString(),
+    last_heartbeat_at: nowIso,
   });
 
   await supabase
@@ -57,7 +103,7 @@ export async function POST(
     .update({
       recording_status: "starting",
       current_source_health: "starting",
-      last_heartbeat_at: new Date().toISOString(),
+      last_heartbeat_at: nowIso,
     })
     .eq("id", record.channelId);
 

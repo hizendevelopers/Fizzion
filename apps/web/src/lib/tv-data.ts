@@ -628,6 +628,241 @@ export async function writeAuditLog(entry: {
   });
 }
 
+export async function ensureSandboxFixtureData(input: {
+  organizationId: string;
+  channelId: string;
+  sourceId: string;
+}) {
+  const supabase = getSupabaseAdminClient();
+  const existing = await supabase
+    .from("tv_ad_occurrences")
+    .select("id")
+    .eq("channel_id", input.channelId)
+    .eq("first_detection_method", "sandbox_fixture")
+    .limit(1)
+    .maybeSingle();
+
+  if (existing.data?.id) {
+    return { occurrenceId: existing.data.id, created: false };
+  }
+
+  const now = new Date();
+  const startedAt = new Date(now.getTime() - 45 * 60 * 1000);
+  const segmentEnd = new Date(startedAt.getTime() + 5 * 60 * 1000);
+  const adStart = new Date(startedAt.getTime() + 95 * 1000);
+  const adEnd = new Date(adStart.getTime() + 30 * 1000);
+  const clipStart = new Date(adStart.getTime() - 5 * 1000);
+  const clipEnd = new Date(adEnd.getTime() + 5 * 1000);
+  const sourceDatePath = startedAt.toISOString().slice(0, 10).replaceAll("-", "/");
+  const checksum = `sandbox-${input.channelId}-fixture-001`;
+
+  const brandLookup = await supabase
+    .from("brands")
+    .select("id, name")
+    .eq("organization_id", input.organizationId)
+    .eq("name", "Coca-Cola")
+    .limit(1)
+    .maybeSingle();
+
+  const { data: recorderSession } = await supabase
+    .from("tv_recorder_sessions")
+    .insert({
+      organization_id: input.organizationId,
+      channel_id: input.channelId,
+      source_id: input.sourceId,
+      worker_id: "sandbox-fixture-worker",
+      started_at: startedAt.toISOString(),
+      status: "sandbox_active",
+      restart_count: 0,
+      last_heartbeat_at: now.toISOString(),
+    })
+    .select("id")
+    .limit(1)
+    .maybeSingle();
+
+  const { data: recording } = await supabase
+    .from("tv_recording_files")
+    .insert({
+      organization_id: input.organizationId,
+      channel_id: input.channelId,
+      tv_source_id: input.sourceId,
+      recorder_session_id: recorderSession?.id ?? null,
+      storage_key: `tv/raw/ary-news/sandbox/${sourceDatePath}/ary-news__fixture__001.ts`,
+      proxy_storage_key: `tv/proxies/ary-news/sandbox/${sourceDatePath}/ary-news__fixture__001.mp4`,
+      thumbnail_manifest_key: `tv/thumbnails/ary-news/sandbox/${sourceDatePath}/ary-news__fixture__001.json`,
+      filename: "ary-news__fixture__001__Asia-Karachi.ts",
+      source_timestamp: startedAt.toISOString(),
+      source_end_time: segmentEnd.toISOString(),
+      source_timezone: "Asia/Karachi",
+      start_time_utc: startedAt.toISOString(),
+      end_time_utc: segmentEnd.toISOString(),
+      duration_seconds: 300,
+      duration_ms: 300_000,
+      file_size_bytes: 24_000_000,
+      checksum_sha256: checksum,
+      upload_mode: "sandbox_fixture",
+      container_format: "mpegts",
+      video_codec: "h264",
+      audio_codec: "aac",
+      width: 1280,
+      height: 720,
+      frame_rate: 25,
+      bitrate: 2400000,
+      audio_sample_rate: 48000,
+      media_metadata: {
+        mode: "sandbox_fixture",
+        label: "Synthetic or licensed test fixture — not live ARY News production monitoring.",
+      },
+      source_provenance: {
+        mode: "sandbox_fixture",
+      },
+      integrity_status: "valid",
+      validation_status: "valid",
+      processing_status: "processed",
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
+    })
+    .select("id")
+    .limit(1)
+    .maybeSingle();
+
+  if (!recording?.id) {
+    throw new Error("Sandbox recording fixture could not be created.");
+  }
+
+  const { data: adBreak } = await supabase
+    .from("tv_ad_breaks")
+    .insert({
+      organization_id: input.organizationId,
+      recording_file_id: recording.id,
+      channel_id: input.channelId,
+      break_start_at: adStart.toISOString(),
+      break_end_at: adEnd.toISOString(),
+      duration_ms: 30_000,
+      confidence: 0.96,
+      detection_status: "detected",
+      reviewer_status: "pending",
+    })
+    .select("id")
+    .limit(1)
+    .maybeSingle();
+
+  const { data: occurrence } = await supabase
+    .from("tv_ad_occurrences")
+    .insert({
+      organization_id: input.organizationId,
+      channel_id: input.channelId,
+      recording_file_id: recording.id,
+      ad_break_id: adBreak?.id ?? null,
+      brand_id: brandLookup.data?.id ?? null,
+      started_at: adStart.toISOString(),
+      ended_at: adEnd.toISOString(),
+      duration_seconds: 30,
+      exact_start_time_utc: adStart.toISOString(),
+      exact_end_time_utc: adEnd.toISOString(),
+      exact_duration_ms: 30_000,
+      display_timezone: "Asia/Baghdad",
+      classification: "commercial",
+      confidence_score: 0.96,
+      review_status: "needs_review",
+      reviewer_status: "needs_review",
+      content_type: "commercial",
+      first_detection_method: "sandbox_fixture",
+      is_first_seen: true,
+      source_provenance: {
+        mode: "sandbox_fixture",
+      },
+      detection_summary: "Deterministic sandbox fixture for ARY News workflow verification.",
+    })
+    .select("id")
+    .limit(1)
+    .maybeSingle();
+
+  if (!occurrence?.id) {
+    throw new Error("Sandbox occurrence fixture could not be created.");
+  }
+
+  await supabase.from("tv_ad_occurrence_sources").insert({
+    organization_id: input.organizationId,
+    occurrence_id: occurrence.id,
+    recording_file_id: recording.id,
+    source_offset_start_ms: 95_000,
+    source_offset_end_ms: 125_000,
+    sequence_order: 1,
+  });
+
+  await supabase.from("tv_ad_occurrence_clips").insert({
+    organization_id: input.organizationId,
+    occurrence_id: occurrence.id,
+    storage_key: `tv/occurrences/ary-news/sandbox/${sourceDatePath}/occurrence-fixture-001.mp4`,
+    proxy_storage_key: `tv/occurrences/ary-news/sandbox/${sourceDatePath}/occurrence-fixture-001-proxy.mp4`,
+    thumbnail_storage_key: `tv/thumbnails/ary-news/sandbox/${sourceDatePath}/occurrence-fixture-001.jpg`,
+    clip_started_at: clipStart.toISOString(),
+    clip_ended_at: clipEnd.toISOString(),
+    context_start_time_utc: clipStart.toISOString(),
+    context_end_time_utc: clipEnd.toISOString(),
+    exact_ad_start_offset_ms: 5_000,
+    exact_ad_end_offset_ms: 35_000,
+    pre_context_seconds: 5,
+    post_context_seconds: 5,
+    pre_context_ms: 5_000,
+    post_context_ms: 5_000,
+    context_status: "full",
+    clip_duration_ms: 40_000,
+    generation_status: "generated",
+    checksum_sha256: `${checksum}-clip`,
+    generated_at: now.toISOString(),
+  });
+
+  await supabase.from("tv_detection_evidence").insert([
+    {
+      organization_id: input.organizationId,
+      occurrence_id: occurrence.id,
+      evidence_type: "ocr",
+      provider: "sandbox-fixture",
+      score: 0.94,
+      detected_value: "Coca-Cola",
+      structured_result: {
+        language: "en",
+        text: "Coca-Cola Summer Spark",
+      },
+      model_version: "sandbox-v1",
+    },
+    {
+      organization_id: input.organizationId,
+      occurrence_id: occurrence.id,
+      evidence_type: "logo_detection",
+      provider: "sandbox-fixture",
+      score: 0.97,
+      detected_value: "Coca-Cola",
+      structured_result: {
+        matches: ["coca-cola"],
+      },
+      model_version: "sandbox-v1",
+    },
+  ]);
+
+  await supabase.from("tv_processing_jobs").insert({
+    organization_id: input.organizationId,
+    channel_id: input.channelId,
+    recording_file_id: recording.id,
+    job_type: "tv-sandbox-fixture-bootstrap",
+    queue_name: "tv-sandbox-fixture-bootstrap",
+    status: "completed",
+    attempts: 1,
+    payload: {
+      sourceId: input.sourceId,
+      mode: "sandbox_fixture",
+      occurrenceId: occurrence.id,
+    },
+    worker_version: "repo-scaffold",
+    started_at: now.toISOString(),
+    completed_at: now.toISOString(),
+  });
+
+  return { occurrenceId: occurrence.id, created: true };
+}
+
 export function mapSourceSummary(row: GenericRow): TvSourceSummary {
   return {
     id: rowString(row, "id"),

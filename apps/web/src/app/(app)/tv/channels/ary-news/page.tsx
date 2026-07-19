@@ -2,6 +2,7 @@ import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 
 import { SourceControlPanel } from "@/components/tv/source-control-panel";
+import { UploadManifestPanel } from "@/components/tv/upload-manifest-panel";
 import { StatusBadge } from "@/components/tv/status-badge";
 import { getAuthorizationGateSummary, getTvChannelOverview } from "@/lib/tv-data";
 
@@ -203,7 +204,9 @@ export default async function AryNewsChannelPage() {
             canStart={gate.canRecord}
             channelSlug={channel.slug}
             sourceId={channel.source?.id ?? null}
+            sourceType={channel.source?.sourceType ?? null}
           />
+          <UploadManifestPanel />
 
           <div className="rounded-[1.6rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
             <h2 className="text-lg font-semibold text-foreground">Source health</h2>

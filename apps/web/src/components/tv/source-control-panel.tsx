@@ -8,15 +8,18 @@ type SourceControlPanelProps = {
   sourceId: string | null;
   channelSlug: string;
   canStart: boolean;
+  sourceType?: string | null;
 };
 
 export function SourceControlPanel({
   sourceId,
   channelSlug,
   canStart,
+  sourceType,
 }: SourceControlPanelProps) {
   const [result, setResult] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const isSandboxSource = sourceType === "sandbox_fixture";
 
   function runAction(action: "test" | "start" | "stop") {
     if (!sourceId) {
@@ -54,11 +57,11 @@ export function SourceControlPanel({
         </button>
         <button
           className={buttonStyles.primary}
-          disabled={isPending || !sourceId || !canStart}
+          disabled={isPending || !sourceId || (!canStart && !isSandboxSource)}
           onClick={() => runAction("start")}
           type="button"
         >
-          Start recording
+          {isSandboxSource ? "Start sandbox session" : "Start recording"}
         </button>
         <button
           className={buttonStyles.dark}
@@ -70,8 +73,9 @@ export function SourceControlPanel({
         </button>
       </div>
       <p className="mt-3 text-xs leading-6 text-muted-foreground">
-        Start recording remains blocked until the source authorization is approved. Sandbox source
-        tests still run through the safe adapter contract.
+        {isSandboxSource
+          ? "Sandbox session startup is available for deterministic workflow testing. Live ARY News recording remains blocked until source authorization is approved."
+          : "Start recording remains blocked until the source authorization is approved. Sandbox source tests still run through the safe adapter contract."}
       </p>
       {result ? <p className="mt-3 text-sm font-medium text-foreground">{result}</p> : null}
     </div>
