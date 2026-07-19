@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install workspace dependencies
+        run: npm install
+      - name: Lint web app
+        run: npm run lint --workspace web
+      - name: Typecheck web app
+        run: npm run typecheck --workspace web
+      - name: Build web app
+        run: npm run build --workspace web
+
+  python-services:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install media-ai dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install fastapi uvicorn pydantic pydantic-settings pytest httpx
+      - name: Test media-ai service
+        run: PYTHONPATH=services/media-ai pytest services/media-ai/tests
+      - name: Test workers
+        run: PYTHONPATH=. pytest workers/tests

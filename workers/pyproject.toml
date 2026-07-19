@@ -1,0 +1,10 @@
+[project]
+name = "fizzion-workers"
+version = "0.1.0"
+description = "Queue-driven workers for FizZion"
+requires-python = ">=3.13"
+dependencies = []
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
