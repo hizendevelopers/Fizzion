@@ -45,16 +45,20 @@ export function getSupabasePublishableKey() {
 }
 
 export function getSupabaseSecretKey() {
-  const value = getEnvValue([
-    "SUPABASE_SECRET_KEY",
-    "SUPABASE_SERVICE_ROLE_KEY",
-  ]);
+  const value = getOptionalSupabaseSecretKey();
 
   if (!value) {
     throw new Error("Supabase secret key is not configured.");
   }
 
   return value;
+}
+
+export function getOptionalSupabaseSecretKey() {
+  return getEnvValue([
+    "SUPABASE_SECRET_KEY",
+    "SUPABASE_SERVICE_ROLE_KEY",
+  ]);
 }
 
 export function getSupabaseProjectId() {

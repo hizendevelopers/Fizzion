@@ -1,8 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 
 import {
+  getOptionalSupabaseSecretKey,
   getSupabasePublishableKey,
-  getSupabaseSecretKey,
   getSupabaseUrl,
 } from "@/lib/env";
 
@@ -30,8 +30,11 @@ export function getSupabaseServerClient() {
 
 export function getSupabaseAdminClient() {
   if (!adminServerClient) {
+    const serviceKey = getOptionalSupabaseSecretKey();
+    const accessKey = serviceKey ?? getSupabasePublishableKey();
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    adminServerClient = createClient<any>(getSupabaseUrl(), getSupabaseSecretKey(), {
+    adminServerClient = createClient<any>(getSupabaseUrl(), accessKey, {
       auth: {
         persistSession: false,
         autoRefreshToken: false,
