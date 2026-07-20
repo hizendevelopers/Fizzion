@@ -1,11 +1,76 @@
 const DEFAULT_SUPABASE_PROJECT_ID = "urhfqdjhecohdapynglm";
 const DEFAULT_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_DnSUdzVV1z24mMrG-IvxNA_dW223WKV";
+let serverEnvFileCache: Record<string, string> | null = null;
+
+function readServerEnvFileValue(key: string) {
+  if (typeof window !== "undefined") {
+    return undefined;
+  }
+
+  if (!serverEnvFileCache) {
+    serverEnvFileCache = {};
+
+    try {
+      const fs = process.getBuiltinModule?.("node:fs") as typeof import("node:fs") | undefined;
+      const path = process.getBuiltinModule?.("node:path") as typeof import("node:path") | undefined;
+      if (!fs || !path) {
+        return undefined;
+      }
+
+      const cwd = process.cwd();
+      const candidates = [
+        path.resolve(cwd, ".env.local"),
+        path.resolve(cwd, ".env"),
+        path.resolve(cwd, "..", ".env.local"),
+        path.resolve(cwd, "..", ".env"),
+        path.resolve(cwd, "..", "..", ".env.local"),
+        path.resolve(cwd, "..", "..", ".env"),
+      ];
+
+      for (const filePath of candidates) {
+        if (!fs.existsSync(filePath)) {
+          continue;
+        }
+
+        const file = fs.readFileSync(filePath, "utf8");
+        for (const line of file.split(/\r?\n/)) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith("#")) {
+            continue;
+          }
+
+          const equalsIndex = trimmed.indexOf("=");
+          if (equalsIndex <= 0) {
+            continue;
+          }
+
+          const envKey = trimmed.slice(0, equalsIndex).trim();
+          let envValue = trimmed.slice(equalsIndex + 1).trim();
+          envValue = envValue.replace(/^['"]|['"]$/g, "");
+
+          if (!(envKey in serverEnvFileCache)) {
+            serverEnvFileCache[envKey] = envValue;
+          }
+        }
+      }
+    } catch {
+      serverEnvFileCache = {};
+    }
+  }
+
+  return serverEnvFileCache[key];
+}
 
 function getEnvValue(keys: string[], fallback?: string) {
   for (const key of keys) {
     const value = process.env[key];
     if (value && value.trim().length > 0) {
       return value;
+    }
+
+    const fileValue = readServerEnvFileValue(key);
+    if (fileValue && fileValue.trim().length > 0) {
+      return fileValue;
     }
   }
 

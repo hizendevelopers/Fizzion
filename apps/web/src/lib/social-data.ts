@@ -1,4 +1,5 @@
 import { getOptionalSupabaseAdminClient, getSupabaseAdminClient } from "@/lib/supabase/server";
+import { getOptionalSupabaseSecretKey } from "@/lib/env";
 
 import { getSocialFixture } from "./social-fixtures";
 import { getSocialProvider } from "./social-providers";
@@ -191,6 +192,50 @@ function getPlatformLabel(provider: SocialProviderKey) {
   return provider === "youtube" ? "YouTube" : provider.charAt(0).toUpperCase() + provider.slice(1);
 }
 
+async function ensureSocialBootstrapData() {
+  const hasServiceKey = Boolean(getOptionalSupabaseSecretKey());
+  if (!hasServiceKey) {
+    return false;
+  }
+
+  const supabase = getSupabaseAdminClient();
+
+  await supabase.from("organizations").upsert(
+    [
+      {
+        slug: "coca_cola_iraq",
+        name: "Coca-Cola Iraq",
+        name_ar: "كوكاكولا العراق",
+        market: "Iraq",
+        timezone: "Asia/Baghdad",
+        is_active: true,
+      },
+      {
+        slug: "hizen",
+        name: "Hizen",
+        name_ar: "هايزن",
+        market: "Iraq",
+        timezone: "Asia/Baghdad",
+        is_active: true,
+      },
+    ],
+    { onConflict: "slug" },
+  );
+
+  await supabase.from("social_platforms").upsert(
+    [
+      { key: "facebook", name: "Facebook", oauth_supported: true, public_monitoring_supported: true },
+      { key: "instagram", name: "Instagram", oauth_supported: true, public_monitoring_supported: true },
+      { key: "tiktok", name: "TikTok", oauth_supported: true, public_monitoring_supported: true },
+      { key: "youtube", name: "YouTube", oauth_supported: true, public_monitoring_supported: true },
+      { key: "x", name: "X", oauth_supported: true, public_monitoring_supported: true },
+    ],
+    { onConflict: "key" },
+  );
+
+  return true;
+}
+
 export async function getDefaultSocialOrganizationId() {
   const supabase = getSupabaseAdminClient();
   const preferred = await supabase
@@ -212,13 +257,37 @@ export async function getDefaultSocialOrganizationId() {
     .maybeSingle();
 
   if (!fallback.data?.id) {
+    await ensureSocialBootstrapData();
+
+    const retryPreferred = await supabase
+      .from("organizations")
+      .select("id")
+      .eq("slug", "coca_cola_iraq")
+      .limit(1)
+      .maybeSingle();
+
+    if (retryPreferred.data?.id) {
+      return retryPreferred.data.id as string;
+    }
+
+    const retryFallback = await supabase
+      .from("organizations")
+      .select("id")
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (retryFallback.data?.id) {
+      return retryFallback.data.id as string;
+    }
+
     throw new Error("No organization is available for Social Intelligence.");
   }
 
   return fallback.data.id as string;
 }
 
-async function getPlatformId(provider: SocialProviderKey) {
+export async function getSocialPlatformId(provider: SocialProviderKey) {
   const supabase = getSupabaseAdminClient();
   const { data } = await supabase
     .from("social_platforms")
@@ -228,6 +297,19 @@ async function getPlatformId(provider: SocialProviderKey) {
     .maybeSingle();
 
   if (!data?.id) {
+    await ensureSocialBootstrapData();
+
+    const retry = await supabase
+      .from("social_platforms")
+      .select("id")
+      .eq("key", provider)
+      .limit(1)
+      .maybeSingle();
+
+    if (retry.data?.id) {
+      return retry.data.id as string;
+    }
+
     throw new Error(`Social platform ${provider} is not seeded.`);
   }
 
@@ -439,7 +521,7 @@ export async function completeSocialOAuthConnection(input: {
   }
 
   const fixture = getSocialFixture(input.provider);
-  const platformId = await getPlatformId(input.provider);
+  const platformId = await getSocialPlatformId(input.provider);
   const now = new Date().toISOString();
 
   const { data: socialAccount, error: accountError } = await supabase

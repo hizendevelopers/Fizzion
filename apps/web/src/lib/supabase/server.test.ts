@@ -42,14 +42,14 @@ test("supabase url falls back to the project id when the direct url env is missi
   }
 });
 
-test("optional supabase secret key stays null when no service key env is present", () => {
+test("optional supabase secret key can resolve from server env files when process env is missing", () => {
   const previousSecretKey = process.env.SUPABASE_SECRET_KEY;
   const previousServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   delete process.env.SUPABASE_SECRET_KEY;
   delete process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  assert.equal(getOptionalSupabaseSecretKey(), undefined);
+  assert.equal(typeof getOptionalSupabaseSecretKey(), "string");
 
   if (previousSecretKey === undefined) {
     delete process.env.SUPABASE_SECRET_KEY;

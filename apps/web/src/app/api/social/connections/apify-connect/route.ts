@@ -1,6 +1,8 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 
 import { makeSocialRequestId, socialApiError } from "@/lib/social-api";
+import { getDefaultSocialOrganizationId, getSocialPlatformId, syncSocialConnection } from "@/lib/social-data";
+import { getApifyApiToken } from "@/lib/env";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { validateAndNormalizeInput, performFullSync } from "@/lib/social-sync-utils";
 import { APIFY_ACTORS } from "@/lib/apify/actors";
@@ -24,43 +26,18 @@ export async function POST(request: Request) {
 
     // Validate and normalize the input
     const normalized = await validateAndNormalizeInput(platform, inputValue);
+    let hasApifyToken = true;
 
-    // Get organization
+    try {
+      getApifyApiToken();
+    } catch {
+      hasApifyToken = false;
+    }
+
     const supabase = getSupabaseAdminClient();
-    let { data: org } = await supabase
-      .from("organizations")
-      .select("id")
-      .eq("slug", "coca_cola_iraq")
-      .limit(1)
-      .maybeSingle();
-
-    if (!org) {
-      const { data: fallbackOrg } = await supabase
-        .from("organizations")
-        .select("id")
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      if (!fallbackOrg) {
-        return socialApiError("NO_ORGANIZATION", "No organization found. Please set up an organization first.", 500, requestId);
-      }
-      org = fallbackOrg;
-    }
-
-    const organizationId = org.id;
+    const organizationId = await getDefaultSocialOrganizationId();
     const now = new Date().toISOString();
-
-    // Get platform ID
-    let platformId: string | undefined;
-    const { data: platformRow } = await supabase
-      .from("social_platforms")
-      .select("id")
-      .eq("key", platform)
-      .limit(1)
-      .maybeSingle();
-    if (platformRow) {
-      platformId = platformRow.id;
-    }
+    const platformId = await getSocialPlatformId(platform);
 
     // Create social_account record
     const { data: socialAccount, error: accountError } = await supabase
@@ -102,9 +79,10 @@ export async function POST(request: Request) {
         username: normalized.username ?? normalized.handle,
         account_type: "public_scrape",
         apify_actor_id: APIFY_ACTORS[platform],
-        token_status: "not_required",
+        token_status: hasApifyToken ? "not_required" : "sandbox",
+        sandbox_mode: !hasApifyToken,
         metadata: {
-          source: "apify_scrape",
+          source: hasApifyToken ? "apify_scrape" : "sandbox_fixture",
           normalizedInput: normalized,
         },
         created_at: now,
@@ -120,44 +98,54 @@ export async function POST(request: Request) {
 
     const connectionId = connection.id;
 
-    // Create sync job record
-    await supabase.from("social_sync_jobs").insert({
-      organization_id: organizationId,
-      social_account_id: socialAccount.id,
-      connection_id: connectionId,
-      platform,
-      sync_mode: "initial",
-      job_type: "initial_import",
-      status: "running",
-      started_at: now,
-      created_at: now,
-      updated_at: now,
-    });
+    if (!hasApifyToken) {
+      await syncSocialConnection(connectionId, { mode: "initial" });
+    } else {
+      const { error: jobError } = await supabase.from("social_sync_jobs").insert({
+        organization_id: organizationId,
+        social_account_id: socialAccount.id,
+        connection_id: connectionId,
+        platform,
+        sync_mode: "initial",
+        job_type: "initial_import",
+        status: "running",
+        started_at: now,
+        created_at: now,
+        updated_at: now,
+      });
 
-    // Update connection status to importing
-    await supabase.from("social_connections").update({
-      connection_status: "importing",
-      sync_status: "scraping",
-      status: "importing",
-      updated_at: now,
-    }).eq("id", connectionId);
+      if (jobError) {
+        return socialApiError("SYNC_JOB_CREATE_FAILED", jobError.message, 500, requestId);
+      }
 
-    // Start the full sync in background (fire-and-forget)
-    performFullSync(
-      connectionId,
-      platform,
-      organizationId,
-      socialAccount.id,
-      normalized,
-    ).catch((error) => {
-      console.error(`Social Apify sync failed for connection ${connectionId}:`, error);
-    });
+      await supabase.from("social_connections").update({
+        connection_status: "importing",
+        sync_status: "scraping",
+        status: "importing",
+        updated_at: now,
+      }).eq("id", connectionId);
+
+      after(() => {
+        performFullSync(
+          connectionId,
+          platform,
+          organizationId,
+          socialAccount.id,
+          normalized,
+        ).catch((error) => {
+          console.error(`Social Apify sync failed for connection ${connectionId}:`, error);
+        });
+      });
+    }
 
     return NextResponse.json({
       requestId,
       ok: true,
       connectionId,
-      message: "Scraping started. Your account will be connected automatically once data is imported.",
+      mode: hasApifyToken ? "apify" : "sandbox",
+      message: hasApifyToken
+        ? "Scraping started. Your account will be connected automatically once data is imported."
+        : "APIFY_API_TOKEN is not configured, so a clearly labeled sandbox fixture was imported for this account.",
     });
   } catch (error) {
     return socialApiError(
