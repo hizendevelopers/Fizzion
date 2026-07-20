@@ -22,27 +22,28 @@ export function normalizeYouTubeProfile(
   const firstWithMeta = items.find(
     (item) => item.channelId != null || item.channelName != null,
   ) ?? items[0];
+  const channel = (firstWithMeta.channel ?? {}) as Record<string, unknown>;
 
   const channelId = toString(firstWithMeta.channelId);
-  const channelName = toString(firstWithMeta.channelName ?? firstWithMeta.channel?.name);
+  const channelName = toString(firstWithMeta.channelName ?? channel.name);
   const channelUrl = toString(firstWithMeta.channelUrl)
     ?? (channelId ? `https://www.youtube.com/channel/${channelId}` : undefined);
-  const avatar = toString(firstWithMeta.channelAvatar ?? firstWithMeta.channel?.avatar);
-  const description = toString(firstWithMeta.channelDescription ?? firstWithMeta.channel?.description);
-  const subscribers = toNumber(firstWithMeta.subscriberCount ?? firstWithMeta.channel?.subscriberCount);
-  const totalViews = toNumber(firstWithMeta.totalChannelViews ?? firstWithMeta.channel?.views);
+  const avatar = toString(firstWithMeta.channelAvatar ?? channel.avatar);
+  const description = toString(firstWithMeta.channelDescription ?? channel.description);
+  const subscribers = toNumber(firstWithMeta.subscriberCount ?? channel.subscriberCount);
+  const totalViews = toNumber(firstWithMeta.totalChannelViews ?? channel.views);
   const videoCount = items.length;
 
   return {
     platform: "youtube",
     externalAccountId: channelId,
     displayName: channelName ?? "Unknown Channel",
-    username: toString(firstWithMeta.channelHandle ?? firstWithMeta.channel?.handle),
+    username: toString(firstWithMeta.channelHandle ?? channel.handle),
     profileUrl: channelUrl ?? "",
     profileImageUrl: avatar,
     bio: description,
-    category: toString(firstWithMeta.channel?.category),
-    verified: toBoolean(firstWithMeta.verified ?? firstWithMeta.channel?.verified),
+    category: toString(channel.category),
+    verified: toBoolean(firstWithMeta.verified ?? channel.verified),
     followers: subscribers,
     following: undefined,
     totalPosts: videoCount,
@@ -123,13 +124,13 @@ export function normalizeYouTubeComments(
     if (!Array.isArray(itemComments)) continue;
 
     for (const c of itemComments) {
-      const author = c.author as Record<string, unknown> | undefined;
+      const author = (c.author ?? {}) as Record<string, unknown>;
       comments.push({
         externalCommentId: String(c.id ?? c.commentId ?? Math.random()),
         parentCommentId: toString(c.parentId) as string | undefined,
-        authorName: toString(author?.displayName ?? author?.name),
-        authorUsername: toString(author?.channelId ?? author?.id),
-        authorAvatarUrl: toString(author?.avatar ?? author?.profileImageUrl),
+        authorName: toString(author.displayName ?? author.name),
+        authorUsername: toString(author.channelId ?? author.id),
+        authorAvatarUrl: toString(author.avatar ?? author.profileImageUrl),
         commentText: toString(c.text ?? c.comment ?? c.message) ?? "",
         likes: toNumber(c.likeCount ?? c.likes),
         repliesCount: toNumber(c.totalReplyCount ?? c.replies) ?? 0,
@@ -141,4 +142,3 @@ export function normalizeYouTubeComments(
 
   return comments;
 }
-</create_file>

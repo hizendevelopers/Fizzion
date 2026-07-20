@@ -6,7 +6,6 @@ import {
   toDate,
   toStringArray,
   sumEngagements,
-  calcEngagementRate,
   extractHashtags,
   extractMentions,
   getNested,
@@ -23,19 +22,20 @@ export function normalizeFacebookProfile(
   const firstWithPage = items.find(
     (item) => item.pageId != null || item.pageName != null,
   ) ?? items[0];
+  const page = (firstWithPage.page ?? {}) as Record<string, unknown>;
 
   const pageId = toString(firstWithPage.pageId);
-  const pageName = toString(firstWithPage.pageName ?? firstWithPage.page?.name);
-  const username = toString(firstWithPage.username ?? firstWithPage.page?.username);
+  const pageName = toString(firstWithPage.pageName ?? page.name);
+  const username = toString(firstWithPage.username ?? page.username);
   const pageUrl = toString(firstWithPage.pageUrl)
     ?? (pageId ? `https://www.facebook.com/${pageId}` : undefined);
-  const avatar = toString(firstWithPage.profilePicture ?? firstWithPage.page?.profilePicture ?? firstWithPage.page?.avatar);
-  const cover = toString(firstWithPage.coverPicture ?? firstWithPage.page?.cover);
-  const description = toString(firstWithPage.about ?? firstWithPage.description ?? firstWithPage.page?.about);
-  const category = toString(firstWithPage.category ?? firstWithPage.page?.category);
-  const followers = toNumber(firstWithPage.followerCount ?? firstWithPage.page?.followers);
-  const likes = toNumber(firstWithPage.likes ?? firstWithPage.page?.likes);
-  const checkins = toNumber(firstWithPage.checkins ?? firstWithPage.page?.checkins);
+  const avatar = toString(firstWithPage.profilePicture ?? page.profilePicture ?? page.avatar);
+  const cover = toString(firstWithPage.coverPicture ?? page.cover);
+  const description = toString(firstWithPage.about ?? firstWithPage.description ?? page.about);
+  const category = toString(firstWithPage.category ?? page.category);
+  const followers = toNumber(firstWithPage.followerCount ?? page.followers);
+  const likes = toNumber(firstWithPage.likes ?? page.likes);
+  const checkins = toNumber(firstWithPage.checkins ?? page.checkins);
 
   return {
     platform: "facebook",
@@ -47,7 +47,7 @@ export function normalizeFacebookProfile(
     coverImageUrl: cover,
     bio: description,
     category,
-    verified: toBoolean(firstWithPage.verified ?? firstWithPage.page?.verified),
+    verified: toBoolean(firstWithPage.verified ?? page.verified),
     followers,
     totalLikes: likes,
     totalPosts: items.length,
@@ -64,6 +64,9 @@ export function normalizeFacebookContent(
   return items
     .filter((item) => item.id != null || item.postId != null)
     .map((item) => {
+      const video = (item.video ?? {}) as Record<string, unknown>;
+      const reactionsValue = item.reactions;
+      const commentsValue = item.comments;
       const postId = toString(item.postId ?? item.id);
       const message = toString(item.message ?? item.text ?? item.caption ?? item.description) ?? "";
       const description = toString(item.description ?? item.story);
@@ -75,15 +78,15 @@ export function normalizeFacebookContent(
         : extractMentions(message);
 
       const imageList = toStringArray(item.images ?? item.pictureUrls ?? item.photos);
-      const videoUrl = toString(item.videoUrl ?? item.video?.source);
+      const videoUrl = toString(item.videoUrl ?? video.source);
       const mediaUrls = [
         ...(videoUrl ? [videoUrl] : []),
         ...imageList,
       ];
 
-      const reactions = toNumber(item.reactionCount ?? item.reactions?.length ?? item.reactions);
+      const reactions = toNumber(item.reactionCount ?? (Array.isArray(reactionsValue) ? reactionsValue.length : reactionsValue));
       const likes = toNumber(item.likeCount ?? item.likes);
-      const comments = toNumber(item.commentCount ?? item.comments?.length ?? item.comments);
+      const comments = toNumber(item.commentCount ?? (Array.isArray(commentsValue) ? commentsValue.length : commentsValue));
       const shares = toNumber(item.shareCount ?? item.shares);
       const views = toNumber(item.viewCount ?? item.views);
       const engagements = sumEngagements({ likes, comments, shares, reactions });
@@ -131,15 +134,16 @@ export function normalizeFacebookComments(
     const itemComments = item.comments as Record<string, unknown>[] | undefined;
     if (!Array.isArray(itemComments)) {
       const nestedComments = item.comments as Record<string, unknown> | undefined;
-      const dataArr = nestedComments?.data as Record<string, unknown>[] | undefined;
+      const dataArr = getNested(nestedComments ?? {}, "data") as Record<string, unknown>[] | undefined;
       if (Array.isArray(dataArr)) {
         for (const c of dataArr) {
           const from = c.from as Record<string, unknown> | undefined;
+          const parent = (c.parent ?? {}) as Record<string, unknown>;
           comments.push({
             externalCommentId: String(c.id ?? Math.random()),
-            parentCommentId: toString(c.parent?.id),
+            parentCommentId: toString(parent.id),
             authorName: toString(from?.name),
-            authorUsername: toString(from?.username ?? from?.id),
+            authorUsername: toString((from ?? {}).username ?? (from ?? {}).id),
             authorAvatarUrl: undefined,
             commentText: toString(c.message ?? c.text ?? c.comment) ?? "",
             likes: toNumber(c.likeCount ?? c.likes),
@@ -154,11 +158,12 @@ export function normalizeFacebookComments(
 
     for (const c of itemComments) {
       const from = c.from as Record<string, unknown> | undefined;
+      const parent = (c.parent ?? {}) as Record<string, unknown>;
       comments.push({
         externalCommentId: String(c.id ?? Math.random()),
-        parentCommentId: toString(c.parent?.id),
+        parentCommentId: toString(parent.id),
         authorName: toString(from?.name),
-        authorUsername: toString(from?.username ?? from?.id),
+        authorUsername: toString((from ?? {}).username ?? (from ?? {}).id),
         authorAvatarUrl: undefined,
         commentText: toString(c.message ?? c.text ?? c.comment) ?? "",
         likes: toNumber(c.likeCount ?? c.likes),
@@ -171,4 +176,3 @@ export function normalizeFacebookComments(
 
   return comments;
 }
-</create_file>

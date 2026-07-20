@@ -43,7 +43,7 @@ export async function POST(
     const platform = connection.connection_type as SocialProviderKey;
 
     // Get the input value to scrape
-    let inputValue = connection.input_value || connection.normalized_url;
+    const inputValue = connection.input_value || connection.normalized_url;
 
     if (!inputValue) {
       return socialApiError(
@@ -114,4 +114,3 @@ export async function POST(
     );
   }
 }
-</create_file>

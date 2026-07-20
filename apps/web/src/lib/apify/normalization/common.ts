@@ -1,8 +1,3 @@
-import type {
-  NormalizedSocialContent,
-  NormalizedSocialProfile,
-} from "../unified-provider";
-
 /**
  * Map a raw value to a number or undefined.
  */

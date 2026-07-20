@@ -150,8 +150,11 @@ export function normalizeInstagramComments(
 
   for (const item of items) {
     const commentData = item.comments as Record<string, unknown> | undefined;
-    const edges = (commentData?.data ?? item.edge_media_to_comment) as Record<string, unknown>[] | undefined;
-    const edgeList = Array.isArray(edges) ? edges : (edges as unknown as { edges?: Record<string, unknown>[] })?.edges ?? [];
+    const edges = (getNested(commentData ?? {}, "data") ?? item.edge_media_to_comment) as
+      | Record<string, unknown>[]
+      | { edges?: Record<string, unknown>[] }
+      | undefined;
+    const edgeList = Array.isArray(edges) ? edges : edges?.edges ?? [];
 
     for (const edge of edgeList) {
       const node = (edge.node ?? edge) as Record<string, unknown>;
@@ -160,9 +163,9 @@ export function normalizeInstagramComments(
       comments.push({
         externalCommentId: String(node.id ?? Math.random()),
         parentCommentId: undefined,
-        authorName: toString(nodeOwner?.full_name ?? nodeOwner?.username),
-        authorUsername: toString(nodeOwner?.username),
-        authorAvatarUrl: toString(nodeOwner?.profile_pic_url),
+        authorName: toString((nodeOwner ?? {}).full_name ?? (nodeOwner ?? {}).username),
+        authorUsername: toString((nodeOwner ?? {}).username),
+        authorAvatarUrl: toString((nodeOwner ?? {}).profile_pic_url),
         commentText: toString(node.text ?? node.comment) ?? "",
         likes: toNumber(getNested(node, "edge_liked_by.count")) ?? toNumber(node.likes),
         repliesCount: toNumber(getNested(node, "edge_threaded_comments.count")) ?? toNumber(node.replies) ?? 0,
@@ -174,4 +177,3 @@ export function normalizeInstagramComments(
 
   return comments;
 }
-</create_file>

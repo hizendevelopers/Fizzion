@@ -6,7 +6,8 @@
  * For now, it provides the core sync logic that can be invoked from API routes.
  */
 import type { SocialProviderKey } from "@/lib/social-schemas";
-import type { NormalizedSocialInput, SyncProgress, SyncResult } from "@/lib/social-sync-utils";
+import type { NormalizedSocialInput } from "@/lib/apify/unified-provider";
+import type { SyncProgress, SyncResult } from "@/lib/social-sync-utils";
 import { validateAndNormalizeInput, performFullSync } from "@/lib/social-sync-utils";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 
@@ -155,4 +156,3 @@ export async function cancelRunningSync(connectionId: string): Promise<void> {
     .eq("connection_id", connectionId)
     .eq("status", "running");
 }
-</create_file>

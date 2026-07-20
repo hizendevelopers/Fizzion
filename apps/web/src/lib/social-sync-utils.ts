@@ -53,8 +53,6 @@ export async function validateAndNormalizeInput(
   // Determine input type
   const looksLikeUrl = trimmed.startsWith("http://") || trimmed.startsWith("https://");
   const isHandle = trimmed.startsWith("@");
-  const plainUsername = !looksLikeUrl && !isHandle;
-
   let normalizedUrl: string | undefined;
   let username: string | undefined;
   let handle: string | undefined;
@@ -187,7 +185,7 @@ export async function processAndSaveResults(
   const supabase = getSupabaseAdminClient();
   const now = new Date().toISOString();
 
-  let allItems: Record<string, unknown>[] = [];
+  const allItems: Record<string, unknown>[] = [];
   let profile: NormalizedSocialProfile | undefined;
   let contentItems: NormalizedSocialContent[] = [];
   let commentItems: NormalizedSocialComment[] = [];
@@ -361,9 +359,6 @@ export async function processAndSaveResults(
       );
 
       // Save comments for this content
-      const contentComments = commentItems.filter(
-        (c) => content.externalContentId === content.externalContentId,
-      );
       const postComments = commentItems; // all comments go to post
       if (postComments.length > 0 && savedContent === 1) {
         // Associate comments with first post for simplicity
@@ -581,4 +576,3 @@ export async function refreshConnection(
     normalized,
   );
 }
-</create_file>

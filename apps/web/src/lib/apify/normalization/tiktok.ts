@@ -21,7 +21,7 @@ export function normalizeTikTokProfile(
   const itemWithMeta = items.find(
     (item) => item.authorMeta != null && typeof item.authorMeta === "object",
   );
-  const meta = itemWithMeta?.authorMeta as Record<string, unknown> | undefined;
+  const meta = (itemWithMeta?.authorMeta ?? {}) as Record<string, unknown>;
 
   let maxFollowers = 0;
   let maxFollowing = 0;
@@ -44,18 +44,18 @@ export function normalizeTikTokProfile(
     totalShares += toNumber(item.shareCount) ?? 0;
   }
 
-  const profileUrl = meta?.url ? toString(meta.url) : "";
+  const profileUrl = meta.url ? toString(meta.url) : "";
   const engagements = sumEngagements({ likes: totalLikes, comments: totalComments, shares: totalShares });
 
   return {
     platform: "tiktok",
-    externalAccountId: meta?.id ? String(meta.id) : undefined,
-    displayName: toString(meta?.name) ?? "Unknown",
-    username: toString(meta?.uniqueId),
-    profileUrl: profileUrl || `https://www.tiktok.com/@${meta?.uniqueId ?? "unknown"}`,
-    profileImageUrl: toString(meta?.avatar),
-    bio: toString(meta?.signature),
-    verified: toBoolean(meta?.verified),
+    externalAccountId: meta.id ? String(meta.id) : undefined,
+    displayName: toString(meta.name) ?? "Unknown",
+    username: toString(meta.uniqueId),
+    profileUrl: profileUrl || `https://www.tiktok.com/@${meta.uniqueId ?? "unknown"}`,
+    profileImageUrl: toString(meta.avatar),
+    bio: toString(meta.signature),
+    verified: toBoolean(meta.verified),
     followers: maxFollowers > 0 ? maxFollowers : undefined,
     following: maxFollowing > 0 ? maxFollowing : undefined,
     totalPosts: items.length,
@@ -76,7 +76,7 @@ export function normalizeTikTokContent(
   return items
     .filter((item) => item.id != null)
     .map((item) => {
-      const meta = item.authorMeta as Record<string, unknown> | undefined;
+      const meta = (item.authorMeta ?? {}) as Record<string, unknown>;
       const description = toString(item.description) ?? toString(item.text) ?? "";
       const hashtags = toStringArray(item.hashtags).length > 0
         ? toStringArray(item.hashtags)
@@ -88,26 +88,26 @@ export function normalizeTikTokContent(
       const saves = toNumber(item.savedCount);
       const views = toNumber(item.playCount);
       const engagements = sumEngagements({ likes, comments, shares, saves });
-      const covers = item.covers as Record<string, unknown> | undefined;
-      const videoMeta = item.videoMeta as Record<string, unknown> | undefined;
+      const covers = (item.covers ?? {}) as Record<string, unknown>;
+      const videoMeta = (item.videoMeta ?? {}) as Record<string, unknown>;
 
       return {
         platform: "tiktok",
         externalContentId: String(item.id),
-        externalAccountId: meta?.id ? String(meta.id) : undefined,
-        contentType: videoMeta ? "video" : "short",
+        externalAccountId: meta.id ? String(meta.id) : undefined,
+        contentType: toNumber(videoMeta.duration) ? "video" : "short",
         title: description ? description.split("\n")[0].slice(0, 120) : undefined,
         caption: description,
         description: description,
         permalink: toString(item.webVideoUrl) ?? toString(item.videoUrl),
-        thumbnailUrl: toString(covers?.default) ?? toString(covers?.dynamic),
+        thumbnailUrl: toString(covers.default) ?? toString(covers.dynamic),
         mediaUrls: [toString(item.videoUrl)].filter(Boolean) as string[],
         hashtags,
         mentions,
         taggedAccounts: [],
         collaborators: [],
         publishedAt: toDate(item.createTimeISO ?? item.createTime),
-        durationSeconds: toNumber(videoMeta?.duration),
+        durationSeconds: toNumber(videoMeta.duration),
         isPinned: toBoolean(item.isPinned),
         views,
         likes,
@@ -115,7 +115,7 @@ export function normalizeTikTokContent(
         shares,
         saves,
         engagements,
-        engagementRate: calcEngagementRate(engagements, meta ? toNumber(meta.followers) : undefined),
+        engagementRate: calcEngagementRate(engagements, toNumber(meta.followers)),
         rawData: item as Record<string, unknown>,
       };
     });
@@ -134,12 +134,12 @@ export function normalizeTikTokComments(
     if (!Array.isArray(itemComments)) continue;
 
     for (const c of itemComments) {
-      const authorMeta = c.authorMeta as Record<string, unknown> | undefined;
+      const authorMeta = (c.authorMeta ?? {}) as Record<string, unknown>;
       comments.push({
         externalCommentId: String(c.id ?? c.commentId ?? Math.random()),
-        authorName: toString(authorMeta?.name),
-        authorUsername: toString(authorMeta?.uniqueId),
-        authorAvatarUrl: toString(authorMeta?.avatar),
+        authorName: toString(authorMeta.name),
+        authorUsername: toString(authorMeta.uniqueId),
+        authorAvatarUrl: toString(authorMeta.avatar),
         commentText: toString(c.text ?? c.comment ?? c.message) ?? "",
         likes: toNumber(c.diggCount ?? c.likes),
         repliesCount: toNumber(c.replyCount) ?? 0,
@@ -151,4 +151,3 @@ export function normalizeTikTokComments(
 
   return comments;
 }
-</create_file>

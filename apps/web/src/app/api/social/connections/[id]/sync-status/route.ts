@@ -47,4 +47,3 @@ export async function GET(
       : null,
   });
 }
-</create_file>
