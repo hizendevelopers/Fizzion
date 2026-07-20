@@ -17,9 +17,11 @@ def test_tv_worker_accepts_job():
 
 
 def test_social_worker_accepts_job():
-    payload = social_handle("account-1")
+    payload = social_handle("account-1", provider="instagram", job_type="initial_import")
     assert payload["worker"] == "social-sync"
     assert payload["status"] == "accepted"
+    assert payload["provider"] == "instagram"
+    assert payload["queue_name"] == "social-sync-jobs"
 
 
 def test_web_worker_accepts_job():

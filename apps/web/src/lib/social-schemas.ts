@@ -1,0 +1,75 @@
+import { z } from "zod";
+
+export const socialProviderSchema = z.enum([
+  "facebook",
+  "instagram",
+  "tiktok",
+  "youtube",
+]);
+
+export const socialDiscoverSchema = z.object({
+  provider: socialProviderSchema,
+  input: z.string().trim().min(2).max(500),
+});
+
+export const socialConnectStartSchema = z.object({
+  provider: socialProviderSchema,
+  input: z.string().trim().min(2).max(500),
+  mode: z.enum(["live", "sandbox"]).default("sandbox"),
+});
+
+export const socialCallbackQuerySchema = z.object({
+  state: z.string().min(8),
+  code: z.string().optional(),
+  mode: z.enum(["live", "sandbox"]).optional(),
+});
+
+export const socialSyncSchema = z.object({
+  mode: z.enum(["initial", "incremental", "refresh"]).default("refresh"),
+});
+
+export const socialReportSchema = z.object({
+  reportType: z.enum([
+    "portfolio",
+    "account",
+    "content",
+    "followers",
+    "engagement",
+    "top_content",
+    "hashtags",
+    "sentiment",
+  ]),
+  connectionId: z.string().uuid().optional(),
+  format: z.enum(["csv", "pdf"]).default("csv"),
+  dateRange: z.enum(["today", "last7", "last30", "last90", "custom"]).default("last30"),
+});
+
+export const socialConnectionQuerySchema = z.object({
+  provider: socialProviderSchema.optional(),
+  dateRange: z.enum(["today", "last7", "last30", "last90", "custom"]).default("last30"),
+});
+
+export const socialContentQuerySchema = z.object({
+  q: z.string().trim().max(200).optional(),
+  contentType: z.string().trim().max(100).optional(),
+  sort: z.enum(["newest", "reach", "views", "engagements", "engagement_rate"]).default("newest"),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(50).default(12),
+});
+
+export const socialWebhookIngestSchema = z.object({
+  eventType: z.string().trim().min(2),
+  externalEventId: z.string().trim().min(2),
+  connectionId: z.string().uuid().optional(),
+  payload: z.record(z.string(), z.unknown()),
+});
+
+export type SocialProviderKey = z.infer<typeof socialProviderSchema>;
+export type SocialDiscoverInput = z.infer<typeof socialDiscoverSchema>;
+export type SocialConnectStartInput = z.infer<typeof socialConnectStartSchema>;
+export type SocialCallbackQuery = z.infer<typeof socialCallbackQuerySchema>;
+export type SocialSyncInput = z.infer<typeof socialSyncSchema>;
+export type SocialReportInput = z.infer<typeof socialReportSchema>;
+export type SocialConnectionQuery = z.infer<typeof socialConnectionQuerySchema>;
+export type SocialContentQuery = z.infer<typeof socialContentQuerySchema>;
+export type SocialWebhookIngestInput = z.infer<typeof socialWebhookIngestSchema>;
