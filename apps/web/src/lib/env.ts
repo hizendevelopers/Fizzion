@@ -49,3 +49,10 @@ export function getSupabaseProjectId() {
   return getEnvValue(["SUPABASE_PROJECT_ID"], "urhfqdjhecohdapynglm");
 }
 
+export function getApifyApiToken(): string {
+  const value = getEnvValue(["APIFY_API_TOKEN"]);
+  if (!value) {
+    throw new Error("APIFY_API_TOKEN is not configured. Add it to your .env.local file.");
+  }
+  return value;
+}

@@ -64,6 +64,26 @@ export const socialWebhookIngestSchema = z.object({
   payload: z.record(z.string(), z.unknown()),
 });
 
+// Apify-based connection schemas
+export const socialApifyDiscoverSchema = z.object({
+  provider: socialProviderSchema,
+  input: z.string().trim().min(2).max(2000),
+});
+
+export const socialApifyConnectSchema = z.object({
+  provider: socialProviderSchema,
+  input: z.string().trim().min(2).max(2000),
+  resultsLimit: z.coerce.number().int().min(1).max(500).default(100),
+});
+
+export const socialApifySyncStatusSchema = z.object({
+  includeProgress: z.coerce.boolean().default(false),
+});
+
+export const socialApifyRefreshSchema = z.object({
+  resultsLimit: z.coerce.number().int().min(1).max(500).optional(),
+});
+
 export type SocialProviderKey = z.infer<typeof socialProviderSchema>;
 export type SocialDiscoverInput = z.infer<typeof socialDiscoverSchema>;
 export type SocialConnectStartInput = z.infer<typeof socialConnectStartSchema>;
@@ -73,3 +93,7 @@ export type SocialReportInput = z.infer<typeof socialReportSchema>;
 export type SocialConnectionQuery = z.infer<typeof socialConnectionQuerySchema>;
 export type SocialContentQuery = z.infer<typeof socialContentQuerySchema>;
 export type SocialWebhookIngestInput = z.infer<typeof socialWebhookIngestSchema>;
+export type SocialApifyDiscoverInput = z.infer<typeof socialApifyDiscoverSchema>;
+export type SocialApifyConnectInput = z.infer<typeof socialApifyConnectSchema>;
+export type SocialApifySyncStatusInput = z.infer<typeof socialApifySyncStatusSchema>;
+export type SocialApifyRefreshInput = z.infer<typeof socialApifyRefreshSchema>;
