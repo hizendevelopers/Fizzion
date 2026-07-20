@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { makeSocialRequestId, socialApiError } from "@/lib/social-api";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
-import { validateAndNormalizeInput, performFullSync } from "@/lib/social-sync-utils";
+import { startPlatformScrape, validateAndNormalizeInput } from "@/lib/social-sync-utils";
 import { socialSyncSchema } from "@/lib/social-schemas";
 import type { SocialProviderKey } from "@/lib/social-schemas";
 
@@ -80,23 +80,39 @@ export async function POST(
       organization_id: socialAccount.organization_id,
       social_account_id: socialAccount.id,
       connection_id: id,
-      platform,
       sync_mode: parsed.data.mode,
       job_type: parsed.data.mode === "initial" ? "initial_import" : "incremental_refresh",
       status: "running",
       started_at: now,
+      actor_id: connection.apify_actor_id ?? null,
+      payload: {
+        source: "manual_sync",
+      },
     });
 
-    // Perform the full sync asynchronously (we'll return immediately and let the client poll)
-    performFullSync(
-      id,
-      platform,
-      socialAccount.organization_id,
-      socialAccount.id,
-      normalized,
-    ).catch((error) => {
-      console.error(`Social sync failed for connection ${id}:`, error);
-    });
+    const { runId, datasetId } = await startPlatformScrape(normalized);
+    if (!datasetId) {
+      return socialApiError("SCRAPE_START_FAILED", "Scraper did not return a dataset ID.", 500, requestId);
+    }
+
+    await supabase.from("social_connections").update({
+      connection_status: "importing",
+      sync_status: "scraping",
+      latest_apify_run_id: runId,
+      latest_dataset_id: datasetId,
+      updated_at: now,
+    }).eq("id", id);
+
+    await supabase.from("social_sync_jobs").update({
+      actor_id: connection.apify_actor_id ?? null,
+      apify_run_id: runId,
+      dataset_id: datasetId,
+      payload: {
+        source: "manual_sync",
+        stage: "scraper_running",
+      },
+      updated_at: now,
+    }).eq("connection_id", id).eq("status", "running");
 
     return NextResponse.json({
       requestId,

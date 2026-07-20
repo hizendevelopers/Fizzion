@@ -671,12 +671,12 @@ export async function syncSocialConnection(connectionId: string, input: SocialSy
     organization_id: organizationId,
     social_account_id: socialAccountId,
     connection_id: connectionId,
-    provider,
     sync_mode: input.mode,
     job_type: input.mode === "initial" ? "initial_import" : "incremental_refresh",
     status: "running",
     started_at: now,
-    metadata_json: {
+    actor_id: null,
+    payload: {
       sandboxMode,
     },
   });
@@ -696,9 +696,12 @@ export async function syncSocialConnection(connectionId: string, input: SocialSy
       .update({
         status: "failed",
         completed_at: now,
-        error_code: "LIVE_PROVIDER_SYNC_NOT_IMPLEMENTED",
         error_message:
           "Official OAuth authorization is stored, but live provider fetching still requires production API credentials and provider app review.",
+        payload: {
+          sandboxMode,
+          code: "LIVE_PROVIDER_SYNC_NOT_IMPLEMENTED",
+        },
       })
       .eq("connection_id", connectionId)
       .eq("status", "running");
@@ -744,7 +747,10 @@ export async function syncSocialConnection(connectionId: string, input: SocialSy
     .update({
       status: "completed",
       completed_at: now,
-      records_processed: fixture.content.length,
+      payload: {
+        sandboxMode,
+        recordsProcessed: fixture.content.length,
+      },
     })
     .eq("connection_id", connectionId)
     .eq("status", "running");

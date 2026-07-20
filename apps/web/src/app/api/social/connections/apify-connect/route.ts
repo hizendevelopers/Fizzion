@@ -1,10 +1,10 @@
-import { after, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 import { makeSocialRequestId, socialApiError } from "@/lib/social-api";
 import { getDefaultSocialOrganizationId, getSocialPlatformId, syncSocialConnection } from "@/lib/social-data";
 import { getApifyApiToken } from "@/lib/env";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
-import { validateAndNormalizeInput, performFullSync } from "@/lib/social-sync-utils";
+import { startPlatformScrape, validateAndNormalizeInput } from "@/lib/social-sync-utils";
 import { APIFY_ACTORS } from "@/lib/apify/actors";
 import type { SocialProviderKey } from "@/lib/social-schemas";
 
@@ -105,11 +105,14 @@ export async function POST(request: Request) {
         organization_id: organizationId,
         social_account_id: socialAccount.id,
         connection_id: connectionId,
-        platform,
         sync_mode: "initial",
         job_type: "initial_import",
         status: "running",
         started_at: now,
+        actor_id: APIFY_ACTORS[platform],
+        payload: {
+          source: "apify_scrape",
+        },
         created_at: now,
         updated_at: now,
       });
@@ -118,24 +121,29 @@ export async function POST(request: Request) {
         return socialApiError("SYNC_JOB_CREATE_FAILED", jobError.message, 500, requestId);
       }
 
+      const { runId, datasetId } = await startPlatformScrape(normalized);
+      if (!datasetId) {
+        return socialApiError("SCRAPE_START_FAILED", "Scraper did not return a dataset ID.", 500, requestId);
+      }
+
       await supabase.from("social_connections").update({
         connection_status: "importing",
         sync_status: "scraping",
         status: "importing",
+        latest_apify_run_id: runId,
+        latest_dataset_id: datasetId,
         updated_at: now,
       }).eq("id", connectionId);
 
-      after(() => {
-        performFullSync(
-          connectionId,
-          platform,
-          organizationId,
-          socialAccount.id,
-          normalized,
-        ).catch((error) => {
-          console.error(`Social Apify sync failed for connection ${connectionId}:`, error);
-        });
-      });
+      await supabase.from("social_sync_jobs").update({
+        actor_id: APIFY_ACTORS[platform],
+        apify_run_id: runId,
+        dataset_id: datasetId,
+        payload: {
+          stage: "scraper_running",
+        },
+        updated_at: now,
+      }).eq("connection_id", connectionId).eq("status", "running");
     }
 
     return NextResponse.json({

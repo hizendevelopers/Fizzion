@@ -452,7 +452,10 @@ export async function processAndSaveResults(
     await supabase.from("social_sync_jobs").update({
       status: "completed",
       completed_at: now,
-      records_processed: savedContent,
+      payload: {
+        recordsProcessed: savedContent,
+        commentCount: savedComments,
+      },
     }).eq("connection_id", connectionId).eq("status", "running");
 
     emitProgress("completed", 100, savedContent, "Completed");
@@ -526,6 +529,15 @@ export async function performFullSync(
     latest_dataset_id: datasetId,
     apify_actor_id: APIFY_ACTORS[platform],
   }).eq("id", connectionId);
+
+  await supabase.from("social_sync_jobs").update({
+    actor_id: APIFY_ACTORS[platform],
+    apify_run_id: runId,
+    dataset_id: datasetId,
+    payload: {
+      stage: "scraper_running",
+    },
+  }).eq("connection_id", connectionId).eq("status", "running");
 
   // Wait for the Actor to finish
   emitProgress("scraper_running", 15, 0, "Scraper running");
