@@ -9,8 +9,20 @@ function getEnvValue(keys: string[], fallback?: string) {
   return fallback;
 }
 
+function buildSupabaseUrlFromProjectId(projectId?: string) {
+  if (!projectId || projectId.trim().length === 0) {
+    return undefined;
+  }
+
+  return `https://${projectId.trim()}.supabase.co`;
+}
+
 export function getSupabaseUrl() {
-  const value = getEnvValue(["NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_URL"]);
+  const projectId = getEnvValue(["SUPABASE_PROJECT_ID"], "urhfqdjhecohdapynglm");
+  const value = getEnvValue(
+    ["NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_URL"],
+    buildSupabaseUrlFromProjectId(projectId),
+  );
   if (!value) {
     throw new Error("Supabase URL is not configured.");
   }
