@@ -1,3 +1,6 @@
+const DEFAULT_SUPABASE_PROJECT_ID = "urhfqdjhecohdapynglm";
+const DEFAULT_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_DnSUdzVV1z24mMrG-IvxNA_dW223WKV";
+
 function getEnvValue(keys: string[], fallback?: string) {
   for (const key of keys) {
     const value = process.env[key];
@@ -18,9 +21,9 @@ function buildSupabaseUrlFromProjectId(projectId?: string) {
 }
 
 export function getSupabaseUrl() {
-  const projectId = getEnvValue(["SUPABASE_PROJECT_ID"], "urhfqdjhecohdapynglm");
+  const projectId = getEnvValue(["SUPABASE_PROJECT_ID"], DEFAULT_SUPABASE_PROJECT_ID);
   const value = getEnvValue(
-    ["NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_URL"],
+    ["NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PROJECT_URL"],
     buildSupabaseUrlFromProjectId(projectId),
   );
   if (!value) {
@@ -34,8 +37,11 @@ export function getSupabasePublishableKey() {
   const value = getEnvValue([
     "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
     "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    "NEXT_PUBLIC_SUPABASE_KEY",
     "SUPABASE_PUBLISHABLE_KEY",
-  ]);
+    "SUPABASE_ANON_KEY",
+    "SUPABASE_KEY",
+  ], DEFAULT_SUPABASE_PUBLISHABLE_KEY);
 
   if (!value) {
     throw new Error("Supabase publishable key is not configured.");
@@ -62,7 +68,7 @@ export function getOptionalSupabaseSecretKey() {
 }
 
 export function getSupabaseProjectId() {
-  return getEnvValue(["SUPABASE_PROJECT_ID"], "urhfqdjhecohdapynglm");
+  return getEnvValue(["SUPABASE_PROJECT_ID"], DEFAULT_SUPABASE_PROJECT_ID);
 }
 
 export function getApifyApiToken(): string {

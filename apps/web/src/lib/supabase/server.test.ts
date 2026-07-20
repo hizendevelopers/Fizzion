@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   getOptionalSupabaseSecretKey,
   getSupabaseProjectId,
+  getSupabasePublishableKey,
   getSupabaseUrl,
 } from "@/lib/env";
 
@@ -60,5 +61,62 @@ test("optional supabase secret key stays null when no service key env is present
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;
   } else {
     process.env.SUPABASE_SERVICE_ROLE_KEY = previousServiceRoleKey;
+  }
+});
+
+test("supabase publishable key falls back to the project default when env aliases are missing", () => {
+  const previousPublicPublishable = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const previousPublicAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const previousPublicKey = process.env.NEXT_PUBLIC_SUPABASE_KEY;
+  const previousServerPublishable = process.env.SUPABASE_PUBLISHABLE_KEY;
+  const previousServerAnon = process.env.SUPABASE_ANON_KEY;
+  const previousServerKey = process.env.SUPABASE_KEY;
+
+  delete process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  delete process.env.NEXT_PUBLIC_SUPABASE_KEY;
+  delete process.env.SUPABASE_PUBLISHABLE_KEY;
+  delete process.env.SUPABASE_ANON_KEY;
+  delete process.env.SUPABASE_KEY;
+
+  assert.equal(
+    getSupabasePublishableKey(),
+    "sb_publishable_DnSUdzVV1z24mMrG-IvxNA_dW223WKV",
+  );
+
+  if (previousPublicPublishable === undefined) {
+    delete process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  } else {
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = previousPublicPublishable;
+  }
+
+  if (previousPublicAnon === undefined) {
+    delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  } else {
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = previousPublicAnon;
+  }
+
+  if (previousPublicKey === undefined) {
+    delete process.env.NEXT_PUBLIC_SUPABASE_KEY;
+  } else {
+    process.env.NEXT_PUBLIC_SUPABASE_KEY = previousPublicKey;
+  }
+
+  if (previousServerPublishable === undefined) {
+    delete process.env.SUPABASE_PUBLISHABLE_KEY;
+  } else {
+    process.env.SUPABASE_PUBLISHABLE_KEY = previousServerPublishable;
+  }
+
+  if (previousServerAnon === undefined) {
+    delete process.env.SUPABASE_ANON_KEY;
+  } else {
+    process.env.SUPABASE_ANON_KEY = previousServerAnon;
+  }
+
+  if (previousServerKey === undefined) {
+    delete process.env.SUPABASE_KEY;
+  } else {
+    process.env.SUPABASE_KEY = previousServerKey;
   }
 });
