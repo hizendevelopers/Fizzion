@@ -10,7 +10,7 @@ export function SocialAccountActions({
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function runAction(action: "sync" | "reconnect" | "disconnect") {
+  async function runAction(action: "sync" | "reconnect" | "remove") {
     setBusy(true);
     setStatus(null);
 
@@ -42,7 +42,9 @@ export function SocialAccountActions({
         return;
       }
 
-      const confirmed = window.confirm("Disconnect this account and stop future synchronization?");
+      const confirmed = window.confirm(
+        "Remove this account from Social Intelligence and stop future synchronization?",
+      );
       if (!confirmed) {
         setBusy(false);
         return;
@@ -53,9 +55,9 @@ export function SocialAccountActions({
       });
       const payload = await response.json();
       if (!response.ok) {
-        throw new Error(payload?.error?.message ?? "Disconnect failed.");
+        throw new Error(payload?.error?.message ?? "Account removal failed.");
       }
-      setStatus("Account disconnected.");
+      setStatus("Account removed from the workspace.");
       window.location.reload();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Action failed.");
@@ -86,10 +88,10 @@ export function SocialAccountActions({
         <button
           className="rounded-full border border-warning/35 bg-warning-soft px-4 py-2 text-sm font-medium text-foreground disabled:cursor-not-allowed disabled:opacity-60"
           disabled={busy}
-          onClick={() => runAction("disconnect")}
+          onClick={() => runAction("remove")}
           type="button"
         >
-          Disconnect
+          Remove Account
         </button>
       </div>
       {status ? <p className="text-sm text-muted-foreground">{status}</p> : null}

@@ -21,13 +21,17 @@ export function normalizeInstagramProfile(
   const firstItem = items[0] ?? {};
   const owner = (firstItem.owner ?? firstItem.fullDetail) as Record<string, unknown> | undefined;
   const pd = (firstItem.profileData ?? owner) as Record<string, unknown> | undefined;
+  const metaData = firstItem.metaData as Record<string, unknown> | undefined;
 
   let followers = toNumber(getNested(pd ?? {}, "edge_followed_by.count"))
-    ?? toNumber(pd?.followers);
+    ?? toNumber(pd?.followers)
+    ?? toNumber(metaData?.followersCount);
   let following = toNumber(getNested(pd ?? {}, "edge_follow.count"))
-    ?? toNumber(pd?.following);
+    ?? toNumber(pd?.following)
+    ?? toNumber(metaData?.followsCount);
   let totalPosts = toNumber(getNested(pd ?? {}, "edge_owner_to_timeline_media.count"))
-    ?? toNumber(pd?.posts);
+    ?? toNumber(pd?.posts)
+    ?? toNumber(metaData?.postsCount);
 
   if (!followers || !totalPosts) {
     let maxFollowers = 0;
@@ -51,18 +55,26 @@ export function normalizeInstagramProfile(
 
   return {
     platform: "instagram",
-    externalAccountId: toString(pd?.id ?? owner?.id ?? firstItem.id),
-    displayName: toString(pd?.full_name ?? pd?.name ?? owner?.fullName) ?? "Unknown",
-    username: toString(pd?.username ?? pd?.handle ?? owner?.username),
-    profileUrl: `https://www.instagram.com/${pd?.username ?? owner?.username ?? ""}`,
-    profileImageUrl: toString(pd?.profile_pic_url_hd ?? pd?.profile_pic_url ?? owner?.profilePicUrl),
-    bio: toString(pd?.biography ?? pd?.bio ?? owner?.bio),
-    category: toString(pd?.category_enum ?? pd?.category),
-    verified: toBoolean(pd?.is_verified ?? pd?.verified),
+    externalAccountId: toString(pd?.id ?? owner?.id ?? metaData?.id ?? firstItem.ownerId ?? firstItem.id),
+    displayName: toString(pd?.full_name ?? pd?.name ?? owner?.fullName ?? metaData?.fullName ?? firstItem.ownerFullName) ?? "Unknown",
+    username: toString(pd?.username ?? pd?.handle ?? owner?.username ?? metaData?.username ?? firstItem.ownerUsername),
+    profileUrl:
+      toString(metaData?.url ?? firstItem.inputUrl)
+      ?? `https://www.instagram.com/${pd?.username ?? owner?.username ?? metaData?.username ?? firstItem.ownerUsername ?? ""}`,
+    profileImageUrl: toString(
+      pd?.profile_pic_url_hd
+      ?? pd?.profile_pic_url
+      ?? owner?.profilePicUrl
+      ?? metaData?.profilePicUrlHD
+      ?? metaData?.profilePicUrl,
+    ),
+    bio: toString(pd?.biography ?? pd?.bio ?? owner?.bio ?? metaData?.biography),
+    category: toString(pd?.category_enum ?? pd?.category ?? metaData?.businessCategoryName),
+    verified: toBoolean(pd?.is_verified ?? pd?.verified ?? metaData?.verified),
     followers,
     following,
     totalPosts,
-    rawData: { profileData: pd, owner, firstItem },
+    rawData: { profileData: pd, owner, metaData, firstItem },
   };
 }
 

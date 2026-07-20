@@ -3,6 +3,7 @@ import { unstable_noStore as noStore } from "next/cache";
 
 import { SocialAccountActions } from "@/components/social/social-account-actions";
 import { SocialExportButton } from "@/components/social/social-export-button";
+import { SocialProfileAvatar } from "@/components/social/social-profile-avatar";
 import { SocialTrendChart } from "@/components/social/social-trend-chart";
 import { getSocialAccountDetail, listSocialContent } from "@/lib/social-data";
 import { formatNumber } from "@/lib/social-utils";
@@ -21,8 +22,7 @@ export default async function SocialAccountDetailPage({
       <div className="rounded-[2rem] border border-border bg-white p-6 shadow-[var(--shadow-card)]">
         <h1 className="text-2xl font-semibold text-foreground">Social account not found</h1>
         <p className="mt-3 text-sm leading-7 text-muted-foreground">
-          This account has not been connected yet, or it was disconnected from the current
-          workspace.
+          This account has not been connected yet, or it was removed from the current workspace.
         </p>
       </div>
     );
@@ -38,24 +38,35 @@ export default async function SocialAccountDetailPage({
     <div className="space-y-6">
       <section className="rounded-[2.2rem] border border-white/85 bg-white/90 p-6 shadow-[var(--shadow-card)]">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-          <div>
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="rounded-full bg-panel-soft px-3 py-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                {detail.platformLabel}
-              </span>
-              {detail.sandboxMode ? (
-                <span className="rounded-full bg-warning-soft px-3 py-1 text-xs text-foreground">
-                  Sandbox fixture
+          <div className="flex items-start gap-5">
+            <SocialProfileAvatar
+              imageUrl={detail.profileImageUrl}
+              name={detail.accountName}
+              provider={detail.provider}
+              size="lg"
+            />
+            <div>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="rounded-full bg-panel-soft px-3 py-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                  {detail.platformLabel}
                 </span>
-              ) : null}
+                {detail.verified ? (
+                  <span className="rounded-full bg-brand-red/10 px-3 py-1 text-xs font-medium text-brand-red">
+                    Verified
+                  </span>
+                ) : null}
+                {detail.sandboxMode ? (
+                  <span className="rounded-full bg-warning-soft px-3 py-1 text-xs text-foreground">
+                    Sandbox fixture
+                  </span>
+                ) : null}
+              </div>
+              <h1 className="mt-4 text-3xl font-semibold tracking-tight text-foreground">{detail.accountName}</h1>
+              <p className="mt-2 text-sm text-muted-foreground">{`@${detail.username} · ${detail.accountType}`}</p>
+              <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground">
+                {detail.bio ?? "No description is available for this social account yet."}
+              </p>
             </div>
-            <h1 className="mt-4 text-3xl font-semibold tracking-tight text-foreground">{detail.accountName}</h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              @{detail.username} · {detail.accountType}
-            </p>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground">
-              {detail.bio ?? "No description is available for this social account yet."}
-            </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <SocialExportButton connectionId={detail.id} label="Export Account CSV" />
@@ -77,14 +88,29 @@ export default async function SocialAccountDetailPage({
           <MetricCard label="Following" value={formatNumber(detail.following)} />
           <MetricCard label="Reach" value={formatNumber(detail.reach)} />
           <MetricCard label="Impressions" value={formatNumber(detail.impressions)} />
-          <MetricCard label="Engagement Rate" value={detail.engagementRateByFollowers != null ? `${detail.engagementRateByFollowers.toFixed(2)}%` : "Not available"} />
+          <MetricCard
+            label="Engagement Rate"
+            value={
+              detail.engagementRateByFollowers != null
+                ? `${detail.engagementRateByFollowers.toFixed(2)}%`
+                : "Not available"
+            }
+          />
         </div>
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <div className="space-y-6">
-          <SocialTrendChart metric="followers" points={detail.trend} title="Follower / subscriber growth" />
-          <SocialTrendChart metric="engagements" points={detail.trend} title="Engagement trend" />
+          <SocialTrendChart
+            metric="followers"
+            points={detail.trend}
+            title="Follower / subscriber growth"
+          />
+          <SocialTrendChart
+            metric="engagements"
+            points={detail.trend}
+            title="Engagement trend"
+          />
         </div>
 
         <div className="space-y-6">
@@ -118,7 +144,9 @@ export default async function SocialAccountDetailPage({
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-muted-foreground">No hashtags are available for this account yet.</p>
+                <p className="text-sm text-muted-foreground">
+                  No hashtags are available for this account yet.
+                </p>
               )}
             </div>
           </div>
@@ -155,7 +183,9 @@ export default async function SocialAccountDetailPage({
                     {formatNumber(item.engagements)} engagements
                   </span>
                 </div>
-                <p className="mt-3 text-sm leading-6 text-muted-foreground">{item.caption || item.description}</p>
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                  {item.caption || item.description}
+                </p>
                 <div className="mt-4 flex flex-wrap gap-3 text-xs text-muted-foreground">
                   <span>Reach: {formatNumber(item.reach)}</span>
                   <span>Views: {formatNumber(item.views)}</span>

@@ -30,7 +30,7 @@ export async function DELETE(
     return NextResponse.json({
       requestId,
       ok: true,
-      message: "Social connection disconnected successfully.",
+      message: "Social connection removed successfully.",
     });
   } catch (error) {
     return socialApiError(

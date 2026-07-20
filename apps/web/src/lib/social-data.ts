@@ -340,6 +340,7 @@ export async function listSocialConnections(provider?: SocialProviderKey) {
   let query = supabase
     .from("social_connections")
     .select("*")
+    .neq("connection_status", "disconnected")
     .order("updated_at", { ascending: false });
 
   if (provider) {

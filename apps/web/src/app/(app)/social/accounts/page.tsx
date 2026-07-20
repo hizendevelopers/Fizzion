@@ -2,9 +2,9 @@ import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 
 import { ConnectAccountWizard } from "@/components/social/connect-account-wizard";
-import { PlatformIcon } from "@/components/social/platform-icon";
 import { SocialAccountActions } from "@/components/social/social-account-actions";
 import { SocialExportButton } from "@/components/social/social-export-button";
+import { SocialProfileAvatar } from "@/components/social/social-profile-avatar";
 import { getSocialPortfolioSummary, listSocialConnections } from "@/lib/social-data";
 import { formatNumber } from "@/lib/social-utils";
 
@@ -23,9 +23,9 @@ export default async function SocialAccountsPage() {
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-foreground">Social Intelligence</h1>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground">
-              Connect Facebook Pages, Instagram Professional Accounts, TikTok accounts, and YouTube
-              channels through official OAuth and keep portfolio analytics synchronized with clear
-              source labeling.
+              Connect Facebook Pages, Instagram accounts, TikTok accounts, and YouTube channels,
+              then track imported public analytics with clear source labeling and safe refresh
+              controls.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -46,11 +46,35 @@ export default async function SocialAccountsPage() {
         </div>
 
         <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          <SummaryCard label="Connected Accounts" value={String(summary.connectedAccounts)} note="OAuth-connected portfolio records" />
-          <SummaryCard label="Total Followers / Subs" value={formatNumber(summary.totalFollowers)} note={summary.comparisonLabel} />
-          <SummaryCard label="Total Reach" value={formatNumber(summary.totalReach)} note="Authorized or sandbox-account level" />
-          <SummaryCard label="Total Engagements" value={formatNumber(summary.totalEngagements)} note="Likes + comments + shares + saves" />
-          <SummaryCard label="Avg Engagement Rate" value={summary.averageEngagementRate != null ? `${summary.averageEngagementRate.toFixed(2)}%` : "Not available"} note="Calculated by followers when data exists" />
+          <SummaryCard
+            label="Connected Accounts"
+            note="Active workspace connections"
+            value={String(summary.connectedAccounts)}
+          />
+          <SummaryCard
+            label="Total Followers / Subs"
+            note={summary.comparisonLabel}
+            value={formatNumber(summary.totalFollowers)}
+          />
+          <SummaryCard
+            label="Total Reach"
+            note="Shown only when the source provides it"
+            value={formatNumber(summary.totalReach)}
+          />
+          <SummaryCard
+            label="Total Engagements"
+            note="Likes + comments + shares + saves"
+            value={formatNumber(summary.totalEngagements)}
+          />
+          <SummaryCard
+            label="Avg Engagement Rate"
+            note="Calculated by followers when data exists"
+            value={
+              summary.averageEngagementRate != null
+                ? `${summary.averageEngagementRate.toFixed(2)}%`
+                : "Not available"
+            }
+          />
         </div>
       </section>
 
@@ -61,8 +85,8 @@ export default async function SocialAccountsPage() {
           <div>
             <h2 className="text-xl font-semibold text-foreground">Connected Accounts</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Every card shows connection state, token health, synchronization status, and
-              availability-aware reporting metrics.
+              Original profile logos, synchronization status, and availability-aware metrics are
+              shown for each connected account.
             </p>
           </div>
           <span className="rounded-full bg-panel-soft px-3 py-2 text-xs text-muted-foreground">
@@ -79,22 +103,30 @@ export default async function SocialAccountsPage() {
               >
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="flex items-start gap-4">
-                    <PlatformIcon provider={connection.provider} />
+                    <SocialProfileAvatar
+                      imageUrl={connection.profileImageUrl}
+                      name={connection.accountName}
+                      provider={connection.provider}
+                      size="md"
+                    />
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="text-lg font-semibold text-foreground">{connection.accountName}</h3>
                         <span className="rounded-full bg-white px-3 py-1 text-xs text-muted-foreground">
                           {connection.platformLabel}
                         </span>
+                        {connection.verified ? (
+                          <span className="rounded-full bg-brand-red/10 px-3 py-1 text-xs font-medium text-brand-red">
+                            Verified
+                          </span>
+                        ) : null}
                         {connection.sandboxMode ? (
                           <span className="rounded-full bg-warning-soft px-3 py-1 text-xs text-foreground">
                             Sandbox fixture
                           </span>
                         ) : null}
                       </div>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        @{connection.username} · {connection.accountType}
-                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">{`@${connection.username} · ${connection.accountType}`}</p>
                       <p className="mt-3 text-sm leading-6 text-muted-foreground">
                         {connection.bio ?? "No bio available."}
                       </p>
@@ -112,7 +144,14 @@ export default async function SocialAccountsPage() {
                   <MetricTile label="Followers / Subs" value={formatNumber(connection.followers)} />
                   <MetricTile label="Published Content" value={formatNumber(connection.contentCount)} />
                   <MetricTile label="Reach" value={formatNumber(connection.reach)} />
-                  <MetricTile label="Engagement Rate" value={connection.engagementRateByFollowers != null ? `${connection.engagementRateByFollowers.toFixed(2)}%` : "Not available"} />
+                  <MetricTile
+                    label="Engagement Rate"
+                    value={
+                      connection.engagementRateByFollowers != null
+                        ? `${connection.engagementRateByFollowers.toFixed(2)}%`
+                        : "Not available"
+                    }
+                  />
                 </div>
 
                 <div className="mt-5 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -138,7 +177,7 @@ export default async function SocialAccountsPage() {
           ) : (
             <div className="rounded-[1.6rem] border border-dashed border-border bg-panel-soft px-5 py-6 text-sm text-muted-foreground xl:col-span-2">
               No connected social accounts yet. Start with the connect wizard above to validate a
-              profile and continue through official OAuth or the clearly labeled sandbox workflow.
+              profile and continue through Apify import or the clearly labeled sandbox workflow.
             </div>
           )}
         </div>
