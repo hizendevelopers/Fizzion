@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "tsx --test ./src/lib/utils.test.ts ./src/lib/supabase/server.test.ts ./src/lib/social-utils.test.ts ./src/lib/social-security.test.ts ./src/lib/ooh/demo-data.test.ts ./src/lib/ooh/ooh-import.test.ts",
+    "test": "tsx --test ./src/lib/utils.test.ts ./src/lib/capture-utils.test.ts ./src/lib/supabase/server.test.ts ./src/lib/social-utils.test.ts ./src/lib/social-security.test.ts ./src/lib/ooh/demo-data.test.ts ./src/lib/ooh/ooh-import.test.ts",
     "generate:ooh-demo-images": "tsx ./scripts/generate-ooh-demo-images.ts"
   },
   "dependencies": {
