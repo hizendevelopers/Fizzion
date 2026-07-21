@@ -1,12 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 56" fill="none">
-  <path d="M14 44V12h22c8.3 0 14 4.8 14 12.1 0 4.8-2.4 8.4-6.6 10.5L52 44H40l-7.4-7.9h-7.4V44H14zm11.2-17.4h10.2c2.4 0 4-1.4 4-3.5s-1.6-3.5-4-3.5H25.2v7z" fill="#111111"/>
-  <path d="M60 44V36.7L74.3 22H61.6V12h30v7.2L77.3 34H92v10H60z" fill="#111111"/>
-  <path d="M101.5 44V12h11.3v32z" fill="#111111"/>
-  <path d="M123 44V36.7L137.3 22H124.6V12h30v7.2L140.3 34H155v10h-32z" fill="#F40009"/>
-  <path d="M164 44V36.7L178.3 22H165.6V12h30v7.2L181.3 34H196v10h-32z" fill="#F40009"/>
-  <circle cx="219" cy="28" r="16" fill="#111111"/>
-  <circle cx="219" cy="28" r="9.5" fill="#FFFFFF"/>
-  <circle cx="223" cy="24" r="4.2" fill="#F40009"/>
-  <path d="M246 44V12h11l12.8 17.2V12H281v32h-10.5l-13.3-17.9V44z" fill="#111111"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 168" fill="none" role="img" aria-label="Zenpen logo">
+  <image
+    href="/brand/fizzion-logo.png"
+    x="0"
+    y="0"
+    width="560"
+    height="168"
+    preserveAspectRatio="xMidYMid meet"
+  />
 </svg>
-
