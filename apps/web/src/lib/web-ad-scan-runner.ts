@@ -1,8 +1,7 @@
-import { createHash, randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { createHash } from "node:crypto";
 
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
+import { storeWebAdScreenshot } from "@/lib/web-ad-storage";
 
 type GenericRow = Record<string, unknown>;
 
@@ -26,16 +25,6 @@ function rowString(row: GenericRow, key: string, fallback = "") {
 function rowNullableString(row: GenericRow, key: string) {
   const value = row[key];
   return typeof value === "string" ? value : null;
-}
-
-async function storeWebAdImage(bytes: Buffer, folder: string, extension = ".png") {
-  const fileName = `${randomUUID()}${extension}`;
-  const relativeDir = path.posix.join("uploads", "web-ads", folder);
-  const targetDir = path.join(process.cwd(), "public", relativeDir);
-  await mkdir(targetDir, { recursive: true });
-  const targetPath = path.join(targetDir, fileName);
-  await writeFile(targetPath, bytes);
-  return `/${path.posix.join(relativeDir, fileName)}`;
 }
 
 function sha256(buffer: Buffer) {
@@ -106,7 +95,7 @@ export async function executeQueuedWebAdvertisingScan(crawlRunId: string) {
 
     const pageTitle = await page.title();
     const fullPageBuffer = await page.screenshot({ fullPage: true, type: "png" });
-    const fullPageUrl = await storeWebAdImage(fullPageBuffer, "evidence");
+    const fullPageUpload = await storeWebAdScreenshot(fullPageBuffer, "evidence", "image/png");
 
     const candidates = (await page.evaluate(() => {
       const selectorGroups = [
@@ -183,7 +172,7 @@ export async function executeQueuedWebAdvertisingScan(crawlRunId: string) {
       const cropBuffer = await locator.screenshot({ type: "png" }).catch(() => null);
       if (!cropBuffer) continue;
 
-      const cropUrl = await storeWebAdImage(cropBuffer, "crops");
+      const cropUpload = await storeWebAdScreenshot(cropBuffer, "crops", "image/png");
       const creativeHash = sha256(cropBuffer);
 
       const existingCreativeRes = await supabase
@@ -263,7 +252,7 @@ export async function executeQueuedWebAdvertisingScan(crawlRunId: string) {
           organization_id: organizationId,
           occurrence_id: occurrenceId,
           screenshot_type: "crop",
-          storage_key: cropUrl,
+          storage_key: cropUpload.storageKey,
           width: Math.round(candidate.width),
           height: Math.round(candidate.height),
         },
@@ -271,7 +260,7 @@ export async function executeQueuedWebAdvertisingScan(crawlRunId: string) {
           organization_id: organizationId,
           occurrence_id: occurrenceId,
           screenshot_type: "evidence",
-          storage_key: fullPageUrl,
+          storage_key: fullPageUpload.storageKey,
           width: 1440,
           height: 2200,
         },

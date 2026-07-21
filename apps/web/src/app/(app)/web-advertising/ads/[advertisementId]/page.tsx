@@ -24,7 +24,7 @@ export default async function WebAdvertisingAdDetailPage(
             <h1 className="text-3xl font-semibold tracking-tight text-foreground">{ad.websiteName}</h1>
             <p className="mt-2 text-sm text-muted-foreground">{ad.pageTitle ?? ad.pageUrl}</p>
             <p className="mt-3 text-sm text-muted-foreground">
-              Captured: {ad.capturedAt} · Confidence: {ad.confidence != null ? String(ad.confidence) : "Not available"}
+              Captured: {ad.capturedAt} {"\u00b7"} Confidence: {ad.confidence != null ? String(ad.confidence) : "Not available"}
             </p>
           </div>
           <Link className="text-sm font-semibold text-brand-red" href="/web-advertising">

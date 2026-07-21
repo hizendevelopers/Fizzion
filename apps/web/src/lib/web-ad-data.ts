@@ -1,4 +1,5 @@
 import { getOptionalSupabaseAdminClient } from "@/lib/supabase/server";
+import { localWebAdAssetExists } from "@/lib/web-ad-storage";
 
 type GenericRow = Record<string, unknown>;
 
@@ -89,8 +90,12 @@ async function resolveWebScreenshotUrl(
     return null;
   }
 
-  if (/^https?:\/\//i.test(storageKey) || storageKey.startsWith("/")) {
+  if (/^https?:\/\//i.test(storageKey)) {
     return storageKey;
+  }
+
+  if (storageKey.startsWith("/")) {
+    return localWebAdAssetExists(storageKey) ? storageKey : null;
   }
 
   const slashIndex = storageKey.indexOf("/");
