@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { makeSocialRequestId, socialApiError } from "@/lib/social-api";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
-import { startPlatformScrape, validateAndNormalizeInput } from "@/lib/social-sync-utils";
+import { startPlatformScrapeBundle, validateAndNormalizeInput } from "@/lib/social-sync-utils";
 import { socialSyncSchema } from "@/lib/social-schemas";
 import type { SocialProviderKey } from "@/lib/social-schemas";
 
@@ -90,7 +90,8 @@ export async function POST(
       },
     });
 
-    const { runId, datasetId } = await startPlatformScrape(normalized);
+    const scrapeBundle = await startPlatformScrapeBundle(normalized);
+    const { runId, datasetId } = scrapeBundle.primary;
     if (!datasetId) {
       return socialApiError("SCRAPE_START_FAILED", "Scraper did not return a dataset ID.", 500, requestId);
     }
@@ -110,6 +111,7 @@ export async function POST(
       payload: {
         source: "manual_sync",
         stage: "scraper_running",
+        supplementalRuns: scrapeBundle.supplemental,
       },
       updated_at: now,
     }).eq("connection_id", id).eq("status", "running");

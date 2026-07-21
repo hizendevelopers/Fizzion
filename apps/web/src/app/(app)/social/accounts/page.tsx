@@ -149,10 +149,13 @@ export default async function SocialAccountsPage() {
                   </div>
                 </div>
 
-                <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
                   <MetricTile label="Followers / Subs" value={formatNumber(connection.followers)} />
+                  <MetricTile label="Following" value={formatNumber(connection.following)} />
                   <MetricTile label="Published Content" value={formatNumber(connection.contentCount)} />
                   <MetricTile label="Reach" value={formatNumber(connection.reach)} />
+                  <MetricTile label="Engagements" value={formatNumber(connection.engagements)} />
+                  <MetricTile label="Likes" value={formatNumber(connection.totalLikes)} />
                   <MetricTile
                     label="Engagement Rate"
                     value={
@@ -168,6 +171,7 @@ export default async function SocialAccountsPage() {
                     <span>Views: {formatNumber(connection.views)}</span>
                     <span>Comments: {formatNumber(connection.totalComments)}</span>
                     <span>Shares: {formatNumber(connection.totalShares)}</span>
+                    <span>Saves: {formatNumber(connection.totalSaves)}</span>
                     <span>Next sync: {connection.nextSyncAt ?? "Pending"}</span>
                   </div>
                   <Link

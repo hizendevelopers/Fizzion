@@ -7,6 +7,8 @@ export const APIFY_ACTORS = {
   facebook: "4Hv5RhChiaDk6iwad",
 } as const satisfies Record<SocialProviderKey, string>;
 
+export const INSTAGRAM_PROFILE_APIFY_ACTOR = "dSCLg0C3YEZ83HzYX";
+
 export type ApifyActorPlatform = keyof typeof APIFY_ACTORS;
 
 export function getActorId(platform: ApifyActorPlatform): string {

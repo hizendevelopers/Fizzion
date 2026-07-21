@@ -22,16 +22,40 @@ export function normalizeInstagramProfile(
   const owner = (firstItem.owner ?? firstItem.fullDetail) as Record<string, unknown> | undefined;
   const pd = (firstItem.profileData ?? owner) as Record<string, unknown> | undefined;
   const metaData = firstItem.metaData as Record<string, unknown> | undefined;
+  const profileActorItem = items.find((item) =>
+    Boolean(
+      item.username ||
+      item.fullName ||
+      item.profilePicUrl ||
+      item.followersCount ||
+      item.postsCount,
+    ),
+  ) ?? firstItem;
+
+  const actorUsername = toString(profileActorItem.username);
+  const actorProfileUrl = toString(profileActorItem.inputUrl ?? profileActorItem.url);
+  const actorProfileImageUrl = toString(
+    profileActorItem.profilePicUrlHD ??
+    profileActorItem.profilePicUrl ??
+    getNested(profileActorItem, "profilePic.url"),
+  );
+  const actorBio = toString(profileActorItem.biography ?? profileActorItem.bio);
+  const actorDisplayName = toString(profileActorItem.fullName ?? profileActorItem.name);
+  const actorCategory = toString(profileActorItem.categoryName ?? profileActorItem.category);
+  const actorVerified = toBoolean(profileActorItem.verified ?? profileActorItem.isVerified);
 
   let followers = toNumber(getNested(pd ?? {}, "edge_followed_by.count"))
     ?? toNumber(pd?.followers)
-    ?? toNumber(metaData?.followersCount);
+    ?? toNumber(metaData?.followersCount)
+    ?? toNumber(profileActorItem.followersCount);
   let following = toNumber(getNested(pd ?? {}, "edge_follow.count"))
     ?? toNumber(pd?.following)
-    ?? toNumber(metaData?.followsCount);
+    ?? toNumber(metaData?.followsCount)
+    ?? toNumber(profileActorItem.followsCount);
   let totalPosts = toNumber(getNested(pd ?? {}, "edge_owner_to_timeline_media.count"))
     ?? toNumber(pd?.posts)
-    ?? toNumber(metaData?.postsCount);
+    ?? toNumber(metaData?.postsCount)
+    ?? toNumber(profileActorItem.postsCount);
 
   if (!followers || !totalPosts) {
     let maxFollowers = 0;
@@ -55,22 +79,23 @@ export function normalizeInstagramProfile(
 
   return {
     platform: "instagram",
-    externalAccountId: toString(pd?.id ?? owner?.id ?? metaData?.id ?? firstItem.ownerId ?? firstItem.id),
-    displayName: toString(pd?.full_name ?? pd?.name ?? owner?.fullName ?? metaData?.fullName ?? firstItem.ownerFullName) ?? "Unknown",
-    username: toString(pd?.username ?? pd?.handle ?? owner?.username ?? metaData?.username ?? firstItem.ownerUsername),
+    externalAccountId: toString(pd?.id ?? owner?.id ?? metaData?.id ?? profileActorItem.id ?? firstItem.ownerId ?? firstItem.id),
+    displayName: toString(pd?.full_name ?? pd?.name ?? owner?.fullName ?? metaData?.fullName ?? actorDisplayName ?? firstItem.ownerFullName) ?? "Unknown",
+    username: toString(pd?.username ?? pd?.handle ?? owner?.username ?? metaData?.username ?? actorUsername ?? firstItem.ownerUsername),
     profileUrl:
-      toString(metaData?.url ?? firstItem.inputUrl)
-      ?? `https://www.instagram.com/${pd?.username ?? owner?.username ?? metaData?.username ?? firstItem.ownerUsername ?? ""}`,
+      toString(metaData?.url ?? firstItem.inputUrl ?? actorProfileUrl)
+      ?? `https://www.instagram.com/${pd?.username ?? owner?.username ?? metaData?.username ?? actorUsername ?? firstItem.ownerUsername ?? ""}`,
     profileImageUrl: toString(
       pd?.profile_pic_url_hd
       ?? pd?.profile_pic_url
       ?? owner?.profilePicUrl
       ?? metaData?.profilePicUrlHD
-      ?? metaData?.profilePicUrl,
+      ?? metaData?.profilePicUrl
+      ?? actorProfileImageUrl,
     ),
-    bio: toString(pd?.biography ?? pd?.bio ?? owner?.bio ?? metaData?.biography),
-    category: toString(pd?.category_enum ?? pd?.category ?? metaData?.businessCategoryName),
-    verified: toBoolean(pd?.is_verified ?? pd?.verified ?? metaData?.verified),
+    bio: toString(pd?.biography ?? pd?.bio ?? owner?.bio ?? metaData?.biography ?? actorBio),
+    category: toString(pd?.category_enum ?? pd?.category ?? metaData?.businessCategoryName ?? actorCategory),
+    verified: toBoolean(pd?.is_verified ?? pd?.verified ?? metaData?.verified ?? actorVerified),
     followers,
     following,
     totalPosts,

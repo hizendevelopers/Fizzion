@@ -5,6 +5,12 @@ import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { makeSocialRequestId, socialApiError } from "@/lib/social-api";
 import { processAndSaveResults } from "@/lib/social-sync-utils";
 
+type SupplementalRun = {
+  runId: string;
+  datasetId?: string;
+  purpose?: string;
+};
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -40,18 +46,47 @@ export async function GET(
     typeof latestJob.dataset_id === "string" &&
     connection.sync_status === "scraping"
   ) {
+    const payload = latestJob.payload as { supplementalRuns?: unknown[] } | null;
+    const supplementalRuns: SupplementalRun[] = Array.isArray(payload?.supplementalRuns)
+      ? payload.supplementalRuns.filter(
+          (item: unknown): item is SupplementalRun =>
+            Boolean(
+              item &&
+              typeof item === "object" &&
+              "runId" in item &&
+              typeof (item as { runId?: string }).runId === "string",
+            ),
+        )
+      : [];
     const runStatus = await getApifyRunStatus(latestJob.apify_run_id);
+    const supplementalStatuses = await Promise.all(
+      supplementalRuns.map((item) => getApifyRunStatus(item.runId)),
+    );
 
-    if (runStatus.status === "SUCCEEDED") {
+    if (
+      runStatus.status === "SUCCEEDED" &&
+      supplementalStatuses.every((item) => item.status === "SUCCEEDED")
+    ) {
       await processAndSaveResults(
         id,
         connection.connection_type,
         connection.organization_id,
         connection.social_account_id,
         latestJob.dataset_id,
+        supplementalRuns
+          .map((item) => item.datasetId)
+          .filter((datasetId): datasetId is string => typeof datasetId === "string" && datasetId.length > 0),
       );
-    } else if (["FAILED", "ABORTED", "TIMED-OUT"].includes(runStatus.status)) {
-      const failureMessage = `Scraper run ended with status ${runStatus.status}.`;
+    } else if (
+      ["FAILED", "ABORTED", "TIMED-OUT"].includes(runStatus.status) ||
+      supplementalStatuses.some((item) => ["FAILED", "ABORTED", "TIMED-OUT"].includes(item.status))
+    ) {
+      const supplementalFailure = supplementalStatuses.find((item) =>
+        ["FAILED", "ABORTED", "TIMED-OUT"].includes(item.status),
+      );
+      const failureMessage = supplementalFailure
+        ? `Supplemental scraper run ended with status ${supplementalFailure.status}.`
+        : `Scraper run ended with status ${runStatus.status}.`;
 
       await supabase.from("social_connections").update({
         sync_status: "failed",

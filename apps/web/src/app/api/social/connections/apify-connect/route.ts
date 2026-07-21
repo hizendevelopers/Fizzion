@@ -4,7 +4,7 @@ import { makeSocialRequestId, socialApiError } from "@/lib/social-api";
 import { getDefaultSocialOrganizationId, getSocialPlatformId, syncSocialConnection } from "@/lib/social-data";
 import { getApifyApiToken } from "@/lib/env";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
-import { startPlatformScrape, validateAndNormalizeInput } from "@/lib/social-sync-utils";
+import { startPlatformScrapeBundle, validateAndNormalizeInput } from "@/lib/social-sync-utils";
 import { APIFY_ACTORS } from "@/lib/apify/actors";
 import type { SocialProviderKey } from "@/lib/social-schemas";
 
@@ -121,7 +121,8 @@ export async function POST(request: Request) {
         return socialApiError("SYNC_JOB_CREATE_FAILED", jobError.message, 500, requestId);
       }
 
-      const { runId, datasetId } = await startPlatformScrape(normalized);
+      const scrapeBundle = await startPlatformScrapeBundle(normalized);
+      const { runId, datasetId } = scrapeBundle.primary;
       if (!datasetId) {
         return socialApiError("SCRAPE_START_FAILED", "Scraper did not return a dataset ID.", 500, requestId);
       }
@@ -141,6 +142,7 @@ export async function POST(request: Request) {
         dataset_id: datasetId,
         payload: {
           stage: "scraper_running",
+          supplementalRuns: scrapeBundle.supplemental,
         },
         updated_at: now,
       }).eq("connection_id", connectionId).eq("status", "running");

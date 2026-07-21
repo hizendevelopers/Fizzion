@@ -24,6 +24,13 @@ export async function startApifyActor(
   input: Record<string, unknown>,
 ): Promise<StartActorResult> {
   const actorId = APIFY_ACTORS[platform];
+  return startApifyActorById(actorId, input);
+}
+
+export async function startApifyActorById(
+  actorId: string,
+  input: Record<string, unknown>,
+): Promise<StartActorResult> {
   const apifyClient = getApifyClient();
   const run = await apifyClient.actor(actorId).start(input);
 

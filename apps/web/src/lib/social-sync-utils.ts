@@ -1,8 +1,9 @@
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
-import { APIFY_ACTORS } from "@/lib/apify/actors";
-import { startApifyActor, waitForApifyRun, readEntireDataset } from "@/lib/apify/apify-service";
+import { APIFY_ACTORS, INSTAGRAM_PROFILE_APIFY_ACTOR } from "@/lib/apify/actors";
+import { startApifyActor, startApifyActorById, waitForApifyRun, readEntireDataset } from "@/lib/apify/apify-service";
 import { buildTikTokInput } from "@/lib/apify/input-builders/tiktok";
 import { buildInstagramInput } from "@/lib/apify/input-builders/instagram";
+import { buildInstagramProfileInput } from "@/lib/apify/input-builders/instagram-profile";
 import { buildYouTubeInput } from "@/lib/apify/input-builders/youtube";
 import { buildFacebookInput } from "@/lib/apify/input-builders/facebook";
 import { normalizeTikTokProfile, normalizeTikTokContent, normalizeTikTokComments } from "@/lib/apify/normalization/tiktok";
@@ -39,6 +40,22 @@ export interface SyncResult {
   contentCount: number;
   commentCount: number;
   errorMessage?: string;
+}
+
+export interface ScrapeBundleResult {
+  primary: {
+    actorId: string;
+    runId: string;
+    datasetId?: string;
+    status: string;
+  };
+  supplemental: Array<{
+    actorId: string;
+    runId: string;
+    datasetId?: string;
+    status: string;
+    purpose: "profile";
+  }>;
 }
 
 /**
@@ -143,10 +160,10 @@ export async function validateAndNormalizeInput(
 /**
  * Start an Apify scrape for a given platform and normalized input.
  */
-export async function startPlatformScrape(
+export async function startPlatformScrapeBundle(
   normalized: NormalizedSocialInput,
   options?: Record<string, unknown>,
-) {
+): Promise<ScrapeBundleResult> {
   const platform = normalized.platform;
 
   let actorInput: Record<string, unknown>;
@@ -168,7 +185,38 @@ export async function startPlatformScrape(
       throw new Error(`Unsupported platform: ${platform}`);
   }
 
-  return startApifyActor(platform, actorInput);
+  const primaryRun = await startApifyActor(platform, actorInput);
+  const supplemental: ScrapeBundleResult["supplemental"] = [];
+
+  if (platform === "instagram") {
+    const profileInput = buildInstagramProfileInput(normalized);
+    const profileRun = await startApifyActorById(INSTAGRAM_PROFILE_APIFY_ACTOR, profileInput);
+    supplemental.push({
+      actorId: INSTAGRAM_PROFILE_APIFY_ACTOR,
+      runId: profileRun.runId,
+      datasetId: profileRun.datasetId,
+      status: profileRun.status,
+      purpose: "profile",
+    });
+  }
+
+  return {
+    primary: {
+      actorId: APIFY_ACTORS[platform],
+      runId: primaryRun.runId,
+      datasetId: primaryRun.datasetId,
+      status: primaryRun.status,
+    },
+    supplemental,
+  };
+}
+
+export async function startPlatformScrape(
+  normalized: NormalizedSocialInput,
+  options?: Record<string, unknown>,
+) {
+  const bundle = await startPlatformScrapeBundle(normalized, options);
+  return bundle.primary;
 }
 
 /**
@@ -180,12 +228,14 @@ export async function processAndSaveResults(
   organizationId: string,
   socialAccountId: string,
   datasetId: string,
+  supplementalProfileDatasetIds: string[] = [],
   onProgress?: (progress: SyncProgress) => void,
 ): Promise<SyncResult> {
   const supabase = getSupabaseAdminClient();
   const now = new Date().toISOString();
 
   const allItems: Record<string, unknown>[] = [];
+  const supplementalProfileItems: Record<string, unknown>[] = [];
   let profile: NormalizedSocialProfile | undefined;
   let contentItems: NormalizedSocialContent[] = [];
   let commentItems: NormalizedSocialComment[] = [];
@@ -202,6 +252,12 @@ export async function processAndSaveResults(
       allItems.push(...batch);
       emitProgress("fetching_results", 30, allItems.length, `Fetched ${allItems.length} items`);
     });
+
+    for (const supplementalDatasetId of supplementalProfileDatasetIds) {
+      await readEntireDataset(supplementalDatasetId, async (batch) => {
+        supplementalProfileItems.push(...batch);
+      });
+    }
 
     if (allItems.length === 0) {
       return {
@@ -222,7 +278,11 @@ export async function processAndSaveResults(
         commentItems = normalizeTikTokComments(allItems);
         break;
       case "instagram":
-        profile = normalizeInstagramProfile(allItems);
+        profile = normalizeInstagramProfile(
+          supplementalProfileItems.length > 0
+            ? [...supplementalProfileItems, ...allItems]
+            : allItems,
+        );
         contentItems = normalizeInstagramContent(allItems);
         commentItems = normalizeInstagramComments(allItems);
         break;
@@ -261,7 +321,10 @@ export async function processAndSaveResults(
         impressions: profile.impressions,
         engagements: profile.engagements,
         engagement_rate: profile.engagementRate,
-        raw_data_json: profile.rawData,
+        raw_data_json: {
+          ...profile.rawData,
+          supplementalProfileImported: supplementalProfileItems.length > 0,
+        },
         captured_at: now,
       });
 
@@ -302,7 +365,10 @@ export async function processAndSaveResults(
             permalink: content.permalink,
             is_paid: false,
             duration_seconds: content.durationSeconds,
-            raw_payload_json: content.rawData,
+            raw_payload_json: {
+              ...content.rawData,
+              supplementalProfileImported: supplementalProfileItems.length > 0,
+            },
           },
           {
             onConflict: "social_account_id,provider_post_id",
@@ -330,7 +396,10 @@ export async function processAndSaveResults(
         reactions: content.reactions,
         engagements: content.engagements,
         engagement_rate: content.engagementRate,
-        raw_metrics_json: content.rawData,
+        raw_metrics_json: {
+          ...content.rawData,
+          supplementalProfileImported: supplementalProfileItems.length > 0,
+        },
       });
 
       // Upsert post metrics to social_post_metrics for backward compat
@@ -353,7 +422,10 @@ export async function processAndSaveResults(
             engagements: content.engagements,
             engagementRate: content.engagementRate,
           },
-          raw_metrics_json: content.rawData,
+          raw_metrics_json: {
+            ...content.rawData,
+            supplementalProfileImported: supplementalProfileItems.length > 0,
+          },
         },
         { onConflict: "social_post_id,metric_name" },
       );
@@ -406,7 +478,11 @@ export async function processAndSaveResults(
           engagements: profile.engagements,
           engagementRate: profile.engagementRate,
         },
-        raw_summary: { source: "apify_scraper", platform },
+        raw_summary: {
+          source: "apify_scraper",
+          platform,
+          supplementalProfileImported: supplementalProfileItems.length > 0,
+        },
       });
     }
 
@@ -432,7 +508,11 @@ export async function processAndSaveResults(
         engagements: profile?.engagements,
         likes: profile?.totalLikes,
       },
-      raw_metrics_json: { source: "apify_scraper", platform },
+      raw_metrics_json: {
+        source: "apify_scraper",
+        platform,
+        supplementalProfileImported: supplementalProfileItems.length > 0,
+      },
     });
 
     emitProgress("finalizing", 95, savedContent, "Finalizing dashboard");
@@ -514,7 +594,8 @@ export async function performFullSync(
 
   // Start the Apify Actor
   emitProgress("starting_scraper", 10, 0, "Starting scraper");
-  const { runId, datasetId } = await startPlatformScrape(normalizedInput);
+  const scrapeBundle = await startPlatformScrapeBundle(normalizedInput);
+  const { runId, datasetId } = scrapeBundle.primary;
 
   if (!datasetId) {
     throw new Error("Scraper did not return a dataset ID.");
@@ -536,6 +617,7 @@ export async function performFullSync(
     dataset_id: datasetId,
     payload: {
       stage: "scraper_running",
+      supplementalRuns: scrapeBundle.supplemental,
     },
   }).eq("connection_id", connectionId).eq("status", "running");
 
@@ -547,8 +629,29 @@ export async function performFullSync(
     throw new Error(`Scraper ${platform} finished with status: ${runStatus.status}`);
   }
 
+  const supplementalProfileDatasetIds = scrapeBundle.supplemental
+    .map((run) => run.datasetId)
+    .filter((item): item is string => Boolean(item));
+
+  for (const supplementalRun of scrapeBundle.supplemental) {
+    const supplementalStatus = await waitForApifyRun(supplementalRun.runId, 300);
+    if (supplementalStatus.status !== "SUCCEEDED") {
+      throw new Error(
+        `Supplemental Instagram profile scraper finished with status: ${supplementalStatus.status}`,
+      );
+    }
+  }
+
   // Process and save results
-  return processAndSaveResults(connectionId, platform, organizationId, socialAccountId, datasetId, onProgress);
+  return processAndSaveResults(
+    connectionId,
+    platform,
+    organizationId,
+    socialAccountId,
+    datasetId,
+    supplementalProfileDatasetIds,
+    onProgress,
+  );
 }
 
 /**

@@ -83,11 +83,14 @@ export default async function SocialAccountDetailPage({
           </div>
         </div>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-7">
           <MetricCard label="Followers / Subscribers" value={formatNumber(detail.followers)} />
           <MetricCard label="Following" value={formatNumber(detail.following)} />
           <MetricCard label="Reach" value={formatNumber(detail.reach)} />
           <MetricCard label="Impressions" value={formatNumber(detail.impressions)} />
+          <MetricCard label="Engagements" value={formatNumber(detail.engagements)} />
+          <MetricCard label="Likes" value={formatNumber(detail.totalLikes)} />
+          <MetricCard label="Comments" value={formatNumber(detail.totalComments)} />
           <MetricCard
             label="Engagement Rate"
             value={
