@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 
-import { ConnectAccountWizard } from "@/components/social/connect-account-wizard";
 import { SocialAccountActions } from "@/components/social/social-account-actions";
 import { SocialExportButton } from "@/components/social/social-export-button";
 import { SocialProfileAvatar } from "@/components/social/social-profile-avatar";
+import { SocialProviderConnectPanel } from "@/components/social/social-provider-connect-panel";
 import { getSocialPortfolioSummary, listSocialConnections } from "@/lib/social-data";
+import { listSocialProviderAvailability } from "@/lib/social-providers";
 import { formatNumber } from "@/lib/social-utils";
 
 export default async function SocialAccountsPage() {
@@ -15,6 +16,7 @@ export default async function SocialAccountsPage() {
     getSocialPortfolioSummary(),
     listSocialConnections(),
   ]);
+  const providers = listSocialProviderAvailability();
 
   return (
     <div className="space-y-6">
@@ -23,9 +25,8 @@ export default async function SocialAccountsPage() {
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-foreground">Social Intelligence</h1>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground">
-              Connect Facebook Pages, Instagram accounts, TikTok accounts, and YouTube channels,
-              then track imported public analytics with clear source labeling and safe refresh
-              controls.
+              Connect officially supported social accounts through provider OAuth, then review real
+              synchronized analytics with clear source labeling and safe refresh controls.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -78,7 +79,7 @@ export default async function SocialAccountsPage() {
         </div>
       </section>
 
-      <ConnectAccountWizard />
+      <SocialProviderConnectPanel providers={providers} />
 
       <section className="rounded-[1.9rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
         <div className="flex items-center justify-between">
@@ -118,11 +119,6 @@ export default async function SocialAccountsPage() {
                         {connection.verified ? (
                           <span className="rounded-full bg-brand-red/10 px-3 py-1 text-xs font-medium text-brand-red">
                             Verified
-                          </span>
-                        ) : null}
-                        {connection.sandboxMode ? (
-                          <span className="rounded-full bg-warning-soft px-3 py-1 text-xs text-foreground">
-                            Sandbox fixture
                           </span>
                         ) : null}
                       </div>
@@ -176,8 +172,8 @@ export default async function SocialAccountsPage() {
             ))
           ) : (
             <div className="rounded-[1.6rem] border border-dashed border-border bg-panel-soft px-5 py-6 text-sm text-muted-foreground xl:col-span-2">
-              No connected social accounts yet. Start with the connect wizard above to validate a
-              profile and continue through Apify import or the clearly labeled sandbox workflow.
+              No connected social accounts yet. Configure at least one official provider OAuth
+              integration, then start with the connection panel above.
             </div>
           )}
         </div>

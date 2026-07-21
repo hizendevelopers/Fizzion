@@ -53,6 +53,15 @@ function rowStringArray(row: GenericRow, key: string) {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
+function isSocialSandboxEnabled() {
+  const raw = process.env.SOCIAL_SANDBOX_ENABLED;
+  return raw === "1" || raw === "true";
+}
+
+function shouldIncludeConnectionRow(row: GenericRow) {
+  return isSocialSandboxEnabled() || !rowBoolean(row, "sandbox_mode", false);
+}
+
 export type SocialDashboardAccount = {
   id: string;
   socialAccountId: string;
@@ -348,7 +357,7 @@ export async function listSocialConnections(provider?: SocialProviderKey) {
   }
 
   const { data } = await query;
-  return hydrateConnections((data ?? []) as GenericRow[]);
+  return hydrateConnections(((data ?? []) as GenericRow[]).filter(shouldIncludeConnectionRow));
 }
 
 async function hydrateConnections(rows: GenericRow[]) {
@@ -1112,6 +1121,10 @@ export async function listSocialContent(connectionId: string, query: SocialConte
     return { items: [] as SocialContentItem[], total: 0 };
   }
 
+  if (!shouldIncludeConnectionRow(rawConnection.data as GenericRow)) {
+    return { items: [] as SocialContentItem[], total: 0 };
+  }
+
   const socialAccountId = rowString(rawConnection.data as GenericRow, "social_account_id");
   let postsQuery = supabase
     .from("social_posts")
@@ -1253,6 +1266,10 @@ export async function getSocialContentDetail(contentId: string): Promise<SocialC
     .maybeSingle();
 
   if (!connectionRes.data) {
+    return null;
+  }
+
+  if (!shouldIncludeConnectionRow(connectionRes.data as GenericRow)) {
     return null;
   }
 

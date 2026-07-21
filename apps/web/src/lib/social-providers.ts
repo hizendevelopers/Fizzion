@@ -3,6 +3,43 @@ import { buildAppBaseUrl, consumeOAuthState, encryptSocialToken, persistOAuthSta
 import type { SocialProviderKey } from "./social-schemas";
 import { normalizeSocialAccountInput } from "./social-utils";
 
+const PROVIDER_LABELS: Record<SocialProviderKey, string> = {
+  facebook: "Facebook",
+  instagram: "Instagram",
+  tiktok: "TikTok",
+  youtube: "YouTube",
+};
+
+const PROVIDER_SCOPE_HINTS: Record<SocialProviderKey, string[]> = {
+  facebook: [
+    "pages_show_list",
+    "pages_read_engagement",
+    "pages_read_user_content",
+    "business_management",
+  ],
+  instagram: [
+    "instagram_basic",
+    "instagram_manage_insights",
+    "pages_show_list",
+    "pages_read_engagement",
+  ],
+  tiktok: ["user.info.basic", "video.list"],
+  youtube: [
+    "https://www.googleapis.com/auth/youtube.readonly",
+    "https://www.googleapis.com/auth/yt-analytics.readonly",
+  ],
+};
+
+export type SocialProviderAvailability = {
+  provider: SocialProviderKey;
+  label: string;
+  configured: boolean;
+  officialOAuthImplemented: boolean;
+  available: boolean;
+  reasons: string[];
+  requiredScopes: string[];
+};
+
 export type AccountDiscoveryResult = {
   provider: SocialProviderKey;
   normalizedUrl: string;
@@ -79,6 +116,65 @@ function getProviderEnv(provider: SocialProviderKey) {
   };
 }
 
+function isSocialSandboxEnabled() {
+  const raw = process.env.SOCIAL_SANDBOX_ENABLED;
+  return raw === "1" || raw === "true";
+}
+
+function getProviderConfigReadiness(provider: SocialProviderKey) {
+  const env = getProviderEnv(provider);
+  const missing: string[] = [];
+
+  if (!env.clientId) {
+    missing.push("client id");
+  }
+  if (!env.clientSecret) {
+    missing.push("client secret");
+  }
+  if (!env.redirectUri) {
+    missing.push("redirect URI");
+  }
+
+  return {
+    configured: missing.length === 0,
+    missing,
+  };
+}
+
+function isOfficialOAuthImplemented() {
+  return false;
+}
+
+export function listSocialProviderAvailability(): SocialProviderAvailability[] {
+  return (["facebook", "instagram", "tiktok", "youtube"] as SocialProviderKey[]).map((provider) => {
+    const readiness = getProviderConfigReadiness(provider);
+    const officialOAuthImplemented = isOfficialOAuthImplemented();
+    const reasons: string[] = [];
+
+    if (!readiness.configured) {
+      reasons.push(`Missing ${readiness.missing.join(", ")} configuration.`);
+    }
+
+    if (!officialOAuthImplemented) {
+      reasons.push("Official token exchange and live data import are not implemented for this provider in the current build.");
+    }
+
+    return {
+      provider,
+      label: PROVIDER_LABELS[provider],
+      configured: readiness.configured,
+      officialOAuthImplemented,
+      available: readiness.configured && officialOAuthImplemented,
+      reasons,
+      requiredScopes: PROVIDER_SCOPE_HINTS[provider],
+    };
+  });
+}
+
+export function getSocialProviderAvailability(provider: SocialProviderKey) {
+  return listSocialProviderAvailability().find((item) => item.provider === provider)!;
+}
+
 class BaseSocialProvider implements SocialProvider {
   provider: SocialProviderKey;
 
@@ -89,8 +185,13 @@ class BaseSocialProvider implements SocialProvider {
   async validateInput(input: string): Promise<AccountDiscoveryResult> {
     const fixture = getSocialFixture(this.provider);
     const normalized = normalizeSocialAccountInput(this.provider, input);
-    const env = getProviderEnv(this.provider);
-    const liveConfigured = Boolean(env.clientId && env.clientSecret);
+    const availability = getSocialProviderAvailability(this.provider);
+
+    if (!availability.available) {
+      throw new Error(
+        `${availability.label} cannot be previewed in this environment because official OAuth is not ready. ${availability.reasons.join(" ")}`,
+      );
+    }
 
     return {
       provider: this.provider,
@@ -105,32 +206,29 @@ class BaseSocialProvider implements SocialProvider {
         verified: fixture.verified,
         description: fixture.description,
       },
-      mode: liveConfigured ? "live" : "sandbox",
-      warnings: liveConfigured
-        ? []
-        : [
-            "Official OAuth credentials are not configured in this environment, so the connection will run in clearly labeled sandbox mode.",
-          ],
+      mode: "live",
+      warnings: [],
     };
   }
 
   async getAuthorizationUrl(input: { accountInput: string; organizationId?: string | null }) {
     const env = getProviderEnv(this.provider);
-    const liveConfigured = Boolean(env.clientId && env.clientSecret);
+    const availability = getSocialProviderAvailability(this.provider);
+    const liveConfigured = availability.configured;
     const mode: "live" | "sandbox" = liveConfigured ? "live" : "sandbox";
+
+    if (!availability.available) {
+      throw new Error(
+        `${availability.label} is not currently available for official OAuth connection. ${availability.reasons.join(" ")}`,
+      );
+    }
+
     const state = await persistOAuthState({
       provider: this.provider,
       mode,
       accountInput: input.accountInput,
       organizationId: input.organizationId ?? null,
     });
-
-    if (!liveConfigured) {
-      return {
-        authorizationUrl: `${buildAppBaseUrl()}/social/oauth/callback/${this.provider}?state=${encodeURIComponent(state.token)}&mode=sandbox`,
-        mode,
-      };
-    }
 
     const redirectUri = encodeURIComponent(env.redirectUri!);
     const encodedState = encodeURIComponent(state.token);
@@ -166,6 +264,12 @@ class BaseSocialProvider implements SocialProvider {
 
       throw new Error(
         "Official OAuth authorization is available, but live provider token exchange and data import still require production provider credentials and app-review approval in this environment.",
+      );
+    }
+
+    if (!isSocialSandboxEnabled()) {
+      throw new Error(
+        "Sandbox social connections are disabled. Configure a real provider integration before connecting accounts.",
       );
     }
 
