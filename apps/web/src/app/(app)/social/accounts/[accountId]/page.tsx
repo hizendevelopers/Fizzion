@@ -5,6 +5,7 @@ import { SocialAccountActions } from "@/components/social/social-account-actions
 import { SocialExportButton } from "@/components/social/social-export-button";
 import { SocialProfileAvatar } from "@/components/social/social-profile-avatar";
 import { SocialTrendChart } from "@/components/social/social-trend-chart";
+import { CategoryBarCard, RadialStatCard } from "@/components/states/insight-charts";
 import { getSocialAccountDetail, listSocialContent } from "@/lib/social-data";
 import { formatNumber } from "@/lib/social-utils";
 
@@ -64,6 +65,19 @@ export default async function SocialAccountDetailPage({
     { value: "video", label: "Videos" },
     { value: "post", label: "Posts" },
   ];
+  const metricAvailability = [
+    { label: "Followers", value: detail.followers ?? 0, color: "#22c55e" },
+    { label: "Engagements", value: detail.engagements ?? 0, color: "#ef4444" },
+    { label: "Views", value: detail.views ?? 0, color: "#06b6d4" },
+    { label: "Posts", value: detail.contentCount ?? 0, color: "#8b5cf6" },
+  ];
+  const hashtagPerformance = detail.topHashtags.slice(0, 6).map((item) => ({
+    label: item.hashtag,
+    value: item.engagements,
+    note: `${item.postCount} posts · Reach ${formatNumber(item.reach)}`,
+  }));
+  const topPostConfidenceTotal = Math.max(content.items.length, 1);
+  const postsWithMetrics = content.items.filter((item) => item.engagements != null || item.views != null).length;
 
   return (
     <div className="space-y-6">
@@ -323,6 +337,45 @@ export default async function SocialAccountDetailPage({
           valueFormatter={formatNumber}
         />
       </div>
+
+      <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+        <CategoryBarCard
+          data={hashtagPerformance}
+          subtitle="Top hashtags ranked by real imported engagement totals"
+          title="Hashtag Performance"
+          formatter={formatNumber}
+          emptyLabel="No hashtag performance data is available for this account yet."
+        />
+        <RadialStatCard
+          color="#8b5cf6"
+          subtitle="Recent filtered content items that currently have real metric coverage"
+          title="Content Metric Coverage"
+          total={topPostConfidenceTotal}
+          value={postsWithMetrics}
+          valueLabel={`${Math.round((postsWithMetrics / topPostConfidenceTotal) * 100)}%`}
+        />
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-2">
+        <CategoryBarCard
+          data={metricAvailability}
+          subtitle="Current imported totals across the account summary"
+          title="Account Metric Mix"
+          formatter={formatNumber}
+          emptyLabel="No account-level metric mix is available yet."
+        />
+        <CategoryBarCard
+          data={content.items.slice(0, 5).map((item) => ({
+            label: item.title || item.contentTypeLabel,
+            value: item.engagements ?? item.views ?? 0,
+            note: `${item.contentTypeLabel} · ${formatDisplayDate(item.publishedAt)}`,
+          }))}
+          subtitle="Top visible content items from the active filter set"
+          title="Content Performance Snapshot"
+          formatter={formatNumber}
+          emptyLabel="No content performance snapshot is available for the current filters."
+        />
+      </section>
 
       <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <section className="rounded-[1.8rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]" id="history">

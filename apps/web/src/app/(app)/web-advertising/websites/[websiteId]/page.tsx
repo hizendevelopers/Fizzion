@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { WebAdScanButton } from "@/components/app/web-ad-scan-button";
+import { AreaTrendCard, CategoryBarCard, RadialStatCard } from "@/components/states/insight-charts";
 import { getWebAdvertisingWebsiteDetail } from "@/lib/web-ad-data";
 
 export default async function WebAdvertisingWebsiteDetailPage(
@@ -20,6 +21,23 @@ export default async function WebAdvertisingWebsiteDetailPage(
   const latestAds = website.ads.slice(0, 8);
   const runningCount = website.runs.filter((run) => String(run.status) === "running").length;
   const failedCount = website.runs.filter((run) => String(run.status) === "failed").length;
+  const runTrend = website.runs
+    .slice()
+    .reverse()
+    .map((run) => ({
+      label: String(run.started_at ?? "").slice(5, 10) || "Run",
+      value: Number(run.ads_detected ?? 0),
+    }));
+  const pageCoverage = website.pages.map((page) => ({
+    label: String(page.title ?? page.url),
+    value: latestAds.filter((ad) => ad.pageId === String(page.id)).length,
+    note: String(page.url),
+  })).slice(0, 6);
+  const runMix = [
+    { label: "Completed", value: website.runs.filter((run) => String(run.status) === "completed").length, color: "#22c55e" },
+    { label: "Running", value: runningCount, color: "#06b6d4" },
+    { label: "Failed", value: failedCount, color: "#ef4444" },
+  ];
 
   return (
     <div className="space-y-6">
@@ -121,6 +139,36 @@ export default async function WebAdvertisingWebsiteDetailPage(
             )}
           </div>
         </article>
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+        <AreaTrendCard
+          color="#d33a54"
+          data={runTrend}
+          subtitle="Detected ad counts across recent crawl runs"
+          title="Scan Yield Trend"
+        />
+        <RadialStatCard
+          color="#06b6d4"
+          subtitle="Recent runs that completed successfully"
+          title="Run Completion Ratio"
+          total={Math.max(website.runs.length, 1)}
+          value={runMix[0].value}
+          valueLabel={`${Math.round((runMix[0].value / Math.max(website.runs.length, 1)) * 100)}%`}
+        />
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-2">
+        <CategoryBarCard
+          data={pageCoverage}
+          subtitle="Where recent captures are appearing inside this monitoring scope"
+          title="Page-Level Coverage"
+        />
+        <CategoryBarCard
+          data={runMix}
+          subtitle="Operational mix of run outcomes for this website"
+          title="Run Status Distribution"
+        />
       </section>
 
       <section className="rounded-[1.85rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">

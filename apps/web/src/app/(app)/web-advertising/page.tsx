@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { AreaTrendCard, CategoryBarCard, RadialStatCard } from "@/components/states/insight-charts";
 import { WebAdScanButton } from "@/components/app/web-ad-scan-button";
 import { KpiCard } from "@/components/states/kpi-card";
 import {
@@ -66,6 +67,16 @@ export default async function WebAdvertisingPage(
   const activeWebsites = filteredWebsites.filter((website) => website.currentStatus !== "failed").length;
   const latestAds = filteredAds.slice(0, 12);
   const staleSources = filteredWebsites.filter((website) => !website.lastScanAt).length;
+  const adTrend = buildAdTrend(filteredAds);
+  const websiteCoverage = filteredWebsites.map((website) => ({
+    label: website.name,
+    value: website.adsDetected,
+    note: `${website.pagesMonitored} pages · ${website.scansCompleted} scans`,
+  })).slice(0, 6);
+  const reviewMix = [
+    { label: "Confirmed", value: filteredAds.filter((ad) => normalizeReview(ad.reviewStatus) === "confirmed").length, color: "#22c55e" },
+    { label: "Needs review", value: filteredAds.filter((ad) => normalizeReview(ad.reviewStatus) === "needs-review").length, color: "#f59e0b" },
+  ];
 
   return (
     <div className="space-y-6">
@@ -258,6 +269,36 @@ export default async function WebAdvertisingPage(
         </article>
       </section>
 
+      <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+        <AreaTrendCard
+          color="#F40009"
+          data={adTrend}
+          subtitle="Captured advertisement occurrences grouped by day"
+          title="Detection Trend"
+        />
+        <RadialStatCard
+          color="#22c55e"
+          subtitle="Ads that are already above the confirmation threshold"
+          title="Review Readiness"
+          total={Math.max(filteredAds.length, 1)}
+          value={reviewMix[0].value}
+          valueLabel={`${Math.round((reviewMix[0].value / Math.max(filteredAds.length, 1)) * 100)}%`}
+        />
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-2">
+        <CategoryBarCard
+          data={websiteCoverage}
+          subtitle="Websites ranked by detected ad evidence"
+          title="Website Coverage"
+        />
+        <CategoryBarCard
+          data={reviewMix}
+          subtitle="How much of the current gallery is review-ready versus still pending review"
+          title="Review Status Mix"
+        />
+      </section>
+
       <section className="rounded-[1.9rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
@@ -325,6 +366,19 @@ export default async function WebAdvertisingPage(
       </section>
     </div>
   );
+}
+
+function buildAdTrend(ads: WebAdvertisingAdItem[]) {
+  const byDay = new Map<string, number>();
+
+  for (const ad of ads) {
+    const day = ad.capturedAt.slice(0, 10);
+    byDay.set(day, (byDay.get(day) ?? 0) + 1);
+  }
+
+  return [...byDay.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([label, value]) => ({ label, value }));
 }
 
 function firstParam(value: string | string[] | undefined) {

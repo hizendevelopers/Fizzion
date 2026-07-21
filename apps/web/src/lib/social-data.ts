@@ -213,6 +213,7 @@ export type SocialContentItem = {
   caption: string;
   description: string;
   contentType: string;
+  contentTypeLabel: string;
   thumbnailUrl: string | null;
   mediaUrl: string | null;
   permalink: string | null;
@@ -236,6 +237,15 @@ export type SocialContentItem = {
   averageWatchTimeSeconds: number | null;
   completionRate: number | null;
 };
+
+function formatSocialContentTypeLabel(value: string) {
+  return value
+    .toLowerCase()
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
+}
 
 export type SocialCommentItem = {
   id: string;
@@ -1669,6 +1679,7 @@ async function hydrateContentItems(
       caption: rowString(row, "caption"),
       description: rowString(row, "description"),
       contentType: rowString(row, "content_type"),
+      contentTypeLabel: formatSocialContentTypeLabel(rowString(row, "content_type")),
       thumbnailUrl: rowNullableString(media, "thumbnail_url"),
       mediaUrl: rowNullableString(media, "source_url"),
       permalink: rowNullableString(row, "permalink"),
