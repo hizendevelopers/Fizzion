@@ -1,7 +1,4 @@
-import { NextResponse } from "next/server";
-
 import { makeSocialRequestId, socialApiError } from "@/lib/social-api";
-import { createSocialAuthorizationLink, getDefaultSocialOrganizationId } from "@/lib/social-data";
 import { socialConnectStartSchema, socialProviderSchema } from "@/lib/social-schemas";
 
 export async function POST(
@@ -36,17 +33,10 @@ export async function POST(
     );
   }
 
-  const organizationId = await getDefaultSocialOrganizationId();
-  const result = await createSocialAuthorizationLink({
-    provider: providerParsed.data,
-    accountInput: parsed.data.input,
-    organizationId,
-  });
-
-  return NextResponse.json({
+  return socialApiError(
+    "APIFY_CONNECT_REQUIRED",
+    `Use the Apify scraper workflow for ${providerParsed.data}. Start from /api/social/connections/apify-connect instead of the legacy OAuth connect route.`,
+    409,
     requestId,
-    provider: providerParsed.data,
-    authorizationUrl: result.authorizationUrl,
-    mode: result.mode,
-  });
+  );
 }

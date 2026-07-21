@@ -12,6 +12,7 @@ export async function GET() {
       requestId,
       items: providers,
       availableProviders: providers.filter((provider) => provider.available).map((provider) => provider.provider),
+      connectionMethod: "apify_scrape",
     });
   } catch (error) {
     return socialApiError(

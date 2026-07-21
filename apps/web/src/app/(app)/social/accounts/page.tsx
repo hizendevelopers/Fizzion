@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 
+import { ConnectAccountWizard } from "@/components/social/connect-account-wizard";
 import { SocialAccountActions } from "@/components/social/social-account-actions";
 import { SocialExportButton } from "@/components/social/social-export-button";
 import { SocialProfileAvatar } from "@/components/social/social-profile-avatar";
-import { SocialProviderConnectPanel } from "@/components/social/social-provider-connect-panel";
 import { getSocialPortfolioSummary, listSocialConnections } from "@/lib/social-data";
 import { listSocialProviderAvailability } from "@/lib/social-providers";
 import { formatNumber } from "@/lib/social-utils";
@@ -17,6 +17,7 @@ export default async function SocialAccountsPage() {
     listSocialConnections(),
   ]);
   const providers = listSocialProviderAvailability();
+  const availableProviders = providers.filter((provider) => provider.available);
 
   return (
     <div className="space-y-6">
@@ -25,8 +26,8 @@ export default async function SocialAccountsPage() {
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-foreground">Social Intelligence</h1>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground">
-              Connect officially supported social accounts through provider OAuth, then review real
-              synchronized analytics with clear source labeling and safe refresh controls.
+              Connect public social accounts through the configured Apify scrapers, then review
+              imported profile data, content, and availability-aware metrics.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -77,16 +78,23 @@ export default async function SocialAccountsPage() {
             }
           />
         </div>
+
+        <div className="mt-5 flex flex-wrap gap-3 text-xs text-muted-foreground">
+          <span>{availableProviders.length} providers ready through Apify</span>
+          <span>
+            Supported: {providers.map((provider) => provider.label).join(", ")}
+          </span>
+        </div>
       </section>
 
-      <SocialProviderConnectPanel providers={providers} />
+      <ConnectAccountWizard />
 
       <section className="rounded-[1.9rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-xl font-semibold text-foreground">Connected Accounts</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Original profile logos, synchronization status, and availability-aware metrics are
+              Real imported profile images, synchronization status, and source-aware metrics are
               shown for each connected account.
             </p>
           </div>
@@ -119,6 +127,11 @@ export default async function SocialAccountsPage() {
                         {connection.verified ? (
                           <span className="rounded-full bg-brand-red/10 px-3 py-1 text-xs font-medium text-brand-red">
                             Verified
+                          </span>
+                        ) : null}
+                        {connection.sandboxMode ? (
+                          <span className="rounded-full bg-warning-soft px-3 py-1 text-xs text-foreground">
+                            Sandbox fixture
                           </span>
                         ) : null}
                       </div>
@@ -172,8 +185,8 @@ export default async function SocialAccountsPage() {
             ))
           ) : (
             <div className="rounded-[1.6rem] border border-dashed border-border bg-panel-soft px-5 py-6 text-sm text-muted-foreground xl:col-span-2">
-              No connected social accounts yet. Configure at least one official provider OAuth
-              integration, then start with the connection panel above.
+              No connected social accounts yet. Start with the Apify connect wizard above after
+              configuring `APIFY_API_TOKEN`.
             </div>
           )}
         </div>

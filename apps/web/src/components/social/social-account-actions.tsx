@@ -10,7 +10,7 @@ export function SocialAccountActions({
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function runAction(action: "sync" | "reconnect" | "remove") {
+  async function runAction(action: "sync" | "remove") {
     setBusy(true);
     setStatus(null);
 
@@ -27,18 +27,6 @@ export function SocialAccountActions({
         }
         setStatus("Data refresh queued successfully.");
         window.location.reload();
-        return;
-      }
-
-      if (action === "reconnect") {
-        const response = await fetch(`/api/social/connections/${connectionId}/reconnect`, {
-          method: "POST",
-        });
-        const payload = await response.json();
-        if (!response.ok || !payload?.authorizationUrl) {
-          throw new Error(payload?.error?.message ?? "Reconnect could not start.");
-        }
-        window.location.href = payload.authorizationUrl;
         return;
       }
 
@@ -76,14 +64,6 @@ export function SocialAccountActions({
           type="button"
         >
           Refresh Data
-        </button>
-        <button
-          className="rounded-full border border-border bg-panel-soft px-4 py-2 text-sm font-medium text-foreground disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={busy}
-          onClick={() => runAction("reconnect")}
-          type="button"
-        >
-          Reconnect
         </button>
         <button
           className="rounded-full border border-warning/35 bg-warning-soft px-4 py-2 text-sm font-medium text-foreground disabled:cursor-not-allowed disabled:opacity-60"

@@ -1,7 +1,5 @@
-import { NextResponse } from "next/server";
-
 import { makeSocialRequestId, socialApiError } from "@/lib/social-api";
-import { createSocialAuthorizationLink, getSocialConnectionDetail } from "@/lib/social-data";
+import { getSocialConnectionDetail } from "@/lib/social-data";
 
 export async function POST(
   _request: Request,
@@ -15,14 +13,10 @@ export async function POST(
     return socialApiError("SOCIAL_CONNECTION_NOT_FOUND", "Social connection was not found.", 404, requestId);
   }
 
-  const result = await createSocialAuthorizationLink({
-    provider: connection.provider,
-    accountInput: connection.publicProfileUrl ?? connection.username,
-  });
-
-  return NextResponse.json({
+  return socialApiError(
+    "RECONNECT_NOT_REQUIRED",
+    `This ${connection.platformLabel} connection uses the Apify scraper workflow. Use Refresh Data to rescan the public account source instead of reconnecting through OAuth.`,
+    409,
     requestId,
-    authorizationUrl: result.authorizationUrl,
-    mode: result.mode,
-  });
+  );
 }

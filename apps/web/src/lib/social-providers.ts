@@ -1,3 +1,5 @@
+import { APIFY_ACTORS } from "./apify/actors";
+import { getApifyApiToken } from "./env";
 import { getSocialFixture } from "./social-fixtures";
 import { buildAppBaseUrl, consumeOAuthState, encryptSocialToken, persistOAuthState } from "./social-security";
 import type { SocialProviderKey } from "./social-schemas";
@@ -10,34 +12,14 @@ const PROVIDER_LABELS: Record<SocialProviderKey, string> = {
   youtube: "YouTube",
 };
 
-const PROVIDER_SCOPE_HINTS: Record<SocialProviderKey, string[]> = {
-  facebook: [
-    "pages_show_list",
-    "pages_read_engagement",
-    "pages_read_user_content",
-    "business_management",
-  ],
-  instagram: [
-    "instagram_basic",
-    "instagram_manage_insights",
-    "pages_show_list",
-    "pages_read_engagement",
-  ],
-  tiktok: ["user.info.basic", "video.list"],
-  youtube: [
-    "https://www.googleapis.com/auth/youtube.readonly",
-    "https://www.googleapis.com/auth/yt-analytics.readonly",
-  ],
-};
-
 export type SocialProviderAvailability = {
   provider: SocialProviderKey;
   label: string;
   configured: boolean;
-  officialOAuthImplemented: boolean;
   available: boolean;
+  connectionMethod: "apify_scrape";
   reasons: string[];
-  requiredScopes: string[];
+  actorId: string;
 };
 
 export type AccountDiscoveryResult = {
@@ -121,52 +103,33 @@ function isSocialSandboxEnabled() {
   return raw === "1" || raw === "true";
 }
 
-function getProviderConfigReadiness(provider: SocialProviderKey) {
-  const env = getProviderEnv(provider);
-  const missing: string[] = [];
-
-  if (!env.clientId) {
-    missing.push("client id");
+function hasApifyTokenConfigured() {
+  try {
+    getApifyApiToken();
+    return true;
+  } catch {
+    return false;
   }
-  if (!env.clientSecret) {
-    missing.push("client secret");
-  }
-  if (!env.redirectUri) {
-    missing.push("redirect URI");
-  }
-
-  return {
-    configured: missing.length === 0,
-    missing,
-  };
-}
-
-function isOfficialOAuthImplemented() {
-  return false;
 }
 
 export function listSocialProviderAvailability(): SocialProviderAvailability[] {
+  const apifyReady = hasApifyTokenConfigured();
+
   return (["facebook", "instagram", "tiktok", "youtube"] as SocialProviderKey[]).map((provider) => {
-    const readiness = getProviderConfigReadiness(provider);
-    const officialOAuthImplemented = isOfficialOAuthImplemented();
     const reasons: string[] = [];
 
-    if (!readiness.configured) {
-      reasons.push(`Missing ${readiness.missing.join(", ")} configuration.`);
-    }
-
-    if (!officialOAuthImplemented) {
-      reasons.push("Official token exchange and live data import are not implemented for this provider in the current build.");
+    if (!apifyReady) {
+      reasons.push("APIFY_API_TOKEN is not configured.");
     }
 
     return {
       provider,
       label: PROVIDER_LABELS[provider],
-      configured: readiness.configured,
-      officialOAuthImplemented,
-      available: readiness.configured && officialOAuthImplemented,
+      configured: apifyReady,
+      available: apifyReady,
+      connectionMethod: "apify_scrape",
       reasons,
-      requiredScopes: PROVIDER_SCOPE_HINTS[provider],
+      actorId: APIFY_ACTORS[provider],
     };
   });
 }
@@ -183,31 +146,26 @@ class BaseSocialProvider implements SocialProvider {
   }
 
   async validateInput(input: string): Promise<AccountDiscoveryResult> {
-    const fixture = getSocialFixture(this.provider);
     const normalized = normalizeSocialAccountInput(this.provider, input);
-    const availability = getSocialProviderAvailability(this.provider);
-
-    if (!availability.available) {
-      throw new Error(
-        `${availability.label} cannot be previewed in this environment because official OAuth is not ready. ${availability.reasons.join(" ")}`,
-      );
-    }
+    const hasApifyToken = hasApifyTokenConfigured();
 
     return {
       provider: this.provider,
       normalizedUrl: normalized.normalizedUrl,
       normalizedHandle: normalized.normalizedHandle,
       preview: {
-        displayName: fixture.accountName,
-        username: fixture.username,
-        accountType: fixture.accountType,
-        profileImageUrl: fixture.profileImageUrl,
+        displayName: normalized.normalizedHandle,
+        username: normalized.normalizedHandle,
+        accountType: "public_scrape_target",
+        profileImageUrl: "",
         publicProfileUrl: normalized.normalizedUrl,
-        verified: fixture.verified,
-        description: fixture.description,
+        verified: false,
+        description: "This is a normalized scrape target. Real profile details will appear after Apify import completes.",
       },
-      mode: "live",
-      warnings: [],
+      mode: hasApifyToken ? "live" : "sandbox",
+      warnings: hasApifyToken
+        ? []
+        : ["APIFY_API_TOKEN is not configured, so only sandbox import is currently available."],
     };
   }
 
