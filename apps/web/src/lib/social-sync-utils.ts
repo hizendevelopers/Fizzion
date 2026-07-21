@@ -1,5 +1,5 @@
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
-import { APIFY_ACTORS, INSTAGRAM_PROFILE_APIFY_ACTOR } from "@/lib/apify/actors";
+import { APIFY_ACTORS, INSTAGRAM_SUPPLEMENTAL_PROFILE_ACTORS } from "@/lib/apify/actors";
 import { startApifyActor, startApifyActorById, waitForApifyRun, readEntireDataset } from "@/lib/apify/apify-service";
 import { buildTikTokInput } from "@/lib/apify/input-builders/tiktok";
 import { buildInstagramInput } from "@/lib/apify/input-builders/instagram";
@@ -190,14 +190,16 @@ export async function startPlatformScrapeBundle(
 
   if (platform === "instagram") {
     const profileInput = buildInstagramProfileInput(normalized);
-    const profileRun = await startApifyActorById(INSTAGRAM_PROFILE_APIFY_ACTOR, profileInput);
-    supplemental.push({
-      actorId: INSTAGRAM_PROFILE_APIFY_ACTOR,
-      runId: profileRun.runId,
-      datasetId: profileRun.datasetId,
-      status: profileRun.status,
-      purpose: "profile",
-    });
+    for (const actorId of INSTAGRAM_SUPPLEMENTAL_PROFILE_ACTORS) {
+      const profileRun = await startApifyActorById(actorId, profileInput);
+      supplemental.push({
+        actorId,
+        runId: profileRun.runId,
+        datasetId: profileRun.datasetId,
+        status: profileRun.status,
+        purpose: "profile",
+      });
+    }
   }
 
   return {
@@ -637,7 +639,7 @@ export async function performFullSync(
     const supplementalStatus = await waitForApifyRun(supplementalRun.runId, 300);
     if (supplementalStatus.status !== "SUCCEEDED") {
       throw new Error(
-        `Supplemental Instagram profile scraper finished with status: ${supplementalStatus.status}`,
+        `Supplemental Instagram profile scraper ${supplementalRun.actorId} finished with status: ${supplementalStatus.status}`,
       );
     }
   }

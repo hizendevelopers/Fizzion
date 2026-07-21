@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { INSTAGRAM_SUPPLEMENTAL_PROFILE_ACTORS } from "@/lib/apify/actors";
 import { buildInstagramProfileInput } from "@/lib/apify/input-builders/instagram-profile";
 import { normalizeInstagramProfile } from "@/lib/apify/normalization/instagram";
 
@@ -18,6 +19,13 @@ test("instagram profile actor input uses username list", () => {
     usernames: ["humansofny"],
     includeAboutSection: false,
   });
+});
+
+test("instagram supplemental profile actor list includes both supported actors", () => {
+  assert.deepEqual(INSTAGRAM_SUPPLEMENTAL_PROFILE_ACTORS, [
+    "dSCLg0C3YEZ83HzYX",
+    "bGApZ3CtTxA9fv2rl",
+  ]);
 });
 
 test("instagram profile normalization reads supplemental actor profile fields", () => {

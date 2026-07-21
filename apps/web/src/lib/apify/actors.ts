@@ -8,6 +8,11 @@ export const APIFY_ACTORS = {
 } as const satisfies Record<SocialProviderKey, string>;
 
 export const INSTAGRAM_PROFILE_APIFY_ACTOR = "dSCLg0C3YEZ83HzYX";
+export const INSTAGRAM_PROFILE_APIFY_ACTOR_V2 = "bGApZ3CtTxA9fv2rl";
+export const INSTAGRAM_SUPPLEMENTAL_PROFILE_ACTORS = [
+  INSTAGRAM_PROFILE_APIFY_ACTOR,
+  INSTAGRAM_PROFILE_APIFY_ACTOR_V2,
+] as const;
 
 export type ApifyActorPlatform = keyof typeof APIFY_ACTORS;
 
