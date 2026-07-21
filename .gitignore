@@ -25,3 +25,5 @@ uploads
 !apps/web/src/app/api/tv/uploads/
 !apps/web/src/app/api/tv/uploads/**
 tmp-dev-*.log
+.tmp-*.log
+apps/web/.data

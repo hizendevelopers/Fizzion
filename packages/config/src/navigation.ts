@@ -25,12 +25,12 @@ export const primaryNavigation: NavItem[] = [
   },
   { href: "/websites", key: "web" },
   {
-    href: "/ooh/map",
+    href: "/ooh-intelligence",
     key: "ooh",
     children: [
-      { href: "/ooh/map", key: "oohMap" },
-      { href: "/ooh/locations", key: "oohLocations" },
-      { href: "/ooh/locations/new", key: "oohAddLocation" },
+      { href: "/ooh-intelligence", key: "oohMap" },
+      { href: "/ooh-intelligence", key: "oohLocations" },
+      { href: "/ooh-intelligence/assets/new", key: "oohAddLocation" },
     ],
   },
   { href: "/creatives", key: "creatives" },

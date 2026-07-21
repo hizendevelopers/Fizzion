@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">BGD-BB-0002 site mockup</title>
+  <desc id="desc">Mansour Main Boulevard 2 in Baghdad Mansour</desc>
+  <rect width="1600" height="900" fill="#F8FAFC"/>
+  <rect y="0" width="1600" height="540" fill="#E0F2FE"/>
+  <rect y="540" width="1600" height="360" fill="#D6D3D1"/>
+  <path d="M0 610C180 560 340 570 510 620C640 658 760 662 930 620C1080 582 1260 566 1600 640V900H0Z" fill="#CBD5E1"/>
+  <rect x="390" y="150" width="820" height="420" rx="28" fill="#111827"/>
+  <rect x="410" y="170" width="780" height="380" rx="18" fill="#0F766E"/>
+  <circle cx="1050" cy="255" r="72" fill="#22C55E" opacity="0.28"/>
+  <text x="464" y="290" fill="#FFFFFF" font-size="58" font-family="Arial, Helvetica, sans-serif" font-weight="700">Karachi Brew Bank</text>
+  <text x="464" y="355" fill="#F8FAFC" font-size="30" font-family="Arial, Helvetica, sans-serif">Taste the upgrade 102</text>
+  <text x="464" y="490" fill="#FFFFFF" font-size="24" font-family="Arial, Helvetica, sans-serif">BGD-BB-0002</text>
+  <text x="464" y="530" fill="#E2E8F0" font-size="22" font-family="Arial, Helvetica, sans-serif">Baghdad · Mansour · BILLBOARD</text>
+  <rect x="464" y="400" width="240" height="58" rx="29" fill="rgba(255,255,255,0.16)"/>
+  <text x="494" y="438" fill="#FFFFFF" font-size="24" font-family="Arial, Helvetica, sans-serif">Automotive</text>
+  <rect x="720" y="550" width="24" height="170" fill="#6B7280"/>
+  <rect x="1496" y="550" width="24" height="170" fill="#6B7280"/>
+  <path d="M1080 690H1460" stroke="#64748B" stroke-width="12" stroke-linecap="round"/>
+  <path d="M120 710H580" stroke="#475569" stroke-width="18" stroke-linecap="round"/>
+  <path d="M780 710H1020" stroke="#475569" stroke-width="18" stroke-linecap="round"/>
+  <circle cx="1260" cy="710" r="16" fill="#1F2937"/>
+  <circle cx="1320" cy="710" r="16" fill="#1F2937"/>
+  <text x="90" y="830" fill="#1F2937" font-size="28" font-family="Arial, Helvetica, sans-serif">Mansour Main Boulevard 2</text>
+  <text x="90" y="868" fill="#475569" font-size="22" font-family="Arial, Helvetica, sans-serif">Mansour Avenue 2, Baghdad</text>
+</svg>

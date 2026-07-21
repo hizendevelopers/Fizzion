@@ -13,6 +13,44 @@ This repository contains:
 - `supabase`: PostgreSQL schema, RLS, and seed configuration
 - `docs`: architecture, contracts, wireframes, ERD, operations, and deployment documentation
 
+## OOH Intelligence
+
+The repository now includes a functional `OOH Intelligence` module at `/ooh-intelligence` with:
+
+- deterministic Karachi + Baghdad demo inventory
+- interactive MapLibre map and synchronized results list
+- asset detail pages
+- add, edit, and delete inventory flows
+- local image uploads
+- XLSX preview/import API flow for OOH site lists
+- fallback local persisted store when the remote Supabase OOH tables have not been migrated yet
+
+### Local OOH setup
+
+1. Install dependencies:
+   `npm install`
+2. Copy env values:
+   `copy .env.example .env.local`
+3. Generate demo OOH images:
+   `npm run generate:ooh-demo-images --workspace web`
+4. Start the web app:
+   `npm run dev --workspace web`
+5. Open:
+   `http://localhost:3000/ooh-intelligence`
+
+### OOH verification commands
+
+- `npm run lint --workspace web`
+- `npm run typecheck --workspace web`
+- `npm run test --workspace web`
+- `npm run build --workspace web`
+
+### OOH notes
+
+- When Supabase already has the OOH migrations applied, the module uses the database-backed path.
+- When the OOH tables are not yet present, the app automatically switches to a local persisted fallback store in `apps/web/.data`, so the inventory UI and CRUD flows remain usable during setup.
+- The workbook `TCCC_OOH Site list_2026.xlsx` is not stored in this repository, so import UI/API are implemented generically and should be exercised with the real file in your environment.
+
 ## Current state
 
 This is the production-foundation implementation. It includes:
@@ -38,4 +76,3 @@ Production activation still requires customer-controlled or licensed access for:
 - Commercial traffic-intelligence or approved ranking source
 
 See [docs/external-dependencies.md](/d:/Fizzion/docs/external-dependencies.md) for the full activation list.
-

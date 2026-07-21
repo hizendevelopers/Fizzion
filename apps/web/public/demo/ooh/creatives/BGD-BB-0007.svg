@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Nova Bank creative for BGD-BB-0007</title>
+  <desc id="desc">Nova Bank campaign creative for Baghdad Mansour</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#EA580C"/>
+      <stop offset="100%" stop-color="#172554"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <circle cx="1280" cy="190" r="150" fill="#FB7185" opacity="0.28"/>
+  <circle cx="250" cy="760" r="220" fill="#FB7185" opacity="0.18"/>
+  <rect x="120" y="120" width="160" height="14" rx="7" fill="#FB7185"/>
+  <text x="120" y="280" fill="#FFFFFF" font-size="120" font-family="Arial, Helvetica, sans-serif" font-weight="700">Nova Bank</text>
+  <text x="120" y="390" fill="#F8FAFC" font-size="52" font-family="Arial, Helvetica, sans-serif">Built for the city 107</text>
+  <text x="120" y="735" fill="#E2E8F0" font-size="34" font-family="Arial, Helvetica, sans-serif">Baghdad · Mansour · BGD-BB-0007</text>
+  <rect x="120" y="510" width="420" height="150" rx="34" fill="rgba(255,255,255,0.12)"/>
+  <text x="160" y="585" fill="#FFFFFF" font-size="42" font-family="Arial, Helvetica, sans-serif">E-commerce</text>
+  <text x="160" y="635" fill="#FFFFFF" font-size="30" font-family="Arial, Helvetica, sans-serif">Outdoor Billboard</text>
+</svg>

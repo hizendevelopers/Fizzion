@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "tsx --test ./src/lib/utils.test.ts ./src/lib/supabase/server.test.ts ./src/lib/social-utils.test.ts ./src/lib/social-security.test.ts"
+    "test": "tsx --test ./src/lib/utils.test.ts ./src/lib/supabase/server.test.ts ./src/lib/social-utils.test.ts ./src/lib/social-security.test.ts ./src/lib/ooh/demo-data.test.ts ./src/lib/ooh/ooh-import.test.ts",
+    "generate:ooh-demo-images": "tsx ./scripts/generate-ooh-demo-images.ts"
   },
   "dependencies": {
     "@fizzion/config": "*",
@@ -16,9 +17,11 @@
     "@fizzion/ui": "*",
     "@supabase/supabase-js": "^2.110.7",
     "apify-client": "^2.23.4",
+    "maplibre-gl": "^5.24.0",
     "next": "16.2.10",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "xlsx": "^0.18.5",
     "zod": "^4.1.5"
   },
   "devDependencies": {
