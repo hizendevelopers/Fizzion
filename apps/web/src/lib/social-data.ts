@@ -159,10 +159,15 @@ export type SocialPortfolioSummary = {
 export type SocialTrendPoint = {
   date: string;
   followers: number | null;
+  following: number | null;
+  contentCount: number | null;
   reach: number | null;
   impressions: number | null;
   engagements: number | null;
   views: number | null;
+  engagementRate: number | null;
+  averageLikes: number | null;
+  averageComments: number | null;
 };
 
 export type SocialHashtagSummary = {
@@ -175,6 +180,29 @@ export type SocialHashtagSummary = {
 export type SocialAccountDetail = SocialDashboardAccount & {
   trend: SocialTrendPoint[];
   topHashtags: SocialHashtagSummary[];
+  insights: {
+    trackedSince: string | null;
+    followerGrowthRate30Days: number | null;
+    followerGrowthRate90Days: number | null;
+    weeklyFollowerGain: number | null;
+    weeklyPosts: number | null;
+    averageLikesLast30Days: number | null;
+    averageCommentsLast30Days: number | null;
+    averageEngagementRateLast30Days: number | null;
+    followersToFollowingRatio: number | null;
+    commentsPerPostLast30Days: number | null;
+  };
+  historyRows: Array<{
+    date: string;
+    followers: number | null;
+    followersDelta: number | null;
+    following: number | null;
+    followingDelta: number | null;
+    mediaCount: number | null;
+    mediaCountDelta: number | null;
+    engagementRate: number | null;
+    engagementRateDelta: number | null;
+  }>;
 };
 
 export type SocialContentItem = {
@@ -403,8 +431,13 @@ async function hydrateConnections(rows: GenericRow[]) {
   const supabase = getSupabaseAdminClient();
   const accountIds = [...new Set(rows.map((row) => rowString(row, "social_account_id")).filter(Boolean))];
 
-  const [accountsRes, snapshotsRes, metricsRes, postsRes] = await Promise.all([
+  const connectionIds = [...new Set(rows.map((row) => rowString(row, "id")).filter(Boolean))];
+
+  const [accountsRes, profileRowsRes, snapshotsRes, metricsRes, postsRes] = await Promise.all([
     accountIds.length > 0 ? supabase.from("social_accounts").select("*").in("id", accountIds) : Promise.resolve({ data: [] }),
+    connectionIds.length > 0
+      ? supabase.from("social_profiles").select("*").in("connection_id", connectionIds).order("captured_at", { ascending: false })
+      : Promise.resolve({ data: [] }),
     accountIds.length > 0
       ? supabase.from("social_account_snapshots").select("*").in("social_account_id", accountIds).order("captured_at", { ascending: false })
       : Promise.resolve({ data: [] }),
@@ -417,12 +450,20 @@ async function hydrateConnections(rows: GenericRow[]) {
   ]);
 
   const accountLookup = new Map(((accountsRes.data ?? []) as GenericRow[]).map((row) => [rowString(row, "id"), row]));
+  const profileLookup = new Map<string, GenericRow>();
   const snapshotLookup = new Map<string, GenericRow>();
   const metricLookup = new Map<string, GenericRow>();
   const postCountLookup = new Map<string, number>();
   const postRows = (postsRes.data ?? []) as GenericRow[];
   const postAccountLookup = new Map<string, string>();
   const postIds: string[] = [];
+
+  for (const row of (profileRowsRes.data ?? []) as GenericRow[]) {
+    const id = rowString(row, "connection_id");
+    if (!profileLookup.has(id)) {
+      profileLookup.set(id, row);
+    }
+  }
 
   for (const row of (snapshotsRes.data ?? []) as GenericRow[]) {
     const id = rowString(row, "social_account_id");
@@ -532,8 +573,10 @@ async function hydrateConnections(rows: GenericRow[]) {
   }
 
   return rows.map((row) => {
+    const connectionId = rowString(row, "id");
     const socialAccountId = rowString(row, "social_account_id");
     const account = accountLookup.get(socialAccountId) ?? {};
+    const profileRow = profileLookup.get(connectionId) ?? {};
     const snapshot = snapshotLookup.get(socialAccountId) ?? {};
     const metric = metricLookup.get(socialAccountId) ?? {};
     const aggregates = accountMetricAggregates.get(socialAccountId);
@@ -570,7 +613,7 @@ async function hydrateConnections(rows: GenericRow[]) {
       });
 
     return {
-      id: rowString(row, "id"),
+      id: connectionId,
       socialAccountId,
       provider: rowString(row, "connection_type") as SocialProviderKey,
       platformLabel: getPlatformLabel(rowString(row, "connection_type") as SocialProviderKey),
@@ -578,13 +621,19 @@ async function hydrateConnections(rows: GenericRow[]) {
       syncStatus: rowString(row, "sync_status", "idle"),
       tokenStatus: rowString(row, "token_status", "unknown"),
       sandboxMode: rowBoolean(row, "sandbox_mode", false),
-      accountName: rowString(row, "account_name", rowString(account, "display_name", rowString(account, "handle"))),
-      username: rowString(row, "username", rowString(account, "handle")),
+      accountName: rowString(profileRow, "display_name", rowString(row, "account_name", rowString(account, "display_name", rowString(account, "handle")))),
+      username: rowString(profileRow, "username", rowString(row, "username", rowString(account, "handle"))),
       accountType: rowString(row, "account_type", rowString(account, "platform_account_kind", rowString(account, "connection_type", "social_account"))),
-      profileImageUrl: rowNullableString(row, "profile_image_url") ?? rowNullableString(account, "profile_image_url"),
-      publicProfileUrl: rowNullableString(row, "public_profile_url") ?? rowNullableString(account, "normalized_url"),
-      bio: rowNullableString(account, "bio"),
-      verified: rowBoolean(account, "is_verified", false),
+      profileImageUrl:
+        rowNullableString(profileRow, "profile_image_url") ??
+        rowNullableString(row, "profile_image_url") ??
+        rowNullableString(account, "profile_image_url"),
+      publicProfileUrl:
+        rowNullableString(profileRow, "profile_url") ??
+        rowNullableString(row, "public_profile_url") ??
+        rowNullableString(account, "normalized_url"),
+      bio: rowNullableString(profileRow, "bio") ?? rowNullableString(account, "bio"),
+      verified: rowBoolean(profileRow, "verified", rowBoolean(account, "is_verified", false)),
       lastSyncedAt: rowNullableString(row, "last_synced_at"),
       lastSuccessfulSyncAt: rowNullableString(row, "last_successful_sync_at"),
       nextSyncAt: rowNullableString(row, "next_sync_at"),
@@ -1176,16 +1225,50 @@ export async function getSocialAccountDetail(connectionId: string): Promise<Soci
       .order("published_at", { ascending: false }),
   ]);
 
-  const trend = ((snapshotsRes.data ?? []) as GenericRow[])
-    .map((row) => ({
-      date: rowString(row, "captured_at"),
-      followers: rowNullableNumber(row, "follower_count"),
-      reach: rowNullableNumber(row, "reach"),
-      impressions: rowNullableNumber(row, "impressions"),
-      engagements: rowNullableNumber(row, "engagements"),
-      views: rowNullableNumber(row, "views"),
-    }))
-    .reverse();
+  function getDayKey(value: string) {
+    return value.slice(0, 10);
+  }
+
+  const rawSnapshotRows = ((snapshotsRes.data ?? []) as GenericRow[]).reverse();
+
+  function snapshotCompletenessScore(row: GenericRow) {
+    let score = 0;
+    if (rowNullableNumber(row, "follower_count") != null) score += 3;
+    if (rowNullableNumber(row, "following_count") != null) score += 2;
+    if (rowNullableNumber(row, "content_count") != null) score += 2;
+    if (rowMetricNumber(row, "engagement_rate") != null) score += 1;
+    return score;
+  }
+
+  const snapshotRows = (() => {
+    const byDay = new Map<string, GenericRow>();
+
+    for (const row of rawSnapshotRows) {
+      const dayKey = getDayKey(rowString(row, "captured_at"));
+      const existing = byDay.get(dayKey);
+
+      if (!existing) {
+        byDay.set(dayKey, row);
+        continue;
+      }
+
+      const existingScore = snapshotCompletenessScore(existing);
+      const candidateScore = snapshotCompletenessScore(row);
+      const existingTime = new Date(rowString(existing, "captured_at")).getTime();
+      const candidateTime = new Date(rowString(row, "captured_at")).getTime();
+
+      if (
+        candidateScore > existingScore ||
+        (candidateScore === existingScore && candidateTime > existingTime)
+      ) {
+        byDay.set(dayKey, row);
+      }
+    }
+
+    return [...byDay.values()].sort(
+      (a, b) => new Date(rowString(a, "captured_at")).getTime() - new Date(rowString(b, "captured_at")).getTime(),
+    );
+  })();
 
   const hashtagMap = new Map<string, SocialHashtagSummary>();
   const postRows = (postsRes.data ?? []) as GenericRow[];
@@ -1222,11 +1305,62 @@ export async function getSocialAccountDetail(connectionId: string): Promise<Soci
     }
   }
 
+  type DailyPostSummary = {
+    likesSum: number;
+    likesCount: number;
+    commentsSum: number;
+    commentsCount: number;
+    engagementsSum: number;
+    engagementRateSum: number;
+    engagementRateCount: number;
+    postCount: number;
+  };
+
+  const dailyPostSummary = new Map<string, DailyPostSummary>();
+
+  function appendDailySummary(dayKey: string, metric: GenericRow) {
+    const summary = dailyPostSummary.get(dayKey) ?? {
+      likesSum: 0,
+      likesCount: 0,
+      commentsSum: 0,
+      commentsCount: 0,
+      engagementsSum: 0,
+      engagementRateSum: 0,
+      engagementRateCount: 0,
+      postCount: 0,
+    };
+
+    const likes = rowMetricNumber(metric, "likes");
+    const comments = rowMetricNumber(metric, "comments");
+    const engagements = rowMetricNumber(metric, "metric_value", ["engagements"]);
+    const engagementRate = rowMetricNumber(metric, "engagement_rate", ["engagementRate"]);
+
+    if (likes != null) {
+      summary.likesSum += likes;
+      summary.likesCount += 1;
+    }
+    if (comments != null) {
+      summary.commentsSum += comments;
+      summary.commentsCount += 1;
+    }
+    if (engagements != null) {
+      summary.engagementsSum += engagements;
+    }
+    if (engagementRate != null) {
+      summary.engagementRateSum += engagementRate;
+      summary.engagementRateCount += 1;
+    }
+    summary.postCount += 1;
+    dailyPostSummary.set(dayKey, summary);
+  }
+
   for (const post of postRows) {
     const metric =
       contentMetricLookup.get(rowString(post, "id")) ??
       metricLookup.get(rowString(post, "id")) ??
       {};
+    const dayKey = getDayKey(rowString(post, "published_at"));
+    appendDailySummary(dayKey, metric);
     for (const hashtag of rowStringArray(post, "hashtags")) {
       const existing = hashtagMap.get(hashtag) ?? {
         hashtag,
@@ -1243,10 +1377,165 @@ export async function getSocialAccountDetail(connectionId: string): Promise<Soci
     }
   }
 
+  const trend = snapshotRows.map((row) => {
+    const dayKey = getDayKey(rowString(row, "captured_at"));
+    const dailySummary = dailyPostSummary.get(dayKey);
+
+    return {
+      date: rowString(row, "captured_at"),
+      followers: rowNullableNumber(row, "follower_count"),
+      following: rowNullableNumber(row, "following_count"),
+      contentCount: rowNullableNumber(row, "content_count"),
+      reach: rowMetricNumber(row, "reach"),
+      impressions: rowMetricNumber(row, "impressions"),
+      engagements: rowMetricNumber(row, "engagements") ?? dailySummary?.engagementsSum ?? null,
+      views: rowMetricNumber(row, "views"),
+      engagementRate:
+        rowMetricNumber(row, "engagement_rate") ??
+        (dailySummary && dailySummary.engagementRateCount > 0
+          ? dailySummary.engagementRateSum / dailySummary.engagementRateCount
+          : null),
+      averageLikes:
+        dailySummary && dailySummary.likesCount > 0
+          ? dailySummary.likesSum / dailySummary.likesCount
+          : null,
+      averageComments:
+        dailySummary && dailySummary.commentsCount > 0
+          ? dailySummary.commentsSum / dailySummary.commentsCount
+          : null,
+    } satisfies SocialTrendPoint;
+  });
+
+  function nearestSnapshot(targetDate: Date) {
+    let best: GenericRow | null = null;
+    let bestDiff = Number.POSITIVE_INFINITY;
+
+    for (const row of snapshotRows) {
+      const date = new Date(rowString(row, "captured_at"));
+      const diff = Math.abs(date.getTime() - targetDate.getTime());
+      if (diff < bestDiff) {
+        best = row;
+        bestDiff = diff;
+      }
+    }
+
+    return best;
+  }
+
+  const latestSnapshot = snapshotRows.at(-1) ?? null;
+  const latestSnapshotDate = latestSnapshot ? new Date(rowString(latestSnapshot, "captured_at")) : new Date();
+  const snapshot30 = nearestSnapshot(new Date(latestSnapshotDate.getTime() - 1000 * 60 * 60 * 24 * 30));
+  const snapshot90 = nearestSnapshot(new Date(latestSnapshotDate.getTime() - 1000 * 60 * 60 * 24 * 90));
+  const snapshot7 = nearestSnapshot(new Date(latestSnapshotDate.getTime() - 1000 * 60 * 60 * 24 * 7));
+
+  function growthPercent(current: number | null, previous: number | null) {
+    if (current == null || previous == null || previous <= 0) {
+      return null;
+    }
+    return ((current - previous) / previous) * 100;
+  }
+
+  function deltaValue(current: number | null, previous: number | null) {
+    if (current == null || previous == null) {
+      return null;
+    }
+    return current - previous;
+  }
+
+  const latestFollowers = latestSnapshot ? rowNullableNumber(latestSnapshot, "follower_count") : connection.followers;
+  const latestFollowing = latestSnapshot ? rowNullableNumber(latestSnapshot, "following_count") : connection.following;
+  const last30DaysDate = new Date(latestSnapshotDate.getTime() - 1000 * 60 * 60 * 24 * 30);
+  const last7DaysDate = new Date(latestSnapshotDate.getTime() - 1000 * 60 * 60 * 24 * 7);
+  const recentPosts = postRows.filter((post) => new Date(rowString(post, "published_at")) >= last30DaysDate);
+  const weeklyPosts = postRows.filter((post) => new Date(rowString(post, "published_at")) >= last7DaysDate).length;
+
+  let likesTotal = 0;
+  let likesCount = 0;
+  let commentsTotal = 0;
+  let commentsCount = 0;
+  let engagementRateTotal = 0;
+  let engagementRateCount = 0;
+
+  for (const post of recentPosts) {
+    const metric =
+      contentMetricLookup.get(rowString(post, "id")) ??
+      metricLookup.get(rowString(post, "id")) ??
+      {};
+    const likes = rowMetricNumber(metric, "likes");
+    const comments = rowMetricNumber(metric, "comments");
+    const engagementRate = rowMetricNumber(metric, "engagement_rate", ["engagementRate"]);
+
+    if (likes != null) {
+      likesTotal += likes;
+      likesCount += 1;
+    }
+    if (comments != null) {
+      commentsTotal += comments;
+      commentsCount += 1;
+    }
+    if (engagementRate != null) {
+      engagementRateTotal += engagementRate;
+      engagementRateCount += 1;
+    }
+  }
+
+  const historyRows = [...snapshotRows]
+    .reverse()
+    .map((row, index, array) => {
+      const previous = array[index + 1] ?? null;
+      const currentFollowers = rowNullableNumber(row, "follower_count");
+      const currentFollowing = rowNullableNumber(row, "following_count");
+      const currentContentCount = rowNullableNumber(row, "content_count");
+      const currentEngagementRate = rowMetricNumber(row, "engagement_rate");
+      const previousFollowers = previous ? rowNullableNumber(previous, "follower_count") : null;
+      const previousFollowing = previous ? rowNullableNumber(previous, "following_count") : null;
+      const previousContentCount = previous ? rowNullableNumber(previous, "content_count") : null;
+      const previousEngagementRate = previous ? rowMetricNumber(previous, "engagement_rate") : null;
+
+      return {
+        date: rowString(row, "captured_at"),
+        followers: currentFollowers,
+        followersDelta: deltaValue(currentFollowers, previousFollowers),
+        following: currentFollowing,
+        followingDelta: deltaValue(currentFollowing, previousFollowing),
+        mediaCount: currentContentCount,
+        mediaCountDelta: deltaValue(currentContentCount, previousContentCount),
+        engagementRate: currentEngagementRate,
+        engagementRateDelta: deltaValue(currentEngagementRate, previousEngagementRate),
+      };
+    });
+
   return {
     ...connection,
     trend,
     topHashtags: [...hashtagMap.values()].sort((a, b) => b.engagements - a.engagements).slice(0, 8),
+    insights: {
+      trackedSince: snapshotRows.length > 0 ? rowString(snapshotRows[0], "captured_at") : null,
+      followerGrowthRate30Days: growthPercent(
+        latestFollowers,
+        snapshot30 ? rowNullableNumber(snapshot30, "follower_count") : null,
+      ),
+      followerGrowthRate90Days: growthPercent(
+        latestFollowers,
+        snapshot90 ? rowNullableNumber(snapshot90, "follower_count") : null,
+      ),
+      weeklyFollowerGain: deltaValue(
+        latestFollowers,
+        snapshot7 ? rowNullableNumber(snapshot7, "follower_count") : null,
+      ),
+      weeklyPosts: weeklyPosts > 0 ? weeklyPosts : null,
+      averageLikesLast30Days: likesCount > 0 ? likesTotal / likesCount : null,
+      averageCommentsLast30Days: commentsCount > 0 ? commentsTotal / commentsCount : null,
+      averageEngagementRateLast30Days:
+        engagementRateCount > 0 ? engagementRateTotal / engagementRateCount : null,
+      followersToFollowingRatio:
+        latestFollowers != null && latestFollowing != null && latestFollowing > 0
+          ? latestFollowers / latestFollowing
+          : null,
+      commentsPerPostLast30Days:
+        recentPosts.length > 0 && commentsCount > 0 ? commentsTotal / recentPosts.length : null,
+    },
+    historyRows,
   };
 }
 

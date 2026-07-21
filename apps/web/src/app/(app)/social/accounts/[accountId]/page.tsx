@@ -37,7 +37,7 @@ export default async function SocialAccountDetailPage({
   return (
     <div className="space-y-6">
       <section className="rounded-[2.2rem] border border-white/85 bg-white/90 p-6 shadow-[var(--shadow-card)]">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+        <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
           <div className="flex items-start gap-5">
             <SocialProfileAvatar
               imageUrl={detail.profileImageUrl}
@@ -55,66 +55,239 @@ export default async function SocialAccountDetailPage({
                     Verified
                   </span>
                 ) : null}
-                {detail.sandboxMode ? (
-                  <span className="rounded-full bg-warning-soft px-3 py-1 text-xs text-foreground">
-                    Sandbox fixture
-                  </span>
-                ) : null}
+                <span className="rounded-full bg-panel-soft px-3 py-1 text-xs text-muted-foreground">
+                  {detail.syncStatus}
+                </span>
               </div>
-              <h1 className="mt-4 text-3xl font-semibold tracking-tight text-foreground">{detail.accountName}</h1>
-              <p className="mt-2 text-sm text-muted-foreground">{`@${detail.username} · ${detail.accountType}`}</p>
-              <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground">
+              <h1 className="mt-4 text-4xl font-semibold tracking-tight text-foreground">{detail.username}</h1>
+              <p className="mt-1 text-xl text-muted-foreground">{detail.accountName}</p>
+              <p className="mt-4 max-w-3xl text-base leading-8 text-muted-foreground">
                 {detail.bio ?? "No description is available for this social account yet."}
               </p>
+              <div className="mt-4 flex flex-wrap gap-3 text-sm text-muted-foreground">
+                {detail.publicProfileUrl ? (
+                  <a href={detail.publicProfileUrl} rel="noreferrer" target="_blank" className="text-brand-red">
+                    {detail.publicProfileUrl}
+                  </a>
+                ) : null}
+                <span>
+                  Tracked since {detail.insights.trackedSince ? formatDisplayDate(detail.insights.trackedSince) : "Not available"}
+                </span>
+                <span>Updated {detail.lastSuccessfulSyncAt ? formatRelativeTime(detail.lastSuccessfulSyncAt) : "Not available"}</span>
+              </div>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <SocialExportButton connectionId={detail.id} label="Export Account CSV" />
-            {detail.publicProfileUrl ? (
-              <a
-                className="rounded-full border border-border bg-panel-soft px-4 py-2 text-sm font-medium text-foreground"
-                href={detail.publicProfileUrl}
-                rel="noreferrer"
-                target="_blank"
-              >
-                Open Public Profile
-              </a>
-            ) : null}
-          </div>
-        </div>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-7">
-          <MetricCard label="Followers / Subscribers" value={formatNumber(detail.followers)} />
-          <MetricCard label="Following" value={formatNumber(detail.following)} />
-          <MetricCard label="Reach" value={formatNumber(detail.reach)} />
-          <MetricCard label="Impressions" value={formatNumber(detail.impressions)} />
-          <MetricCard label="Engagements" value={formatNumber(detail.engagements)} />
-          <MetricCard label="Likes" value={formatNumber(detail.totalLikes)} />
-          <MetricCard label="Comments" value={formatNumber(detail.totalComments)} />
-          <MetricCard
-            label="Engagement Rate"
-            value={
-              detail.engagementRateByFollowers != null
-                ? `${detail.engagementRateByFollowers.toFixed(2)}%`
-                : "Not available"
-            }
-          />
+          <div className="space-y-4 xl:min-w-[480px]">
+            <div className="grid gap-4 md:grid-cols-3">
+              <TopMetric
+                label="Followers"
+                value={formatNumber(detail.followers)}
+                delta={formatDelta(detail.insights.weeklyFollowerGain)}
+                positive={detail.insights.weeklyFollowerGain != null ? detail.insights.weeklyFollowerGain >= 0 : null}
+              />
+              <TopMetric label="Following" value={formatNumber(detail.following)} />
+              <TopMetric
+                label="Posts"
+                value={formatNumber(detail.contentCount)}
+                delta={formatDelta(detail.historyRows[0]?.mediaCountDelta ?? null)}
+                positive={detail.historyRows[0]?.mediaCountDelta != null ? (detail.historyRows[0]?.mediaCountDelta ?? 0) >= 0 : null}
+              />
+            </div>
+
+            <div className="rounded-[1.6rem] border border-border bg-panel-soft p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Real data coverage</p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Imported through Apify public scraping. Metrics only appear when the source actually returns them.
+                  </p>
+                </div>
+                <span className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-foreground">
+                  Live imported
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              <SocialExportButton connectionId={detail.id} label="Export Account CSV" />
+              {detail.publicProfileUrl ? (
+                <a
+                  className="rounded-full border border-border bg-panel-soft px-4 py-2 text-sm font-medium text-foreground"
+                  href={detail.publicProfileUrl}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  Open Public Profile
+                </a>
+              ) : null}
+            </div>
+          </div>
         </div>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="space-y-6">
-          <SocialTrendChart
-            metric="followers"
-            points={detail.trend}
-            title="Follower / subscriber growth"
-          />
-          <SocialTrendChart
-            metric="engagements"
-            points={detail.trend}
-            title="Engagement trend"
-          />
+      <section className="rounded-[1.8rem] border border-border bg-white p-3 shadow-[var(--shadow-soft)]">
+        <div className="flex flex-wrap gap-3">
+          {["Overview", "Growth", "Engagement", "History", "Posts"].map((tab, index) => (
+            <span
+              className={
+                "rounded-full px-4 py-2 text-sm " +
+                (index === 0 ? "bg-panel-soft font-semibold text-foreground" : "text-muted-foreground")
+              }
+              key={tab}
+            >
+              {tab}
+            </span>
+          ))}
         </div>
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-5">
+        <InsightCard
+          label="Followers Growth Rate"
+          note="30-day"
+          value={formatPercent(detail.insights.followerGrowthRate30Days)}
+        />
+        <InsightCard
+          label="Weekly Followers"
+          note="Net gain over 7 days"
+          value={formatNumber(detail.insights.weeklyFollowerGain)}
+        />
+        <InsightCard
+          label="Engagement Rate"
+          note="Average over 30 days"
+          value={formatPercent(detail.insights.averageEngagementRateLast30Days)}
+        />
+        <InsightCard
+          label="Average Likes"
+          note="Last 30 days"
+          value={formatNumber(detail.insights.averageLikesLast30Days)}
+        />
+        <InsightCard
+          label="Average Comments"
+          note="Last 30 days"
+          value={formatNumber(detail.insights.averageCommentsLast30Days)}
+        />
+        <InsightCard
+          label="Weekly Posts"
+          note="Published in last 7 days"
+          value={formatNumber(detail.insights.weeklyPosts)}
+        />
+        <InsightCard
+          label="Followers Ratio"
+          note="Followers / following"
+          value={detail.insights.followersToFollowingRatio != null ? `${detail.insights.followersToFollowingRatio.toFixed(2)}x` : "Not available"}
+        />
+        <InsightCard
+          label="Comments / Post"
+          note="Last 30 days"
+          value={detail.insights.commentsPerPostLast30Days != null ? detail.insights.commentsPerPostLast30Days.toFixed(2) : "Not available"}
+        />
+        <InsightCard
+          label="Views"
+          note="Current imported total"
+          value={formatNumber(detail.views)}
+        />
+        <InsightCard
+          label="Engagements"
+          note="Current imported total"
+          value={formatNumber(detail.engagements)}
+        />
+      </section>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <SocialTrendChart
+          title="Followers"
+          metric="followers"
+          points={detail.trend}
+          color="#22c55e"
+          fill="rgba(34,197,94,0.14)"
+          valueFormatter={formatNumber}
+        />
+        <SocialTrendChart
+          title="Following"
+          metric="following"
+          points={detail.trend}
+          color="#06b6d4"
+          fill="rgba(6,182,212,0.14)"
+          valueFormatter={formatNumber}
+        />
+        <SocialTrendChart
+          title="Engagement Rate"
+          metric="engagementRate"
+          points={detail.trend}
+          color="#fb923c"
+          fill="rgba(251,146,60,0.14)"
+          valueFormatter={(value) => formatPercent(value)}
+        />
+        <SocialTrendChart
+          title="Average Likes"
+          metric="averageLikes"
+          points={detail.trend}
+          color="#ef4444"
+          fill="rgba(239,68,68,0.14)"
+          valueFormatter={formatNumber}
+        />
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <section className="rounded-[1.8rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-foreground">Historical Stats</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Each row comes from a real stored account snapshot. No interpolation or fabricated days are added.
+              </p>
+            </div>
+            <span className="rounded-full bg-panel-soft px-3 py-2 text-xs text-muted-foreground">
+              {detail.historyRows.length} snapshots
+            </span>
+          </div>
+          <div className="mt-5 overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-border text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                  <th className="px-4 py-3">Date</th>
+                  <th className="px-4 py-3">Followers</th>
+                  <th className="px-4 py-3">Following</th>
+                  <th className="px-4 py-3">Media Count</th>
+                  <th className="px-4 py-3">Engagement Rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {detail.historyRows.length > 0 ? (
+                  detail.historyRows.map((row) => (
+                    <tr className="border-b border-border/70 last:border-b-0" key={row.date}>
+                      <td className="px-4 py-4 font-medium text-foreground">{formatDisplayDate(row.date)}</td>
+                      <td className="px-4 py-4 text-muted-foreground">
+                        <DeltaValue value={row.followers} delta={row.followersDelta} />
+                      </td>
+                      <td className="px-4 py-4 text-muted-foreground">
+                        <DeltaValue value={row.following} delta={row.followingDelta} />
+                      </td>
+                      <td className="px-4 py-4 text-muted-foreground">
+                        <DeltaValue value={row.mediaCount} delta={row.mediaCountDelta} />
+                      </td>
+                      <td className="px-4 py-4 text-muted-foreground">
+                        <DeltaValue
+                          value={row.engagementRate != null ? Number(row.engagementRate.toFixed(2)) : null}
+                          delta={row.engagementRateDelta}
+                          suffix="%"
+                        />
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td className="px-4 py-5 text-muted-foreground" colSpan={5}>
+                      No historical snapshots are available for this account yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
 
         <div className="space-y-6">
           <div className="rounded-[1.7rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
@@ -159,9 +332,9 @@ export default async function SocialAccountDetailPage({
       <section className="rounded-[1.9rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-semibold text-foreground">Content Performance</h2>
+            <h2 className="text-xl font-semibold text-foreground">Top Posts</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Top recent content by engagement, with caption, hashtags, and performance context.
+              Real imported content sorted by engagements, with original caption and live imported metrics.
             </p>
           </div>
           <span className="rounded-full bg-panel-soft px-3 py-2 text-xs text-muted-foreground">
@@ -180,19 +353,22 @@ export default async function SocialAccountDetailPage({
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-base font-semibold text-foreground">{item.title}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">{item.contentType}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {item.contentType} · {formatDisplayDate(item.publishedAt)}
+                    </p>
                   </div>
                   <span className="rounded-full bg-white px-3 py-1 text-xs text-muted-foreground">
                     {formatNumber(item.engagements)} engagements
                   </span>
                 </div>
-                <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                <p className="mt-3 line-clamp-4 text-sm leading-6 text-muted-foreground">
                   {item.caption || item.description}
                 </p>
                 <div className="mt-4 flex flex-wrap gap-3 text-xs text-muted-foreground">
-                  <span>Reach: {formatNumber(item.reach)}</span>
-                  <span>Views: {formatNumber(item.views)}</span>
+                  <span>Likes: {formatNumber(item.likes)}</span>
                   <span>Comments: {formatNumber(item.comments)}</span>
+                  <span>Views: {formatNumber(item.views)}</span>
+                  <span>Reach: {formatNumber(item.reach)}</span>
                 </div>
               </Link>
             ))
@@ -207,11 +383,106 @@ export default async function SocialAccountDetailPage({
   );
 }
 
-function MetricCard({ label, value }: { label: string; value: string }) {
+function TopMetric({
+  label,
+  value,
+  delta,
+  positive = null,
+}: {
+  label: string;
+  value: string;
+  delta?: string | null;
+  positive?: boolean | null;
+}) {
   return (
-    <div className="rounded-[1.5rem] border border-border bg-panel-soft px-4 py-4">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
-      <p className="mt-3 text-2xl font-semibold text-foreground">{value}</p>
+    <div className="rounded-[1.5rem] border border-border bg-white px-4 py-4">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="mt-2 text-2xl font-semibold text-foreground">{value}</p>
+      {delta ? (
+        <p className={`mt-2 text-sm ${positive == null ? "text-muted-foreground" : positive ? "text-emerald-600" : "text-red-500"}`}>
+          {delta}
+        </p>
+      ) : null}
     </div>
   );
+}
+
+function InsightCard({
+  label,
+  note,
+  value,
+}: {
+  label: string;
+  note: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-[1.6rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
+      <p className="mt-4 text-4xl font-semibold tracking-tight text-foreground">{value}</p>
+      <p className="mt-2 text-sm text-muted-foreground">{note}</p>
+    </div>
+  );
+}
+
+function DeltaValue({
+  value,
+  delta,
+  suffix = "",
+}: {
+  value: number | null;
+  delta: number | null;
+  suffix?: string;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="font-medium text-foreground">
+        {value != null ? `${formatNumber(value)}${suffix}` : "Not available"}
+      </span>
+      {delta != null ? (
+        <span
+          className={`rounded-full px-2 py-1 text-xs ${
+            delta >= 0 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"
+          }`}
+        >
+          {delta >= 0 ? "+" : ""}
+          {suffix ? delta.toFixed(2) : formatNumber(delta)}
+          {suffix}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function formatPercent(value: number | null) {
+  return value != null ? `${value.toFixed(2)}%` : "Not available";
+}
+
+function formatDelta(value: number | null) {
+  if (value == null) {
+    return null;
+  }
+  return `${value >= 0 ? "+" : ""}${formatNumber(value)}`;
+}
+
+function formatDisplayDate(value: string) {
+  return new Date(value).toLocaleDateString("en-US", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function formatRelativeTime(value: string) {
+  const diffMs = Date.now() - new Date(value).getTime();
+  const hours = Math.round(diffMs / (1000 * 60 * 60));
+  if (hours < 1) {
+    const minutes = Math.max(1, Math.round(diffMs / (1000 * 60)));
+    return `${minutes} minutes ago`;
+  }
+  if (hours < 24) {
+    return `${hours} hours ago`;
+  }
+  const days = Math.round(hours / 24);
+  return `${days} days ago`;
 }
