@@ -34,6 +34,14 @@ export default async function SocialAccountDetailPage({
     sort: "engagements",
   });
 
+  const sectionTabs = [
+    { label: "Overview", href: "#overview" },
+    { label: "Growth", href: "#growth" },
+    { label: "Engagement", href: "#engagement" },
+    { label: "History", href: "#history" },
+    { label: "Posts", href: "#posts" },
+  ];
+
   return (
     <div className="space-y-6">
       <section className="rounded-[2.2rem] border border-white/85 bg-white/90 p-6 shadow-[var(--shadow-card)]">
@@ -95,7 +103,7 @@ export default async function SocialAccountDetailPage({
               />
             </div>
 
-            <div className="rounded-[1.6rem] border border-border bg-panel-soft p-4">
+            <div className="rounded-[1.6rem] border border-border bg-panel-soft p-4" id="overview">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Real data coverage</p>
@@ -103,9 +111,12 @@ export default async function SocialAccountDetailPage({
                     Imported through Apify public scraping. Metrics only appear when the source actually returns them.
                   </p>
                 </div>
-                <span className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-foreground">
-                  Live imported
-                </span>
+                <a
+                  className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-foreground transition hover:bg-brand-red hover:text-white"
+                  href="#connection-health"
+                >
+                  View sync health
+                </a>
               </div>
             </div>
 
@@ -128,21 +139,22 @@ export default async function SocialAccountDetailPage({
 
       <section className="rounded-[1.8rem] border border-border bg-white p-3 shadow-[var(--shadow-soft)]">
         <div className="flex flex-wrap gap-3">
-          {["Overview", "Growth", "Engagement", "History", "Posts"].map((tab, index) => (
-            <span
+          {sectionTabs.map((tab, index) => (
+            <a
               className={
-                "rounded-full px-4 py-2 text-sm " +
+                "rounded-full px-4 py-2 text-sm transition hover:bg-panel-soft hover:text-foreground " +
                 (index === 0 ? "bg-panel-soft font-semibold text-foreground" : "text-muted-foreground")
               }
-              key={tab}
+              href={tab.href}
+              key={tab.label}
             >
-              {tab}
-            </span>
+              {tab.label}
+            </a>
           ))}
         </div>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-5">
+      <section className="grid gap-5 xl:grid-cols-5" id="growth">
         <InsightCard
           label="Followers Growth Rate"
           note="30-day"
@@ -195,7 +207,7 @@ export default async function SocialAccountDetailPage({
         />
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="grid gap-6 xl:grid-cols-2" id="engagement">
         <SocialTrendChart
           title="Followers"
           metric="followers"
@@ -231,7 +243,7 @@ export default async function SocialAccountDetailPage({
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <section className="rounded-[1.8rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
+        <section className="rounded-[1.8rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]" id="history">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-xl font-semibold text-foreground">Historical Stats</h2>
@@ -290,7 +302,10 @@ export default async function SocialAccountDetailPage({
         </section>
 
         <div className="space-y-6">
-          <div className="rounded-[1.7rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
+          <div
+            className="rounded-[1.7rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]"
+            id="connection-health"
+          >
             <h2 className="text-lg font-semibold text-foreground">Connection Health</h2>
             <div className="mt-4 space-y-3 text-sm text-muted-foreground">
               <p>Connection status: {detail.connectionStatus}</p>
@@ -329,7 +344,7 @@ export default async function SocialAccountDetailPage({
         </div>
       </div>
 
-      <section className="rounded-[1.9rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
+      <section className="rounded-[1.9rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]" id="posts">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-xl font-semibold text-foreground">Top Posts</h2>
