@@ -15,12 +15,12 @@ export function FizZionLogo({
   if (compact) {
     return (
       <div
-        aria-label="FizZion icon"
+        aria-label="Zenpen icon"
         className={cn("relative h-10 w-10 overflow-hidden rounded-2xl", className)}
         role="img"
       >
         <Image
-          alt="FizZion logo"
+          alt="Zenpen logo"
           className="object-cover object-center"
           fill
           sizes="40px"
@@ -32,12 +32,12 @@ export function FizZionLogo({
 
   return (
     <div
-      aria-label="FizZion"
+      aria-label="Zenpen"
       className={cn("relative h-12 w-[11rem]", className)}
       role="img"
     >
       <Image
-        alt="FizZion logo"
+        alt="Zenpen logo"
         className="object-contain object-left"
         fill
         priority
