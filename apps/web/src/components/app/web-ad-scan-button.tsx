@@ -46,17 +46,20 @@ export function WebAdScanButton({ websiteId, compact = false }: Props) {
     <div className={compact ? "space-y-1" : "space-y-2"}>
       <button
         className={cn(
-          "rounded-full bg-brand-red px-4 py-2 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60",
-          compact ? "px-3 py-1.5 text-xs" : "",
+          "rounded-full bg-brand-red px-4 py-2 text-sm font-semibold text-white shadow-[var(--shadow-soft)] transition hover:bg-brand-red-deep disabled:cursor-not-allowed disabled:opacity-60",
+          compact ? "px-3 py-1.5 text-xs" : "min-w-[9.5rem]",
         )}
+        aria-busy={isPending}
         disabled={isPending}
         onClick={handleClick}
         type="button"
       >
-        {isPending ? "Queueing scan..." : "Scan Now"}
+        {isPending ? "Running scan..." : compact ? "Scan now" : "Run fresh scan"}
       </button>
-      {message ? <p className="text-xs text-emerald-700">{message}</p> : null}
-      {error ? <p className="text-xs text-amber-700">{error}</p> : null}
+      <div aria-live="polite" className="min-h-[1rem]">
+        {message ? <p className="text-xs text-emerald-700">{message}</p> : null}
+        {error ? <p className="text-xs text-amber-700">{error}</p> : null}
+      </div>
     </div>
   );
 }

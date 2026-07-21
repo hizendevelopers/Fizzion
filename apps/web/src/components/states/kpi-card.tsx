@@ -5,7 +5,7 @@ type KpiCardProps = {
   tone?: "default" | "brand" | "warning" | "deep" | "soft";
 };
 
-export function KpiCard({ label, value = "—", note, tone = "default" }: KpiCardProps) {
+export function KpiCard({ label, value = "\u2014", note, tone = "default" }: KpiCardProps) {
   const classes =
     tone === "brand"
       ? "border-transparent bg-[linear-gradient(135deg,#ff6b74_0%,#f40009_100%)] text-white"
@@ -13,9 +13,9 @@ export function KpiCard({ label, value = "—", note, tone = "default" }: KpiCar
         ? "border-transparent bg-[linear-gradient(135deg,#d33a54_0%,#b00020_100%)] text-white"
         : tone === "soft"
           ? "border-transparent bg-[linear-gradient(135deg,#ff9d63_0%,#ff7d6e_100%)] text-white"
-        : tone === "warning"
-        ? "border-transparent bg-[linear-gradient(135deg,#ffbf58_0%,#ffad32_100%)] text-white"
-        : "border-white/80 bg-[linear-gradient(135deg,#ffffff_0%,#fcf7f4_100%)]";
+          : tone === "warning"
+            ? "border-transparent bg-[linear-gradient(135deg,#ffbf58_0%,#ffad32_100%)] text-white"
+            : "border-white/80 bg-[linear-gradient(135deg,#ffffff_0%,#fcf7f4_100%)]";
 
   return (
     <div className={`rounded-[1.9rem] border p-5 shadow-[var(--shadow-card)] ${classes}`}>

@@ -1,7 +1,4 @@
-import { ModulePage } from "@/components/states/module-page";
-import { getCopy } from "@/lib/copy";
-import { moduleDefinitions } from "@/lib/module-definitions";
-import { getUserLocale } from "@/lib/preferences";
+import { redirect } from "next/navigation";
 
 export default async function WebsiteHistoryPage({
   params,
@@ -9,8 +6,5 @@ export default async function WebsiteHistoryPage({
   params: Promise<{ websiteId: string }>;
 }) {
   const { websiteId } = await params;
-  const copy = getCopy(await getUserLocale());
-  const moduleConfig = moduleDefinitions.websites;
-
-  return <ModulePage capabilities={moduleConfig.capabilities} copy={copy.states} dependencies={moduleConfig.dependencies} description={`Crawl history for ${websiteId}, including failures, retries, timings, and browser-profile provenance.`} status={moduleConfig.status} title={`Website Crawl History: ${websiteId}`} />;
+  redirect(`/web-advertising/websites/${websiteId}`);
 }
