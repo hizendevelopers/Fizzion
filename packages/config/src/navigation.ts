@@ -5,7 +5,7 @@ export type NavItem = {
 };
 
 export const primaryNavigation: NavItem[] = [
-  { href: "/overview", key: "overview" },
+  { href: "/executive-overview", key: "overview" },
   {
     href: "/tv/channels",
     key: "tv",
@@ -23,7 +23,7 @@ export const primaryNavigation: NavItem[] = [
       { href: "/social/comparison", key: "socialComparison" },
     ],
   },
-  { href: "/websites", key: "web" },
+  { href: "/web-advertising", key: "web" },
   {
     href: "/ooh-intelligence",
     key: "ooh",
