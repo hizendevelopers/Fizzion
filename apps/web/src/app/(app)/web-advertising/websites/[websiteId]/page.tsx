@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { WebAdScanButton } from "@/components/app/web-ad-scan-button";
 import { getWebAdvertisingWebsiteDetail } from "@/lib/web-ad-data";
 
 export default async function WebAdvertisingWebsiteDetailPage(
@@ -27,9 +28,12 @@ export default async function WebAdvertisingWebsiteDetailPage(
               Last scan: {website.lastScanAt ?? "Awaiting first synchronization"} · Status: {website.currentStatus}
             </p>
           </div>
-          <Link className="text-sm font-semibold text-brand-red" href="/web-advertising">
-            Back to Web Advertising
-          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <WebAdScanButton websiteId={website.id} />
+            <Link className="text-sm font-semibold text-brand-red" href="/web-advertising">
+              Back to Web Advertising
+            </Link>
+          </div>
         </div>
       </section>
 

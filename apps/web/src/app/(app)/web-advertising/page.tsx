@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { WebAdScanButton } from "@/components/app/web-ad-scan-button";
 import { KpiCard } from "@/components/states/kpi-card";
 import { getWebAdvertisingAnalytics, listWebAdvertisingAds, listWebAdvertisingWebsites } from "@/lib/web-ad-data";
 
@@ -65,9 +66,12 @@ export default async function WebAdvertisingPage() {
                   <MetricTile label="Ads" value={String(website.adsDetected)} />
                 </div>
                 <div className="mt-4">
-                  <Link className="text-sm font-semibold text-brand-red" href={`/web-advertising/websites/${website.id}`}>
-                    View website detail
-                  </Link>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Link className="text-sm font-semibold text-brand-red" href={`/web-advertising/websites/${website.id}`}>
+                      View website detail
+                    </Link>
+                    <WebAdScanButton compact websiteId={website.id} />
+                  </div>
                 </div>
               </article>
             ))

@@ -31,6 +31,13 @@ function isMissingTableError(error: unknown) {
   return error instanceof Error && /could not find the table|relation .* does not exist/i.test(error.message);
 }
 
+const ACTIVE_WEB_SCAN_STATUSES = new Set([
+  "queued",
+  "starting",
+  "running",
+  "processing",
+]);
+
 export type WebAdvertisingWebsite = {
   id: string;
   name: string;
@@ -85,6 +92,22 @@ export type WebAdvertisingAnalytics = {
   failedScans: number;
   lastScanTime: string | null;
 };
+
+export type WebAdvertisingScanQueueResult = {
+  runId: string;
+  processingJobId: string | null;
+  status: string;
+  deduplicated: boolean;
+  queuedAt: string;
+};
+
+export function isWebAdvertisingRunActiveStatus(status: string | null | undefined) {
+  if (!status) {
+    return false;
+  }
+
+  return ACTIVE_WEB_SCAN_STATUSES.has(status.trim().toLowerCase());
+}
 
 export async function listWebAdvertisingWebsites() {
   const supabase = getOptionalSupabaseAdminClient();
@@ -311,4 +334,127 @@ export async function getWebAdvertisingWebsiteDetail(websiteId: string) {
 export async function getWebAdvertisingAdDetail(adId: string) {
   const ads = await listWebAdvertisingAds();
   return ads.find((item) => item.id === adId) ?? null;
+}
+
+export async function queueWebAdvertisingScan(websiteId: string): Promise<WebAdvertisingScanQueueResult | null> {
+  const supabase = getOptionalSupabaseAdminClient();
+  if (!supabase) {
+    throw new Error("Supabase admin client is not available.");
+  }
+
+  const { data: website, error: websiteError } = await supabase
+    .from("websites")
+    .select("id, organization_id, name, domain, country")
+    .eq("id", websiteId)
+    .limit(1)
+    .maybeSingle();
+
+  if (websiteError && isMissingTableError(websiteError)) {
+    throw new Error("Web advertising tables are not available in the current database.");
+  }
+
+  if (!website) {
+    return null;
+  }
+
+  const { data: latestRun } = await supabase
+    .from("website_crawl_runs")
+    .select("id, status, started_at")
+    .eq("website_id", websiteId)
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (latestRun && isWebAdvertisingRunActiveStatus(rowString(latestRun as GenericRow, "status"))) {
+    return {
+      runId: rowString(latestRun as GenericRow, "id"),
+      processingJobId: null,
+      status: rowString(latestRun as GenericRow, "status"),
+      deduplicated: true,
+      queuedAt: rowString(latestRun as GenericRow, "started_at"),
+    };
+  }
+
+  const { data: crawlConfig } = await supabase
+    .from("website_crawl_configs")
+    .select("id, browser_profile_id, max_pages, crawl_depth, interval_minutes")
+    .eq("website_id", websiteId)
+    .eq("is_active", true)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const organizationId = rowString(website as GenericRow, "organization_id");
+  const now = new Date().toISOString();
+
+  const { data: insertedRun, error: insertedRunError } = await supabase
+    .from("website_crawl_runs")
+    .insert({
+      organization_id: organizationId,
+      website_id: rowString(website as GenericRow, "id"),
+      crawl_config_id: rowNullableString((crawlConfig ?? {}) as GenericRow, "id"),
+      browser_profile_id: rowNullableString((crawlConfig ?? {}) as GenericRow, "browser_profile_id"),
+      started_at: now,
+      status: "queued",
+      crawl_location: rowNullableString(website as GenericRow, "country"),
+      proxy_region: rowNullableString(website as GenericRow, "country"),
+      metadata: {
+        triggerType: "manual",
+        workflow: "web_advertising_scan",
+        websiteName: rowString(website as GenericRow, "name"),
+        websiteDomain: rowString(website as GenericRow, "domain"),
+        maxPages: rowNumber((crawlConfig ?? {}) as GenericRow, "max_pages", 0),
+        crawlDepth: rowNumber((crawlConfig ?? {}) as GenericRow, "crawl_depth", 0),
+        intervalMinutes: rowNumber((crawlConfig ?? {}) as GenericRow, "interval_minutes", 0),
+      },
+    })
+    .select("id, status, started_at")
+    .limit(1)
+    .maybeSingle();
+
+  if (insertedRunError || !insertedRun) {
+    throw new Error(insertedRunError?.message ?? "Website scan could not be queued.");
+  }
+
+  const { data: processingJob } = await supabase
+    .from("processing_jobs")
+    .insert({
+      organization_id: organizationId,
+      job_type: "website-crawl",
+      domain: "web_advertising",
+      status: "queued",
+      queue_name: "web-advertising-scans",
+      payload: {
+        websiteId: rowString(website as GenericRow, "id"),
+        crawlRunId: rowString(insertedRun as GenericRow, "id"),
+        crawlConfigId: rowNullableString((crawlConfig ?? {}) as GenericRow, "id"),
+        triggerType: "manual",
+      },
+      started_at: now,
+    })
+    .select("id")
+    .limit(1)
+    .maybeSingle();
+
+  await supabase.from("audit_logs").insert({
+    organization_id: organizationId,
+    action: "web_advertising.scan_requested",
+    entity_type: "website",
+    entity_id: rowString(website as GenericRow, "id"),
+    payload: {
+      domain: rowString(website as GenericRow, "domain"),
+      websiteName: rowString(website as GenericRow, "name"),
+      crawlRunId: rowString(insertedRun as GenericRow, "id"),
+      processingJobId: processingJob?.id ?? null,
+      triggerType: "manual",
+    },
+  });
+
+  return {
+    runId: rowString(insertedRun as GenericRow, "id"),
+    processingJobId: processingJob?.id ?? null,
+    status: rowString(insertedRun as GenericRow, "status", "queued"),
+    deduplicated: false,
+    queuedAt: rowString(insertedRun as GenericRow, "started_at", now),
+  };
 }
