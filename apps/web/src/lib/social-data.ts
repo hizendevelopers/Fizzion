@@ -53,6 +53,41 @@ function rowStringArray(row: GenericRow, key: string) {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
+function rowObject(row: GenericRow, key: string) {
+  const value = row[key];
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as GenericRow) : {};
+}
+
+function rowMetricNumber(row: GenericRow, key: string, fallbackKeys: string[] = []) {
+  const direct = rowNullableNumber(row, key);
+  if (direct != null) {
+    return direct;
+  }
+
+  const normalized = rowObject(row, "normalized_metrics");
+  const raw = rowObject(row, "raw_metrics_json");
+  const rawSummary = rowObject(row, "raw_summary");
+
+  for (const candidate of [key, ...fallbackKeys]) {
+    const fromNormalized = rowNullableNumber(normalized, candidate);
+    if (fromNormalized != null) {
+      return fromNormalized;
+    }
+
+    const fromRaw = rowNullableNumber(raw, candidate);
+    if (fromRaw != null) {
+      return fromRaw;
+    }
+
+    const fromRawSummary = rowNullableNumber(rawSummary, candidate);
+    if (fromRawSummary != null) {
+      return fromRawSummary;
+    }
+  }
+
+  return null;
+}
+
 function isSocialSandboxEnabled() {
   const raw = process.env.SOCIAL_SANDBOX_ENABLED;
   return raw === "1" || raw === "true";
@@ -385,6 +420,9 @@ async function hydrateConnections(rows: GenericRow[]) {
   const snapshotLookup = new Map<string, GenericRow>();
   const metricLookup = new Map<string, GenericRow>();
   const postCountLookup = new Map<string, number>();
+  const postRows = (postsRes.data ?? []) as GenericRow[];
+  const postAccountLookup = new Map<string, string>();
+  const postIds: string[] = [];
 
   for (const row of (snapshotsRes.data ?? []) as GenericRow[]) {
     const id = rowString(row, "social_account_id");
@@ -400,9 +438,97 @@ async function hydrateConnections(rows: GenericRow[]) {
     }
   }
 
-  for (const row of (postsRes.data ?? []) as GenericRow[]) {
+  for (const row of postRows) {
     const id = rowString(row, "social_account_id");
     postCountLookup.set(id, (postCountLookup.get(id) ?? 0) + 1);
+
+    const postId = rowString(row, "id");
+    if (postId) {
+      postIds.push(postId);
+      postAccountLookup.set(postId, id);
+    }
+  }
+
+  const contentMetricsRes =
+    postIds.length > 0
+      ? await supabase
+          .from("social_content_metrics")
+          .select("*")
+          .in("social_content_id", postIds)
+          .order("captured_at", { ascending: false })
+      : { data: [] as GenericRow[] };
+
+  type AggregateMetric = {
+    sum: number;
+    count: number;
+  };
+
+  type AccountAggregates = {
+    likes: AggregateMetric;
+    comments: AggregateMetric;
+    shares: AggregateMetric;
+    saves: AggregateMetric;
+    views: AggregateMetric;
+    reach: AggregateMetric;
+    impressions: AggregateMetric;
+    engagements: AggregateMetric;
+  };
+
+  function createAggregateMetric(): AggregateMetric {
+    return { sum: 0, count: 0 };
+  }
+
+  function createAccountAggregates(): AccountAggregates {
+    return {
+      likes: createAggregateMetric(),
+      comments: createAggregateMetric(),
+      shares: createAggregateMetric(),
+      saves: createAggregateMetric(),
+      views: createAggregateMetric(),
+      reach: createAggregateMetric(),
+      impressions: createAggregateMetric(),
+      engagements: createAggregateMetric(),
+    };
+  }
+
+  function applyAggregate(metric: AggregateMetric, value: number | null) {
+    if (value == null) {
+      return;
+    }
+
+    metric.sum += value;
+    metric.count += 1;
+  }
+
+  const latestContentMetricLookup = new Map<string, GenericRow>();
+  for (const row of (contentMetricsRes.data ?? []) as GenericRow[]) {
+    const postId = rowString(row, "social_content_id");
+    if (!latestContentMetricLookup.has(postId)) {
+      latestContentMetricLookup.set(postId, row);
+    }
+  }
+
+  const accountMetricAggregates = new Map<string, AccountAggregates>();
+  for (const [postId, metricRow] of latestContentMetricLookup.entries()) {
+    const accountId = postAccountLookup.get(postId);
+    if (!accountId) {
+      continue;
+    }
+
+    const aggregates = accountMetricAggregates.get(accountId) ?? createAccountAggregates();
+    applyAggregate(aggregates.likes, rowMetricNumber(metricRow, "likes"));
+    applyAggregate(aggregates.comments, rowMetricNumber(metricRow, "comments"));
+    applyAggregate(aggregates.shares, rowMetricNumber(metricRow, "shares"));
+    applyAggregate(aggregates.saves, rowMetricNumber(metricRow, "saves"));
+    applyAggregate(aggregates.views, rowMetricNumber(metricRow, "views", ["plays", "video_views"]));
+    applyAggregate(aggregates.reach, rowMetricNumber(metricRow, "reach"));
+    applyAggregate(aggregates.impressions, rowMetricNumber(metricRow, "impressions"));
+    applyAggregate(aggregates.engagements, rowMetricNumber(metricRow, "engagements", ["metric_value"]));
+    accountMetricAggregates.set(accountId, aggregates);
+  }
+
+  function aggregateValue(metric: AggregateMetric) {
+    return metric.count > 0 ? metric.sum : null;
   }
 
   return rows.map((row) => {
@@ -410,20 +536,22 @@ async function hydrateConnections(rows: GenericRow[]) {
     const account = accountLookup.get(socialAccountId) ?? {};
     const snapshot = snapshotLookup.get(socialAccountId) ?? {};
     const metric = metricLookup.get(socialAccountId) ?? {};
+    const aggregates = accountMetricAggregates.get(socialAccountId);
 
     const followers = rowNullableNumber(snapshot, "follower_count");
     const following = rowNullableNumber(snapshot, "following_count");
     const contentCount = rowNullableNumber(snapshot, "content_count") ?? postCountLookup.get(socialAccountId) ?? null;
-    const reach = rowNullableNumber(metric, "reach");
-    const impressions = rowNullableNumber(metric, "impressions");
-    const views = rowNullableNumber(metric, "views");
-    const uniqueViewers = rowNullableNumber(metric, "unique_viewers");
-    const likes = rowNullableNumber(metric, "likes");
-    const comments = rowNullableNumber(metric, "comments");
-    const shares = rowNullableNumber(metric, "shares");
-    const saves = rowNullableNumber(metric, "saves");
+    const reach = rowMetricNumber(metric, "reach") ?? aggregateValue(aggregates?.reach ?? createAggregateMetric());
+    const impressions = rowMetricNumber(metric, "impressions") ?? aggregateValue(aggregates?.impressions ?? createAggregateMetric());
+    const views = rowMetricNumber(metric, "views", ["plays", "totalViews"]) ?? aggregateValue(aggregates?.views ?? createAggregateMetric());
+    const uniqueViewers = rowMetricNumber(metric, "unique_viewers");
+    const likes = rowMetricNumber(metric, "likes", ["totalLikes"]) ?? aggregateValue(aggregates?.likes ?? createAggregateMetric());
+    const comments = rowMetricNumber(metric, "comments") ?? aggregateValue(aggregates?.comments ?? createAggregateMetric());
+    const shares = rowMetricNumber(metric, "shares") ?? aggregateValue(aggregates?.shares ?? createAggregateMetric());
+    const saves = rowMetricNumber(metric, "saves") ?? aggregateValue(aggregates?.saves ?? createAggregateMetric());
     const engagements =
-      rowNullableNumber(metric, "metric_value") ??
+      rowMetricNumber(metric, "metric_value", ["engagements"]) ??
+      aggregateValue(aggregates?.engagements ?? createAggregateMetric()) ??
       calculateNormalizedEngagements({
         likes,
         comments,
@@ -431,11 +559,11 @@ async function hydrateConnections(rows: GenericRow[]) {
         saves,
       });
     const engagementRateByFollowers =
-      rowNullableNumber(metric, "engagement_rate") ??
+      rowMetricNumber(metric, "engagement_rate", ["engagementRate"]) ??
       calculateEngagementRateByFollowers({ engagements, followers });
     const engagementRateByReach = calculateEngagementRateByReach({ engagements, reach });
     const followerGrowthRate =
-      rowNullableNumber(metric, "follower_growth") ??
+      rowMetricNumber(metric, "follower_growth", ["followerGrowth"]) ??
       calculateFollowerGrowthRate({
         followersStart: followers ? followers - 1500 : null,
         followersEnd: followers,
@@ -475,9 +603,9 @@ async function hydrateConnections(rows: GenericRow[]) {
       totalComments: comments,
       totalShares: shares,
       totalSaves: saves,
-      watchTimeSeconds: rowNullableNumber(metric, "watch_time_seconds"),
-      averageWatchTimeSeconds: rowNullableNumber(metric, "average_watch_time_seconds"),
-      completionRate: rowNullableNumber(metric, "completion_rate"),
+      watchTimeSeconds: rowMetricNumber(metric, "watch_time_seconds"),
+      averageWatchTimeSeconds: rowMetricNumber(metric, "average_watch_time_seconds"),
+      completionRate: rowMetricNumber(metric, "completion_rate"),
       metricAvailability: ["followers", "engagements", "views", "reach", "impressions"],
     } satisfies SocialDashboardAccount;
   });
@@ -1062,25 +1190,43 @@ export async function getSocialAccountDetail(connectionId: string): Promise<Soci
   const hashtagMap = new Map<string, SocialHashtagSummary>();
   const postRows = (postsRes.data ?? []) as GenericRow[];
   const postIds = postRows.map((row) => rowString(row, "id"));
-  const metricRowsRes =
+  const [metricRowsRes, contentMetricRowsRes] = await Promise.all([
     postIds.length > 0
-      ? await supabase
+      ? supabase
           .from("social_post_metrics")
           .select("*")
           .in("social_post_id", postIds)
           .order("captured_at", { ascending: false })
-      : { data: [] as GenericRow[] };
+      : Promise.resolve({ data: [] as GenericRow[] }),
+    postIds.length > 0
+      ? supabase
+          .from("social_content_metrics")
+          .select("*")
+          .in("social_content_id", postIds)
+          .order("captured_at", { ascending: false })
+      : Promise.resolve({ data: [] as GenericRow[] }),
+  ]);
 
   const metricLookup = new Map<string, GenericRow>();
+  const contentMetricLookup = new Map<string, GenericRow>();
   for (const row of (metricRowsRes.data ?? []) as GenericRow[]) {
     const postId = rowString(row, "social_post_id");
     if (!metricLookup.has(postId)) {
       metricLookup.set(postId, row);
     }
   }
+  for (const row of (contentMetricRowsRes.data ?? []) as GenericRow[]) {
+    const postId = rowString(row, "social_content_id");
+    if (!contentMetricLookup.has(postId)) {
+      contentMetricLookup.set(postId, row);
+    }
+  }
 
   for (const post of postRows) {
-    const metric = metricLookup.get(rowString(post, "id")) ?? {};
+    const metric =
+      contentMetricLookup.get(rowString(post, "id")) ??
+      metricLookup.get(rowString(post, "id")) ??
+      {};
     for (const hashtag of rowStringArray(post, "hashtags")) {
       const existing = hashtagMap.get(hashtag) ?? {
         hashtag,
@@ -1091,8 +1237,8 @@ export async function getSocialAccountDetail(connectionId: string): Promise<Soci
       hashtagMap.set(hashtag, {
         hashtag,
         postCount: existing.postCount + 1,
-        engagements: existing.engagements + (rowNullableNumber(metric, "metric_value") ?? 0),
-        reach: existing.reach + (rowNullableNumber(metric, "reach") ?? 0),
+        engagements: existing.engagements + (rowMetricNumber(metric, "metric_value", ["engagements"]) ?? 0),
+        reach: existing.reach + (rowMetricNumber(metric, "reach") ?? 0),
       });
     }
   }
@@ -1165,18 +1311,27 @@ async function hydrateContentItems(
 
   const supabase = getSupabaseAdminClient();
   const ids = rows.map((row) => rowString(row, "id"));
-  const [metricsRes, mediaRes] = await Promise.all([
+  const [metricsRes, contentMetricsRes, mediaRes] = await Promise.all([
     supabase.from("social_post_metrics").select("*").in("social_post_id", ids).order("captured_at", { ascending: false }),
+    supabase.from("social_content_metrics").select("*").in("social_content_id", ids).order("captured_at", { ascending: false }),
     supabase.from("social_post_media").select("*").in("social_post_id", ids),
   ]);
 
   const metricLookup = new Map<string, GenericRow>();
+  const contentMetricLookup = new Map<string, GenericRow>();
   const mediaLookup = new Map<string, GenericRow>();
 
   for (const row of (metricsRes.data ?? []) as GenericRow[]) {
     const postId = rowString(row, "social_post_id");
     if (!metricLookup.has(postId)) {
       metricLookup.set(postId, row);
+    }
+  }
+
+  for (const row of (contentMetricsRes.data ?? []) as GenericRow[]) {
+    const postId = rowString(row, "social_content_id");
+    if (!contentMetricLookup.has(postId)) {
+      contentMetricLookup.set(postId, row);
     }
   }
 
@@ -1188,15 +1343,18 @@ async function hydrateContentItems(
   }
 
   const items = rows.map((row) => {
-    const metric = metricLookup.get(rowString(row, "id")) ?? {};
+    const metric =
+      contentMetricLookup.get(rowString(row, "id")) ??
+      metricLookup.get(rowString(row, "id")) ??
+      {};
     const media = mediaLookup.get(rowString(row, "id")) ?? {};
-    const likes = rowNullableNumber(metric, "likes");
-    const comments = rowNullableNumber(metric, "comments");
-    const shares = rowNullableNumber(metric, "shares");
-    const saves = rowNullableNumber(metric, "saves");
-    const reach = rowNullableNumber(metric, "reach");
+    const likes = rowMetricNumber(metric, "likes");
+    const comments = rowMetricNumber(metric, "comments");
+    const shares = rowMetricNumber(metric, "shares");
+    const saves = rowMetricNumber(metric, "saves");
+    const reach = rowMetricNumber(metric, "reach");
     const engagements =
-      rowNullableNumber(metric, "metric_value") ??
+      rowMetricNumber(metric, "metric_value", ["engagements"]) ??
       calculateNormalizedEngagements({ likes, comments, shares, saves });
 
     return {
@@ -1220,15 +1378,15 @@ async function hydrateContentItems(
       comments,
       shares,
       saves,
-      views: rowNullableNumber(metric, "views"),
+      views: rowMetricNumber(metric, "views", ["plays", "video_views"]),
       reach,
-      impressions: rowNullableNumber(metric, "impressions"),
+      impressions: rowMetricNumber(metric, "impressions"),
       engagements,
-      engagementRateByFollowers: rowNullableNumber(metric, "engagement_rate"),
+      engagementRateByFollowers: rowMetricNumber(metric, "engagement_rate", ["engagementRate"]),
       engagementRateByReach: calculateEngagementRateByReach({ engagements, reach }),
-      watchTimeSeconds: rowNullableNumber(metric, "watch_time_seconds"),
-      averageWatchTimeSeconds: rowNullableNumber(metric, "average_watch_time_seconds"),
-      completionRate: rowNullableNumber(metric, "completion_rate"),
+      watchTimeSeconds: rowMetricNumber(metric, "watch_time_seconds"),
+      averageWatchTimeSeconds: rowMetricNumber(metric, "average_watch_time_seconds"),
+      completionRate: rowMetricNumber(metric, "completion_rate"),
     } satisfies SocialContentItem;
   });
 
