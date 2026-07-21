@@ -1199,7 +1199,10 @@ export async function getSocialConnectionDetail(connectionId: string) {
   return getSocialAccountDetail(connectionId);
 }
 
-export async function getSocialAccountDetail(connectionId: string): Promise<SocialAccountDetail | null> {
+export async function getSocialAccountDetail(
+  connectionId: string,
+  options?: { days?: number | null },
+): Promise<SocialAccountDetail | null> {
   const connections = await listSocialConnections();
   const connection = connections.find((item) => item.id === connectionId);
   if (!connection) {
@@ -1269,9 +1272,21 @@ export async function getSocialAccountDetail(connectionId: string): Promise<Soci
       (a, b) => new Date(rowString(a, "captured_at")).getTime() - new Date(rowString(b, "captured_at")).getTime(),
     );
   })();
+  const dateFilterCutoff =
+    options?.days && options.days > 0
+      ? new Date(Date.now() - options.days * 24 * 60 * 60 * 1000)
+      : null;
+  const filteredSnapshotRows =
+    dateFilterCutoff
+      ? snapshotRows.filter((row) => new Date(rowString(row, "captured_at")) >= dateFilterCutoff)
+      : snapshotRows;
 
   const hashtagMap = new Map<string, SocialHashtagSummary>();
   const postRows = (postsRes.data ?? []) as GenericRow[];
+  const filteredPostRows =
+    dateFilterCutoff
+      ? postRows.filter((post) => new Date(rowString(post, "published_at")) >= dateFilterCutoff)
+      : postRows;
   const postIds = postRows.map((row) => rowString(row, "id"));
   const [metricRowsRes, contentMetricRowsRes] = await Promise.all([
     postIds.length > 0
@@ -1354,7 +1369,7 @@ export async function getSocialAccountDetail(connectionId: string): Promise<Soci
     dailyPostSummary.set(dayKey, summary);
   }
 
-  for (const post of postRows) {
+  for (const post of filteredPostRows) {
     const metric =
       contentMetricLookup.get(rowString(post, "id")) ??
       metricLookup.get(rowString(post, "id")) ??
@@ -1377,7 +1392,7 @@ export async function getSocialAccountDetail(connectionId: string): Promise<Soci
     }
   }
 
-  const trend = snapshotRows.map((row) => {
+  const trend = filteredSnapshotRows.map((row) => {
     const dayKey = getDayKey(rowString(row, "captured_at"));
     const dailySummary = dailyPostSummary.get(dayKey);
 
@@ -1446,8 +1461,8 @@ export async function getSocialAccountDetail(connectionId: string): Promise<Soci
   const latestFollowing = latestSnapshot ? rowNullableNumber(latestSnapshot, "following_count") : connection.following;
   const last30DaysDate = new Date(latestSnapshotDate.getTime() - 1000 * 60 * 60 * 24 * 30);
   const last7DaysDate = new Date(latestSnapshotDate.getTime() - 1000 * 60 * 60 * 24 * 7);
-  const recentPosts = postRows.filter((post) => new Date(rowString(post, "published_at")) >= last30DaysDate);
-  const weeklyPosts = postRows.filter((post) => new Date(rowString(post, "published_at")) >= last7DaysDate).length;
+  const recentPosts = filteredPostRows.filter((post) => new Date(rowString(post, "published_at")) >= last30DaysDate);
+  const weeklyPosts = filteredPostRows.filter((post) => new Date(rowString(post, "published_at")) >= last7DaysDate).length;
 
   let likesTotal = 0;
   let likesCount = 0;
@@ -1479,7 +1494,7 @@ export async function getSocialAccountDetail(connectionId: string): Promise<Soci
     }
   }
 
-  const historyRows = [...snapshotRows]
+  const historyRows = [...filteredSnapshotRows]
     .reverse()
     .map((row, index, array) => {
       const previous = array[index + 1] ?? null;

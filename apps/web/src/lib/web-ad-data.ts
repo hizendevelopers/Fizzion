@@ -32,7 +32,6 @@ function isMissingTableError(error: unknown) {
 }
 
 const ACTIVE_WEB_SCAN_STATUSES = new Set([
-  "queued",
   "starting",
   "running",
   "processing",
@@ -81,6 +80,34 @@ export type WebAdvertisingAdItem = {
   creativeText: string | null;
   dimensions: string | null;
 };
+
+async function resolveWebScreenshotUrl(
+  supabase: NonNullable<ReturnType<typeof getOptionalSupabaseAdminClient>>,
+  storageKey: string | null,
+) {
+  if (!storageKey) {
+    return null;
+  }
+
+  if (/^https?:\/\//i.test(storageKey) || storageKey.startsWith("/")) {
+    return storageKey;
+  }
+
+  const slashIndex = storageKey.indexOf("/");
+  if (slashIndex <= 0 || slashIndex === storageKey.length - 1) {
+    return storageKey;
+  }
+
+  const bucket = storageKey.slice(0, slashIndex);
+  const path = storageKey.slice(slashIndex + 1);
+  const signed = await supabase.storage.from(bucket).createSignedUrl(path, 60 * 60);
+
+  if (signed.data?.signedUrl) {
+    return signed.data.signedUrl;
+  }
+
+  return storageKey;
+}
 
 export type WebAdvertisingAnalytics = {
   connectedWebsites: number;
@@ -254,18 +281,28 @@ export async function listWebAdvertisingAds() {
   const brandLookup = new Map(((brandsRes.data ?? []) as GenericRow[]).map((row) => [rowString(row, "id"), rowString(row, "name")]));
   const campaignLookup = new Map(((campaignsRes.data ?? []) as GenericRow[]).map((row) => [rowString(row, "id"), rowString(row, "name")]));
   const screenshotLookup = new Map<string, { crop: string | null; evidence: string | null }>();
+  const screenshotRows = (screenshotsRes.data ?? []) as GenericRow[];
+  const resolvedKeys = new Map<string, string | null>();
 
-  for (const row of (screenshotsRes.data ?? []) as GenericRow[]) {
+  await Promise.all(
+    screenshotRows.map(async (row) => {
+      const key = rowString(row, "storage_key");
+      resolvedKeys.set(key, await resolveWebScreenshotUrl(supabase, key));
+    }),
+  );
+
+  for (const row of screenshotRows) {
     const occurrenceId = rowString(row, "occurrence_id");
     const existing = screenshotLookup.get(occurrenceId) ?? { crop: null, evidence: null };
     const type = rowString(row, "screenshot_type");
     const key = rowString(row, "storage_key");
+    const resolvedKey = resolvedKeys.get(key) ?? key;
     if (type === "cropped_ad" || type === "crop") {
-      existing.crop = key;
+      existing.crop = resolvedKey;
     } else if (type === "full_page" || type === "evidence") {
-      existing.evidence = key;
+      existing.evidence = resolvedKey;
     } else if (!existing.crop) {
-      existing.crop = key;
+      existing.crop = resolvedKey;
     }
     screenshotLookup.set(occurrenceId, existing);
   }

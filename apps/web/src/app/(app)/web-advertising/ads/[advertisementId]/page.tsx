@@ -50,11 +50,33 @@ export default async function WebAdvertisingAdDetailPage(
         <article className="rounded-[1.8rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
           <h2 className="text-lg font-semibold text-foreground">Screenshot Evidence</h2>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <div className="rounded-[1.3rem] border border-border bg-panel-soft px-4 py-8 text-center text-xs text-muted-foreground">
-              {ad.screenshotUrl ?? "Cropped advertisement screenshot not available"}
+            <div className="overflow-hidden rounded-[1.3rem] border border-border bg-panel-soft">
+              {ad.screenshotUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  alt={`Cropped advertisement screenshot from ${ad.websiteName}`}
+                  className="h-full min-h-56 w-full object-cover"
+                  src={ad.screenshotUrl}
+                />
+              ) : (
+                <div className="px-4 py-8 text-center text-xs text-muted-foreground">
+                  Cropped advertisement screenshot not available
+                </div>
+              )}
             </div>
-            <div className="rounded-[1.3rem] border border-border bg-panel-soft px-4 py-8 text-center text-xs text-muted-foreground">
-              {ad.evidenceUrl ?? "Full-page evidence screenshot not available"}
+            <div className="overflow-hidden rounded-[1.3rem] border border-border bg-panel-soft">
+              {ad.evidenceUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  alt={`Full-page evidence screenshot from ${ad.websiteName}`}
+                  className="h-full min-h-56 w-full object-cover"
+                  src={ad.evidenceUrl}
+                />
+              ) : (
+                <div className="px-4 py-8 text-center text-xs text-muted-foreground">
+                  Full-page evidence screenshot not available
+                </div>
+              )}
             </div>
           </div>
         </article>

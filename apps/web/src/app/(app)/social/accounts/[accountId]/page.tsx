@@ -10,12 +10,19 @@ import { formatNumber } from "@/lib/social-utils";
 
 export default async function SocialAccountDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ accountId: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   noStore();
   const { accountId } = await params;
-  const detail = await getSocialAccountDetail(accountId);
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const days = parseDaysFilter(resolvedSearchParams.range);
+  const contentType = getSingleSearchParam(resolvedSearchParams.contentType) ?? "all";
+  const sort = parseSortFilter(resolvedSearchParams.sort);
+  const query = getSingleSearchParam(resolvedSearchParams.q) ?? "";
+  const detail = await getSocialAccountDetail(accountId, { days });
 
   if (!detail) {
     return (
@@ -31,7 +38,9 @@ export default async function SocialAccountDetailPage({
   const content = await listSocialContent(accountId, {
     page: 1,
     limit: 8,
-    sort: "engagements",
+    sort,
+    q: query || undefined,
+    contentType: contentType === "all" ? undefined : contentType,
   });
 
   const sectionTabs = [
@@ -40,6 +49,20 @@ export default async function SocialAccountDetailPage({
     { label: "Engagement", href: "#engagement" },
     { label: "History", href: "#history" },
     { label: "Posts", href: "#posts" },
+  ];
+  const dateRangeOptions = [
+    { value: "7", label: "Last 7 days" },
+    { value: "30", label: "Last 30 days" },
+    { value: "90", label: "Last 90 days" },
+    { value: "all", label: "All time" },
+  ];
+  const contentTypeOptions = [
+    { value: "all", label: "All content" },
+    { value: "image", label: "Images" },
+    { value: "carousel", label: "Carousels" },
+    { value: "reel", label: "Reels" },
+    { value: "video", label: "Videos" },
+    { value: "post", label: "Posts" },
   ];
 
   return (
@@ -152,6 +175,65 @@ export default async function SocialAccountDetailPage({
             </a>
           ))}
         </div>
+      </section>
+
+      <section className="rounded-[1.8rem] border border-border bg-white p-4 shadow-[var(--shadow-soft)]">
+        <form className="grid gap-3 xl:grid-cols-[1fr_220px_220px_220px_auto]" method="get">
+          <input
+            className="rounded-[1rem] border border-border bg-panel-soft px-4 py-3 text-sm text-foreground outline-none ring-0 placeholder:text-muted-foreground"
+            defaultValue={query}
+            name="q"
+            placeholder="Search caption or title"
+            type="search"
+          />
+          <select
+            className="rounded-[1rem] border border-border bg-panel-soft px-4 py-3 text-sm text-foreground outline-none"
+            defaultValue={days == null ? "all" : String(days)}
+            name="range"
+          >
+            {dateRangeOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <select
+            className="rounded-[1rem] border border-border bg-panel-soft px-4 py-3 text-sm text-foreground outline-none"
+            defaultValue={contentType}
+            name="contentType"
+          >
+            {contentTypeOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <select
+            className="rounded-[1rem] border border-border bg-panel-soft px-4 py-3 text-sm text-foreground outline-none"
+            defaultValue={sort}
+            name="sort"
+          >
+            <option value="engagements">Top engagements</option>
+            <option value="views">Top views</option>
+            <option value="reach">Top reach</option>
+            <option value="engagement_rate">Top engagement rate</option>
+            <option value="newest">Newest first</option>
+          </select>
+          <div className="flex gap-3">
+            <button
+              className="rounded-full bg-sidebar px-5 py-3 text-sm font-medium text-white"
+              type="submit"
+            >
+              Apply filters
+            </button>
+            <Link
+              className="rounded-full border border-border bg-panel-soft px-5 py-3 text-sm font-medium text-foreground"
+              href={`/social/accounts/${accountId}`}
+            >
+              Reset
+            </Link>
+          </div>
+        </form>
       </section>
 
       <section className="grid gap-5 xl:grid-cols-5" id="growth">
@@ -351,6 +433,9 @@ export default async function SocialAccountDetailPage({
             <p className="mt-1 text-sm text-muted-foreground">
               Real imported content sorted by engagements, with original caption and live imported metrics.
             </p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Showing {content.total} matching records for the current filters.
+            </p>
           </div>
           <span className="rounded-full bg-panel-soft px-3 py-2 text-xs text-muted-foreground">
             Sorted by engagements
@@ -500,4 +585,33 @@ function formatRelativeTime(value: string) {
   }
   const days = Math.round(hours / 24);
   return `${days} days ago`;
+}
+
+function getSingleSearchParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function parseDaysFilter(value: string | string[] | undefined) {
+  const resolved = getSingleSearchParam(value);
+  if (!resolved || resolved === "all") {
+    return null;
+  }
+
+  const parsed = Number(resolved);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 30;
+}
+
+function parseSortFilter(value: string | string[] | undefined) {
+  const resolved = getSingleSearchParam(value);
+  if (
+    resolved === "newest" ||
+    resolved === "reach" ||
+    resolved === "views" ||
+    resolved === "engagements" ||
+    resolved === "engagement_rate"
+  ) {
+    return resolved;
+  }
+
+  return "engagements";
 }

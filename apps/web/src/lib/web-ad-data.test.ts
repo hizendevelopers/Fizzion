@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { isWebAdvertisingRunActiveStatus } from "@/lib/web-ad-data";
 
 test("isWebAdvertisingRunActiveStatus detects active crawl states safely", () => {
-  assert.equal(isWebAdvertisingRunActiveStatus("queued"), true);
+  assert.equal(isWebAdvertisingRunActiveStatus("queued"), false);
   assert.equal(isWebAdvertisingRunActiveStatus("RUNNING"), true);
   assert.equal(isWebAdvertisingRunActiveStatus(" processing "), true);
   assert.equal(isWebAdvertisingRunActiveStatus("completed"), false);

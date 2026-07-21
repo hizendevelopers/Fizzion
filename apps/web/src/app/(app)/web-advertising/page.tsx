@@ -90,8 +90,20 @@ export default async function WebAdvertisingPage() {
           {ads.length > 0 ? (
             ads.slice(0, 12).map((ad) => (
               <Link className="rounded-[1.5rem] border border-border bg-panel-soft p-4" href={`/web-advertising/ads/${ad.id}`} key={ad.id}>
-                <div className="rounded-[1.2rem] bg-white px-4 py-8 text-center text-xs text-muted-foreground">
-                  {ad.screenshotUrl ?? "Screenshot evidence not available"}
+                <div className="overflow-hidden rounded-[1.2rem] border border-border bg-white">
+                  {ad.screenshotUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      alt={`Advertisement screenshot from ${ad.websiteName}`}
+                      className="h-44 w-full object-cover"
+                      loading="lazy"
+                      src={ad.screenshotUrl}
+                    />
+                  ) : (
+                    <div className="px-4 py-8 text-center text-xs text-muted-foreground">
+                      Screenshot evidence not available
+                    </div>
+                  )}
                 </div>
                 <div className="mt-4">
                   <p className="font-semibold text-foreground">{ad.websiteName}</p>
