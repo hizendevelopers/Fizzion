@@ -64,6 +64,16 @@ export default async function SocialContentDetailPage({
           <MetricCard label="Engagements" value={formatNumber(detail.engagements)} />
           <MetricCard label="Engagement Rate" value={detail.engagementRateByFollowers != null ? `${detail.engagementRateByFollowers.toFixed(2)}%` : "Not available"} />
         </div>
+
+        {detail.thumbnailUrl || detail.mediaUrl ? (
+          <div className="mt-6 overflow-hidden rounded-[1.8rem] border border-border bg-panel-soft">
+            <img
+              alt={detail.title || detail.caption || "Synchronized social content preview"}
+              className="max-h-[34rem] w-full object-contain bg-white"
+              src={detail.mediaUrl ?? detail.thumbnailUrl ?? undefined}
+            />
+          </div>
+        ) : null}
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">

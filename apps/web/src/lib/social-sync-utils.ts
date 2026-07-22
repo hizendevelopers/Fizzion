@@ -62,6 +62,9 @@ export interface ScrapeBundleResult {
   }>;
 }
 
+const DEFAULT_INSTAGRAM_RESULTS_LIMIT = 2500;
+const INSTAGRAM_PRIMARY_RESULTS_LIMIT_CAP = 100;
+
 /**
  * Build normalized input for a social account discovery/validation.
  */
@@ -177,7 +180,13 @@ export async function startPlatformScrapeBundle(
       actorInput = buildTikTokInput(normalized, options as Parameters<typeof buildTikTokInput>[1]);
       break;
     case "instagram":
-      actorInput = buildInstagramInput(normalized, Number(options?.resultsLimit ?? 100));
+      actorInput = buildInstagramInput(
+        normalized,
+        Math.min(
+          Number(options?.resultsLimit ?? DEFAULT_INSTAGRAM_RESULTS_LIMIT),
+          INSTAGRAM_PRIMARY_RESULTS_LIMIT_CAP,
+        ),
+      );
       break;
     case "youtube":
       actorInput = buildYouTubeInput(normalized, options as Parameters<typeof buildYouTubeInput>[1]);
@@ -205,7 +214,10 @@ export async function startPlatformScrapeBundle(
       });
     }
 
-    const fallbackInput = buildInstagramLegacyInput(normalized, Number(options?.resultsLimit ?? 100));
+    const fallbackInput = buildInstagramLegacyInput(
+      normalized,
+      Number(options?.resultsLimit ?? DEFAULT_INSTAGRAM_RESULTS_LIMIT),
+    );
     for (const actorId of INSTAGRAM_CONTENT_FALLBACK_ACTORS) {
       const fallbackRun = await startApifyActorById(actorId, fallbackInput);
       supplemental.push({
@@ -417,10 +429,17 @@ export async function processAndSaveResults(
             description: content.description,
             hashtags: content.hashtags,
             mentions: content.mentions,
+            tagged_accounts: content.taggedAccounts,
+            collaborators: content.collaborators,
+            language: null,
             published_at: content.publishedAt?.toISOString() ?? now,
             permalink: content.permalink,
             is_paid: false,
             duration_seconds: content.durationSeconds,
+            location_name: null,
+            paid_status: "organic",
+            processing_status: "ready",
+            content_status: "published",
             raw_payload_json: {
               ...content.rawData,
               supplementalProfileImported: supplementalProfileItems.length > 0,
@@ -436,6 +455,53 @@ export async function processAndSaveResults(
 
       if (postError || !post?.id) continue;
       savedContent++;
+
+      const existingMedia = await supabase
+        .from("social_post_media")
+        .select("id, source_url, thumbnail_url, media_type")
+        .eq("social_post_id", post.id)
+        .limit(1)
+        .maybeSingle();
+
+      const resolvedSourceUrl = content.mediaUrls[0] ?? content.thumbnailUrl ?? null;
+      const resolvedThumbnailUrl = content.thumbnailUrl ?? content.mediaUrls[0] ?? null;
+
+      if (!existingMedia.data?.id) {
+        await supabase.from("social_post_media").insert({
+          organization_id: organizationId,
+          social_post_id: post.id,
+          media_type: content.contentType,
+          source_url: resolvedSourceUrl,
+          thumbnail_url: resolvedThumbnailUrl,
+          duration_seconds: content.durationSeconds,
+          metadata: {
+            provider: platform,
+            allMediaUrls: content.mediaUrls,
+            supplementalProfileImported: supplementalProfileItems.length > 0,
+          },
+          alt_text: content.description ?? content.caption ?? null,
+        });
+      } else if (
+        existingMedia.data.source_url !== resolvedSourceUrl ||
+        existingMedia.data.thumbnail_url !== resolvedThumbnailUrl ||
+        existingMedia.data.media_type !== content.contentType
+      ) {
+        await supabase
+          .from("social_post_media")
+          .update({
+            source_url: resolvedSourceUrl,
+            thumbnail_url: resolvedThumbnailUrl,
+            media_type: content.contentType,
+            duration_seconds: content.durationSeconds,
+            metadata: {
+              provider: platform,
+              allMediaUrls: content.mediaUrls,
+              supplementalProfileImported: supplementalProfileItems.length > 0,
+            },
+            alt_text: content.description ?? content.caption ?? null,
+          })
+          .eq("id", existingMedia.data.id);
+      }
 
       // Save content metrics
       await supabase.from("social_content_metrics").insert({
@@ -486,10 +552,16 @@ export async function processAndSaveResults(
         { onConflict: "social_post_id,metric_name" },
       );
 
-      // Save comments for this content
-      const postComments = commentItems; // all comments go to post
-      if (postComments.length > 0 && savedContent === 1) {
-        // Associate comments with first post for simplicity
+      // Save comments only when they can be confidently mapped to this content item.
+      const postComments = commentItems.filter((comment) => {
+        if (comment.sourceContentId) {
+          return comment.sourceContentId === content.externalContentId;
+        }
+
+        const sourceContentId = comment.rawData?.__sourceContentId;
+        return typeof sourceContentId === "string" && sourceContentId === content.externalContentId;
+      });
+      if (postComments.length > 0) {
         for (const comment of postComments) {
           const { error: commentError } = await supabase.from("social_comments").upsert(
             {
@@ -525,6 +597,9 @@ export async function processAndSaveResults(
         content_count: profile.totalPosts,
         engagement_rate: profile.engagementRate,
         likes: profile.totalLikes,
+        comments: null,
+        shares: null,
+        saves: null,
         normalized_metrics: {
           followers: profile.followers,
           following: profile.following,
@@ -588,11 +663,13 @@ export async function processAndSaveResults(
     await supabase.from("social_sync_jobs").update({
       status: "completed",
       completed_at: now,
-      payload: {
-        recordsProcessed: savedContent,
-        commentCount: savedComments,
-      },
-    }).eq("connection_id", connectionId).eq("status", "running");
+        payload: {
+          recordsProcessed: savedContent,
+          commentCount: savedComments,
+          scraperItemsFetched: allItems.length,
+          fallbackItemsFetched: fallbackContentItems.length,
+        },
+      }).eq("connection_id", connectionId).eq("status", "running");
 
     emitProgress("completed", 100, savedContent, "Completed");
 
@@ -640,6 +717,7 @@ export async function performFullSync(
   organizationId: string,
   socialAccountId: string,
   normalizedInput: NormalizedSocialInput,
+  options?: { resultsLimit?: number },
   onProgress?: (progress: SyncProgress) => void,
 ): Promise<SyncResult> {
   const emitProgress = (stage: SyncStage, pct: number, records: number, msg: string) => {
@@ -650,7 +728,9 @@ export async function performFullSync(
 
   // Start the Apify Actor
   emitProgress("starting_scraper", 10, 0, "Starting scraper");
-  const scrapeBundle = await startPlatformScrapeBundle(normalizedInput);
+  const scrapeBundle = await startPlatformScrapeBundle(normalizedInput, {
+    resultsLimit: options?.resultsLimit,
+  });
   const { runId, datasetId } = scrapeBundle.primary;
 
   if (!datasetId) {
@@ -692,10 +772,11 @@ export async function performFullSync(
   );
 
   for (const supplementalRun of scrapeBundle.supplemental) {
-    const supplementalStatus = await waitForApifyRun(supplementalRun.runId, 300);
+    const supplementalWaitSecs = supplementalRun.purpose === "content_fallback" ? 900 : 300;
+    const supplementalStatus = await waitForApifyRun(supplementalRun.runId, supplementalWaitSecs);
     if (supplementalStatus.status !== "SUCCEEDED") {
       throw new Error(
-        `Supplemental Instagram profile scraper ${supplementalRun.actorId} finished with status: ${supplementalStatus.status}`,
+        `Supplemental Instagram scraper ${supplementalRun.actorId} (${supplementalRun.purpose}) finished with status: ${supplementalStatus.status}`,
       );
     }
   }
@@ -717,6 +798,7 @@ export async function performFullSync(
  */
 export async function refreshConnection(
   connectionId: string,
+  resultsLimit?: number,
 ): Promise<SyncResult> {
   const supabase = getSupabaseAdminClient();
 
@@ -747,5 +829,6 @@ export async function refreshConnection(
     socialAccount.organization_id,
     socialAccount.id,
     normalized,
+    { resultsLimit },
   );
 }

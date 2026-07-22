@@ -26,6 +26,7 @@ export const socialCallbackQuerySchema = z.object({
 
 export const socialSyncSchema = z.object({
   mode: z.enum(["initial", "incremental", "refresh"]).default("refresh"),
+  resultsLimit: z.coerce.number().int().min(1).max(5000).optional(),
 });
 
 export const socialReportSchema = z.object({
@@ -74,7 +75,7 @@ export const socialApifyDiscoverSchema = z.object({
 export const socialApifyConnectSchema = z.object({
   provider: socialProviderSchema,
   input: z.string().trim().min(2).max(2000),
-  resultsLimit: z.coerce.number().int().min(1).max(500).default(100),
+  resultsLimit: z.coerce.number().int().min(1).max(5000).default(2500),
 });
 
 export const socialApifySyncStatusSchema = z.object({
@@ -82,7 +83,7 @@ export const socialApifySyncStatusSchema = z.object({
 });
 
 export const socialApifyRefreshSchema = z.object({
-  resultsLimit: z.coerce.number().int().min(1).max(500).optional(),
+  resultsLimit: z.coerce.number().int().min(1).max(5000).optional(),
 });
 
 export type SocialProviderKey = z.infer<typeof socialProviderSchema>;

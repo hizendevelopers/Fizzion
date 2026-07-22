@@ -58,6 +58,81 @@ function rowObject(row: GenericRow, key: string) {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as GenericRow) : {};
 }
 
+function extractRawStringArray(value: unknown, objectKey?: string) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => {
+      if (typeof item === "string") {
+        return item;
+      }
+
+      if (objectKey && item && typeof item === "object") {
+        const objectValue = (item as GenericRow)[objectKey];
+        return typeof objectValue === "string" ? objectValue : null;
+      }
+
+      return null;
+    })
+    .filter((item): item is string => Boolean(item));
+}
+
+function deriveRawSocialMedia(rawPayload: GenericRow) {
+  const rawDisplayUrls = rawPayload.displayUrls;
+  const rawImages = rawPayload.images;
+  const rawMediaUrls = rawPayload.mediaUrls;
+  const imageCandidates = Array.isArray(rawDisplayUrls)
+    ? rawDisplayUrls
+    : Array.isArray(rawImages)
+      ? rawImages
+      : Array.isArray(rawMediaUrls)
+        ? rawMediaUrls
+        : [];
+
+  const thumbnailUrl =
+    (typeof rawPayload.displayUrl === "string" ? rawPayload.displayUrl : null) ??
+    (typeof rawPayload.display_url === "string" ? rawPayload.display_url : null) ??
+    (typeof rawPayload.thumbnailUrl === "string" ? rawPayload.thumbnailUrl : null) ??
+    (typeof rawPayload.thumbnail === "string" ? rawPayload.thumbnail : null) ??
+    imageCandidates.find((value): value is string => typeof value === "string") ??
+    null;
+
+  const mediaUrl =
+    (typeof rawPayload.videoUrl === "string" ? rawPayload.videoUrl : null) ??
+    thumbnailUrl;
+
+  return {
+    thumbnailUrl,
+    mediaUrl,
+  };
+}
+
+function deriveRawSocialContentType(rawPayload: GenericRow, storedContentType: string) {
+  const rawType = [
+    rowNullableString(rawPayload, "mediaType"),
+    rowNullableString(rawPayload, "media_type"),
+    rowNullableString(rawPayload, "__typename"),
+    rowNullableString(rawPayload, "type"),
+    rowNullableString(rawPayload, "productType"),
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  if (rawType.includes("VIDEO") || rawType.includes("video") || rawType.includes("Reel") || rowNullableString(rawPayload, "videoUrl")) {
+    return "reel";
+  }
+  if (rawType.includes("CAROUSEL") || rawType.includes("carousel")) {
+    return "carousel";
+  }
+  if (rawType.includes("IMAGE") || rawType.includes("image")) {
+    return "image";
+  }
+
+  return storedContentType;
+}
+
 function rowMetricNumber(row: GenericRow, key: string, fallbackKeys: string[] = []) {
   const direct = rowNullableNumber(row, key);
   if (direct != null) {
@@ -1788,6 +1863,8 @@ async function hydrateContentItems(
       metricLookup.get(rowString(row, "id")) ??
       {};
     const media = mediaLookup.get(rowString(row, "id")) ?? {};
+    const rawPayload = rowObject(row, "raw_payload_json");
+    const rawMedia = deriveRawSocialMedia(rawPayload);
     const likes = rowMetricNumber(metric, "likes");
     const comments = rowMetricNumber(metric, "comments");
     const shares = rowMetricNumber(metric, "shares");
@@ -1804,22 +1881,33 @@ async function hydrateContentItems(
       title: rowString(row, "title", rowString(row, "caption", "Untitled content")),
       caption: rowString(row, "caption"),
       description: rowString(row, "description"),
-      contentType: rowString(row, "content_type"),
-      contentTypeLabel: formatSocialContentTypeLabel(rowString(row, "content_type")),
-      thumbnailUrl: rowNullableString(media, "thumbnail_url"),
-      mediaUrl: rowNullableString(media, "source_url"),
+      contentType: deriveRawSocialContentType(rawPayload, rowString(row, "content_type")),
+      contentTypeLabel: formatSocialContentTypeLabel(
+        deriveRawSocialContentType(rawPayload, rowString(row, "content_type")),
+      ),
+      thumbnailUrl: rowNullableString(media, "thumbnail_url") ?? rawMedia.thumbnailUrl,
+      mediaUrl: rowNullableString(media, "source_url") ?? rawMedia.mediaUrl,
       permalink: rowNullableString(row, "permalink"),
       publishedAt: rowString(row, "published_at"),
       durationSeconds: rowNullableNumber(row, "duration_seconds"),
       hashtags: rowStringArray(row, "hashtags"),
       mentions: rowStringArray(row, "mentions"),
-      taggedAccounts: rowStringArray(row, "tagged_accounts"),
-      collaborators: rowStringArray(row, "collaborators"),
+      taggedAccounts:
+        rowStringArray(row, "tagged_accounts").length > 0
+          ? rowStringArray(row, "tagged_accounts")
+          : extractRawStringArray(rawPayload.taggedUsers, "username"),
+      collaborators:
+        rowStringArray(row, "collaborators").length > 0
+          ? rowStringArray(row, "collaborators")
+          : extractRawStringArray(rawPayload.coauthorProducers, "username"),
       likes,
       comments,
       shares,
       saves,
-      views: rowMetricNumber(metric, "views", ["plays", "video_views"]),
+      views:
+        rowMetricNumber(metric, "views", ["plays", "video_views"]) ??
+        rowNullableNumber(rawPayload, "videoViewCount") ??
+        rowNullableNumber(rawPayload, "viewCount"),
       reach,
       impressions: rowMetricNumber(metric, "impressions"),
       engagements,

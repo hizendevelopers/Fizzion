@@ -122,8 +122,14 @@ export function normalizeInstagramContent(
       const shares = toNumber(item.shareCount) ?? toNumber(item.shares);
       const saves = toNumber(item.savedCount) ?? toNumber(item.saves);
 
-      const mt = toString(item.mediaType ?? item.media_type ?? item.__typename) ?? "";
-      const contentType = mt.includes("VIDEO") || mt.includes("Reel") || mt.includes("video")
+      const mt = toString(
+        item.mediaType ??
+        item.media_type ??
+        item.__typename ??
+        item.type ??
+        item.productType,
+      ) ?? "";
+      const contentType = mt.includes("VIDEO") || mt.includes("Reel") || mt.includes("video") || Boolean(item.videoUrl)
         ? "reel"
         : mt.includes("CAROUSEL") || mt.includes("carousel")
           ? "carousel"
@@ -137,8 +143,34 @@ export function normalizeInstagramContent(
       const mentions = toStringArray(item.mentions).length > 0
         ? toStringArray(item.mentions)
         : extractMentions(captionText);
-      const taggedAccounts = toStringArray(item.taggedUsers ?? item.tagged_accounts);
-      const collaborators = toStringArray(item.collaborators);
+      const taggedAccounts = [
+        ...toStringArray(item.tagged_accounts),
+        ...(
+          Array.isArray(item.taggedUsers)
+            ? item.taggedUsers
+                .map((taggedUser) =>
+                  typeof taggedUser === "string"
+                    ? taggedUser
+                    : toString((taggedUser as Record<string, unknown>).username),
+                )
+                .filter((value): value is string => Boolean(value))
+            : []
+        ),
+      ];
+      const collaborators = [
+        ...toStringArray(item.collaborators),
+        ...(
+          Array.isArray(item.coauthorProducers)
+            ? item.coauthorProducers
+                .map((producer) =>
+                  typeof producer === "string"
+                    ? producer
+                    : toString((producer as Record<string, unknown>).username),
+                )
+                .filter((value): value is string => Boolean(value))
+            : []
+        ),
+      ];
 
       const engagements = sumEngagements({ likes, comments, shares, saves });
       const owner = item.owner as Record<string, unknown> | undefined;
@@ -147,6 +179,9 @@ export function normalizeInstagramContent(
       const firstImage = Array.isArray(images)
         ? toString(images[0])
         : toString(item.displayUrl ?? item.display_url ?? item.thumbnailUrl ?? item.thumbnail);
+      const mediaUrls = Array.isArray(images)
+        ? images.filter(Boolean).map(String)
+        : [toString(item.videoUrl), firstImage].filter((value): value is string => Boolean(value));
 
       return {
         platform: "instagram",
@@ -158,7 +193,7 @@ export function normalizeInstagramContent(
         description: captionText,
         permalink: `https://www.instagram.com/p/${code}/`,
         thumbnailUrl: firstImage,
-        mediaUrls: Array.isArray(images) ? images.filter(Boolean).map(String) : firstImage ? [firstImage] : [],
+        mediaUrls,
         hashtags,
         mentions,
         taggedAccounts,
@@ -199,6 +234,7 @@ export function normalizeInstagramComments(
 
       comments.push({
         externalCommentId: String(node.id ?? Math.random()),
+        sourceContentId: String(item.id ?? item.shortcode ?? ""),
         parentCommentId: undefined,
         authorName: toString((nodeOwner ?? {}).full_name ?? (nodeOwner ?? {}).username),
         authorUsername: toString((nodeOwner ?? {}).username),
@@ -207,7 +243,10 @@ export function normalizeInstagramComments(
         likes: toNumber(getNested(node, "edge_liked_by.count")) ?? toNumber(node.likes),
         repliesCount: toNumber(getNested(node, "edge_threaded_comments.count")) ?? toNumber(node.replies) ?? 0,
         publishedAt: toDate(node.created_at ?? node.timestamp ?? node.createdAt),
-        rawData: node as Record<string, unknown>,
+        rawData: {
+          ...(node as Record<string, unknown>),
+          __sourceContentId: String(item.id ?? item.shortcode ?? ""),
+        },
       });
     }
   }

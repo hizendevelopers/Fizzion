@@ -90,7 +90,9 @@ export async function POST(
       },
     });
 
-    const scrapeBundle = await startPlatformScrapeBundle(normalized);
+    const scrapeBundle = await startPlatformScrapeBundle(normalized, {
+      resultsLimit: parsed.data.resultsLimit,
+    });
     const { runId, datasetId } = scrapeBundle.primary;
     if (!datasetId) {
       return socialApiError("SCRAPE_START_FAILED", "Scraper did not return a dataset ID.", 500, requestId);

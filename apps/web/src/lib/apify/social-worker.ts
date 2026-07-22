@@ -54,6 +54,7 @@ export async function executeSocialSyncJob(
       payload.organizationId,
       payload.socialAccountId,
       normalized,
+      undefined,
       onProgress,
     );
 

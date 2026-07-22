@@ -555,6 +555,9 @@ export default async function SocialAccountDetailPage({
             <p className="mt-2 text-xs text-muted-foreground">
               Showing {content.items.length} of {content.total} matching records for the current filters.
             </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Account summary currently reports {formatNumber(detail.contentCount)} total published items from the connected source.
+            </p>
           </div>
           <span className="rounded-full bg-panel-soft px-3 py-2 text-xs text-muted-foreground">
             Sorted by {sort.replaceAll("_", " ")}
@@ -565,6 +568,17 @@ export default async function SocialAccountDetailPage({
           {content.items.length > 0 ? (
             content.items.map((item) => (
               <article className="rounded-[1.5rem] border border-border bg-panel-soft p-4" key={item.id}>
+                {item.thumbnailUrl || item.mediaUrl ? (
+                  <div className="mb-4 overflow-hidden rounded-[1.25rem] border border-border bg-white">
+                    <img
+                      alt={item.title || item.caption || "Synchronized social content preview"}
+                      className="h-64 w-full object-cover"
+                      loading="lazy"
+                      src={item.thumbnailUrl ?? item.mediaUrl ?? undefined}
+                    />
+                  </div>
+                ) : null}
+
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-base font-semibold text-foreground">{item.title}</p>

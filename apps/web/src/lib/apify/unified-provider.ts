@@ -89,6 +89,7 @@ export interface NormalizedSocialContent {
  */
 export interface NormalizedSocialComment {
   externalCommentId: string;
+  sourceContentId?: string;
   parentCommentId?: string;
   authorName?: string;
   authorUsername?: string;

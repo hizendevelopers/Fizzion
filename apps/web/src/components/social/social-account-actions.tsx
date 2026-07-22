@@ -19,7 +19,7 @@ export function SocialAccountActions({
         const response = await fetch(`/api/social/connections/${connectionId}/sync`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mode: "refresh" }),
+          body: JSON.stringify({ mode: "refresh", resultsLimit: 2500 }),
         });
         const payload = await response.json();
         if (!response.ok) {
