@@ -30,6 +30,109 @@ function formatValue(value: number, formatter?: (value: number) => string) {
   return formatter ? formatter(value) : value.toLocaleString();
 }
 
+function slugifyId(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "sov";
+}
+
+function BottleIllustration({
+  idPrefix,
+  fillPercent,
+}: {
+  idPrefix: string;
+  fillPercent: number;
+}) {
+  const normalizedShare = clampShare(fillPercent / 100);
+  const fillTop = 286 - (182 * normalizedShare);
+  const clipId = `${idPrefix}-coke-bottle-clip`;
+  const fillId = `${idPrefix}-coke-bottle-fill`;
+  const glassId = `${idPrefix}-coke-bottle-glass`;
+  const shadowId = `${idPrefix}-coke-bottle-shadow`;
+
+  return (
+    <svg className="h-[290px] w-full" fill="none" viewBox="0 0 220 320">
+      <defs>
+        <linearGradient id={fillId} x1="0" x2="0" y1="48" y2="306">
+          <stop offset="0%" stopColor="#ff9a8f" />
+          <stop offset="32%" stopColor="#ff4f46" />
+          <stop offset="100%" stopColor="#b30009" />
+        </linearGradient>
+        <linearGradient id={glassId} x1="20" x2="190" y1="20" y2="300">
+          <stop offset="0%" stopColor="rgba(255,255,255,0.92)" />
+          <stop offset="55%" stopColor="rgba(255,250,248,0.72)" />
+          <stop offset="100%" stopColor="rgba(240,225,218,0.85)" />
+        </linearGradient>
+        <radialGradient id={shadowId} cx="0" cy="0" gradientTransform="translate(110 300) rotate(90) scale(18 78)" gradientUnits="userSpaceOnUse">
+          <stop stopColor="rgba(106,42,34,0.18)" />
+          <stop offset="1" stopColor="rgba(106,42,34,0)" />
+        </radialGradient>
+        <clipPath id={clipId}>
+          <path d="M88 24c0-8 6-14 14-14h16c8 0 14 6 14 14v20c0 10 5 18 12 25 19 16 31 41 31 72v100c0 38-31 69-69 69h-2c-38 0-69-31-69-69V141c0-31 12-56 31-72 7-7 12-15 12-25V24z" />
+        </clipPath>
+      </defs>
+
+      <ellipse cx="110" cy="300" fill={`url(#${shadowId})`} rx="86" ry="22" />
+
+      <path
+        d="M88 24c0-8 6-14 14-14h16c8 0 14 6 14 14v20c0 10 5 18 12 25 19 16 31 41 31 72v100c0 38-31 69-69 69h-2c-38 0-69-31-69-69V141c0-31 12-56 31-72 7-7 12-15 12-25V24z"
+        fill={`url(#${glassId})`}
+        stroke="#d7c9c1"
+        strokeWidth="7"
+      />
+
+      <g clipPath={`url(#${clipId})`}>
+        <rect x="30" y={fillTop} width="150" height="250" fill={`url(#${fillId})`} />
+        <path
+          d={`M28 ${fillTop + 11} C 62 ${fillTop - 2}, 110 ${fillTop + 14}, 182 ${fillTop + 4} L182 320 L28 320 Z`}
+          fill="rgba(255,255,255,0.18)"
+        />
+      </g>
+
+      <path
+        d="M88 24c0-8 6-14 14-14h16c8 0 14 6 14 14v20c0 10 5 18 12 25 19 16 31 41 31 72v100c0 38-31 69-69 69h-2c-38 0-69-31-69-69V141c0-31 12-56 31-72 7-7 12-15 12-25V24z"
+        stroke="rgba(255,255,255,0.78)"
+        strokeWidth="2.2"
+      />
+
+      <path
+        d="M102 18h16c4 0 7 3 7 7v14h-30V25c0-4 3-7 7-7z"
+        fill="rgba(126,0,7,0.18)"
+      />
+      <rect x="89" y="58" width="42" height="14" rx="6.5" fill="rgba(255,255,255,0.55)" />
+      <rect x="68" y="120" width="84" height="36" rx="18" fill="#f8f2ec" stroke="#d9cbc3" strokeWidth="2.5" />
+      <text
+        x="110"
+        y="143"
+        fill="#8b0d13"
+        fontFamily="Arial, sans-serif"
+        fontSize="17"
+        fontStyle="italic"
+        fontWeight="700"
+        textAnchor="middle"
+      >
+        SOV
+      </text>
+
+      <path d="M78 52c4 22 1 154-5 204" stroke="rgba(255,255,255,0.55)" strokeLinecap="round" strokeWidth="6" />
+      <path d="M139 48c8 28 10 154 3 212" stroke="rgba(255,255,255,0.24)" strokeLinecap="round" strokeWidth="4.5" />
+
+      <g>
+        <rect x="73" y="84" width="74" height="24" rx="12" fill="#1f2340" />
+        <text
+          x="110"
+          y="100"
+          fill="#ffffff"
+          fontFamily="Arial, sans-serif"
+          fontSize="12"
+          fontWeight="700"
+          textAnchor="middle"
+        >
+          {fillPercent.toFixed(1)}%
+        </text>
+      </g>
+    </svg>
+  );
+}
+
 function buildLineGeometry(data: TrendDatum[], width = 680, height = 220) {
   const paddingX = 20;
   const paddingY = 22;
@@ -255,40 +358,61 @@ export function ShareOfVoiceCard({
   const normalized = data
     .filter((item) => item.share > 0)
     .sort((left, right) => right.share - left.share);
+  const leadItem = normalized[0] ?? null;
+  const leadSharePercent = (leadItem?.share ?? 0) * 100;
+  const idPrefix = slugifyId(title);
 
   return (
     <article className="rounded-[1.8rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
       <h3 className="text-lg font-semibold text-foreground">{title}</h3>
       <p className="mt-1 text-sm text-muted-foreground">{subtitle ?? "Real proportional distribution from current data"}</p>
 
-      <div className="mt-5 space-y-4">
-        {normalized.length > 0 ? (
-          normalized.map((item, index) => {
-            const width = `${Math.max(item.share * 100, 4)}%`;
-            const color = item.color ?? ["#F40009", "#d33a54", "#ff9d63", "#ffbf58", "#06b6d4", "#8b5cf6"][index % 6];
-            return (
-              <div key={`${title}-${item.label}`}>
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">{item.label}</p>
-                    {item.note ? <p className="text-xs text-muted-foreground">{item.note}</p> : null}
-                  </div>
-                  <span className="text-sm font-semibold text-foreground">
-                    {item.valueLabel ?? `${(item.share * 100).toFixed(1)}%`}
-                  </span>
-                </div>
-                <div className="mt-2 h-3 overflow-hidden rounded-full bg-panel-soft">
-                  <div className="h-full rounded-full" style={{ width, background: color }} />
-                </div>
-              </div>
-            );
-          })
-        ) : (
-          <div className="rounded-[1.2rem] border border-dashed border-border px-4 py-5 text-sm text-muted-foreground">
-            {emptyLabel}
+      {normalized.length > 0 ? (
+        <div className="mt-5 grid gap-5 lg:grid-cols-[240px_1fr] lg:items-center">
+          <div className="mx-auto w-full max-w-[240px] rounded-[1.85rem] bg-[linear-gradient(180deg,#fff9f7_0%,#fff2ef_100%)] p-4">
+            <BottleIllustration fillPercent={leadSharePercent} idPrefix={idPrefix} />
           </div>
-        )}
-      </div>
+
+          <div className="space-y-4">
+            <div className="rounded-[1.35rem] border border-border bg-panel-soft px-4 py-4">
+              <p className="text-sm font-semibold text-foreground">
+                {leadItem?.label ?? "Leading share"} owns the biggest slice in this live SOV mix
+              </p>
+              <p className="mt-1 text-sm leading-7 text-muted-foreground">
+                The bottle fill level tracks the leading share directly from stored records. No interpolation or mock
+                percentages are used here.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {normalized.map((item, index) => {
+                const width = `${Math.max(item.share * 100, 4)}%`;
+                const color = item.color ?? ["#F40009", "#d33a54", "#ff9d63", "#ffbf58", "#06b6d4", "#8b5cf6"][index % 6];
+                return (
+                  <div key={`${title}-${item.label}`}>
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">{item.label}</p>
+                        {item.note ? <p className="text-xs text-muted-foreground">{item.note}</p> : null}
+                      </div>
+                      <span className="text-sm font-semibold text-foreground">
+                        {item.valueLabel ?? `${(item.share * 100).toFixed(1)}%`}
+                      </span>
+                    </div>
+                    <div className="mt-2 h-3 overflow-hidden rounded-full bg-panel-soft">
+                      <div className="h-full rounded-full" style={{ width, background: color }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-5 rounded-[1.2rem] border border-dashed border-border px-4 py-5 text-sm text-muted-foreground">
+          {emptyLabel}
+        </div>
+      )}
     </article>
   );
 }
@@ -308,8 +432,7 @@ export function BottleShareOfVoiceCard({
 }) {
   const normalizedShare = clampShare(share);
   const fillPercent = normalizedShare * 100;
-  const bottleHeight = 206;
-  const fillTop = 186 - (116 * normalizedShare);
+  const idPrefix = slugifyId(`${title}-${brandLabel}`);
 
   return (
     <article className="rounded-[1.8rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
@@ -328,54 +451,7 @@ export function BottleShareOfVoiceCard({
 
       <div className="mt-5 grid gap-5 lg:grid-cols-[220px_1fr] lg:items-center">
         <div className="mx-auto w-full max-w-[220px] rounded-[1.8rem] bg-[linear-gradient(180deg,#fff8f7_0%,#fff1ef_100%)] p-4">
-          <svg className="h-[220px] w-full" fill="none" viewBox="0 0 180 220">
-            <defs>
-              <linearGradient id="cokeBottleFill" x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0%" stopColor="#ff6b6b" />
-                <stop offset="100%" stopColor="#F40009" />
-              </linearGradient>
-              <clipPath id="cokeBottleClip">
-                <path d="M67 18c0-6 5-11 11-11h24c6 0 11 5 11 11v18c0 7 4 13 10 18 16 12 26 31 26 54v47c0 27-22 49-49 49H80c-27 0-49-22-49-49v-47c0-23 10-42 26-54 6-5 10-11 10-18V18z" />
-              </clipPath>
-            </defs>
-
-            <path
-              d="M67 18c0-6 5-11 11-11h24c6 0 11 5 11 11v18c0 7 4 13 10 18 16 12 26 31 26 54v47c0 27-22 49-49 49H80c-27 0-49-22-49-49v-47c0-23 10-42 26-54 6-5 10-11 10-18V18z"
-              fill="#fffaf9"
-              stroke="#d3c1b8"
-              strokeWidth="6"
-            />
-
-            <g clipPath="url(#cokeBottleClip)">
-              <rect x="24" y={fillTop} width="132" height={bottleHeight} fill="url(#cokeBottleFill)" opacity="0.92" />
-              <path
-                d={`M24 ${fillTop + 8} C 52 ${fillTop - 2}, 88 ${fillTop + 12}, 156 ${fillTop + 4} L156 220 L24 220 Z`}
-                fill="rgba(255,255,255,0.2)"
-              />
-            </g>
-
-            <path
-              d="M67 18c0-6 5-11 11-11h24c6 0 11 5 11 11v18c0 7 4 13 10 18 16 12 26 31 26 54v47c0 27-22 49-49 49H80c-27 0-49-22-49-49v-47c0-23 10-42 26-54 6-5 10-11 10-18V18z"
-              stroke="#ffffff"
-              strokeOpacity="0.78"
-              strokeWidth="2"
-            />
-
-            <g>
-              <rect x="54" y="92" width="72" height="20" rx="10" fill="#1f2340" />
-              <text
-                x="90"
-                y="105"
-                fill="#ffffff"
-                fontFamily="Arial, sans-serif"
-                fontSize="10"
-                fontWeight="700"
-                textAnchor="middle"
-              >
-                {fillPercent.toFixed(1)}%
-              </text>
-            </g>
-          </svg>
+          <BottleIllustration fillPercent={fillPercent} idPrefix={idPrefix} />
         </div>
 
         <div className="space-y-4">
