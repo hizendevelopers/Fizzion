@@ -262,6 +262,25 @@ export async function processAndSaveResults(
     }
 
     if (allItems.length === 0) {
+      await supabase.from("social_connections").update({
+        connection_status: "connected",
+        sync_status: "failed",
+        last_synced_at: now,
+        last_error:
+          "The scraper completed, but no public content was returned for this account. The account may be private, unavailable, or unsupported by the selected scraper.",
+      }).eq("id", connectionId);
+
+      await supabase.from("social_sync_jobs").update({
+        status: "failed",
+        completed_at: now,
+        error_message:
+          "The scraper completed, but no public content was returned for this account. The account may be private, unavailable, or unsupported by the selected scraper.",
+        payload: {
+          recordsProcessed: 0,
+          commentCount: 0,
+        },
+      }).eq("connection_id", connectionId).eq("status", "running");
+
       return {
         success: true,
         connectionId,
