@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 
 import { buttonStyles } from "@/lib/button-styles";
+import { RefreshIcon, UploadIcon } from "@/components/app/ui-icons";
 
 type UploadManifestPanelProps = {
   sourcePartnerId?: string | null;
@@ -145,6 +146,7 @@ export function UploadManifestPanel({ sourcePartnerId }: UploadManifestPanelProp
           onClick={uploadFile}
           type="button"
         >
+          <UploadIcon />
           Upload video and process
         </button>
         <button
@@ -153,6 +155,7 @@ export function UploadManifestPanel({ sourcePartnerId }: UploadManifestPanelProp
           onClick={() => submit("initiate")}
           type="button"
         >
+          <RefreshIcon />
           Initiate upload
         </button>
         <button
@@ -161,6 +164,7 @@ export function UploadManifestPanel({ sourcePartnerId }: UploadManifestPanelProp
           onClick={() => submit("complete")}
           type="button"
         >
+          <UploadIcon />
           Complete upload
         </button>
       </div>

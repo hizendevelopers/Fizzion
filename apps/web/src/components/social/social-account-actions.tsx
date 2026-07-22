@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { RefreshIcon, TrashIcon } from "@/components/app/ui-icons";
+
 export function SocialAccountActions({
   connectionId,
 }: {
@@ -58,19 +60,21 @@ export function SocialAccountActions({
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
         <button
-          className="rounded-full bg-sidebar px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,#251315_0%,#2f1418_56%,#1b0d12_100%)] px-4 py-2 text-sm font-medium text-white shadow-[var(--shadow-dark)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-card)] disabled:cursor-not-allowed disabled:opacity-60"
           disabled={busy}
           onClick={() => runAction("sync")}
           type="button"
         >
+          <RefreshIcon />
           Refresh Data
         </button>
         <button
-          className="rounded-full border border-warning/35 bg-warning-soft px-4 py-2 text-sm font-medium text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-full border border-warning/35 bg-warning-soft px-4 py-2 text-sm font-medium text-foreground shadow-[var(--shadow-soft)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-card)] disabled:cursor-not-allowed disabled:opacity-60"
           disabled={busy}
           onClick={() => runAction("remove")}
           type="button"
         >
+          <TrashIcon />
           Remove Account
         </button>
       </div>

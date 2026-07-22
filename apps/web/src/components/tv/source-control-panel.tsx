@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 
 import { buttonStyles } from "@/lib/button-styles";
+import { PlayIcon, ScanIcon, StopIcon } from "@/components/app/ui-icons";
 
 type SourceControlPanelProps = {
   sourceId: string | null;
@@ -53,6 +54,7 @@ export function SourceControlPanel({
           onClick={() => runAction("test")}
           type="button"
         >
+          <ScanIcon />
           Test source
         </button>
         <button
@@ -61,6 +63,7 @@ export function SourceControlPanel({
           onClick={() => runAction("start")}
           type="button"
         >
+          <PlayIcon />
           {isSandboxSource ? "Start sandbox session" : "Start recording"}
         </button>
         <button
@@ -69,6 +72,7 @@ export function SourceControlPanel({
           onClick={() => runAction("stop")}
           type="button"
         >
+          <StopIcon />
           Stop recording
         </button>
       </div>

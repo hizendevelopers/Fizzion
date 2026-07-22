@@ -34,12 +34,12 @@ export function AppShell({
 }: AppShellProps) {
   return (
     <div className="min-h-screen bg-background px-3 py-3 text-foreground lg:px-4 lg:py-4">
-      <div className="flex min-h-[calc(100vh-1.5rem)] overflow-hidden rounded-[2rem] border border-white/70 bg-white/40 shadow-[0_28px_80px_rgba(47,50,64,0.10)] backdrop-blur-xl">
+      <div className="surface-premium flex min-h-[calc(100vh-1.5rem)] overflow-hidden rounded-[2.25rem] border border-white/70 backdrop-blur-xl">
         <Sidebar labels={copy.nav} />
         <div className="flex min-h-screen min-w-0 flex-1 flex-col">
-          <div className="flex items-center justify-between border-b border-white/80 bg-white/55 px-4 py-4 lg:px-8">
+          <div className="flex items-center justify-between border-b border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.74),rgba(255,248,243,0.58))] px-4 py-4 lg:px-8">
             <PartnershipLockup />
-            <span className="rounded-full border border-white/80 bg-white/80 px-3 py-1 text-xs font-medium text-muted-foreground shadow-[var(--shadow-soft)]">
+            <span className="elevated-chip rounded-full px-3 py-1 text-xs font-medium text-muted-foreground">
               {copy.partnership}
             </span>
           </div>

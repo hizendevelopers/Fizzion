@@ -2,18 +2,21 @@
 @import "maplibre-gl/dist/maplibre-gl.css";
 
 :root {
-  --background: #f4f2ef;
-  --foreground: #111111;
-  --panel: #fbf8f6;
+  --background: #f7f1ec;
+  --foreground: #16110f;
+  --panel: #fff9f5;
   --panel-strong: #ffffff;
-  --panel-soft: #f6efec;
-  --border: #eadfda;
-  --muted-foreground: #786c68;
+  --panel-soft: #f8eeea;
+  --border: #edd8d0;
+  --muted-foreground: #7c6a63;
   --brand-red: #f40009;
   --brand-red-deep: #b00020;
   --brand-red-soft: #fff0f1;
   --brand-red-glow: #ffd6db;
-  --sidebar: #1c0d12;
+  --brand-green: #39bb1f;
+  --brand-green-deep: #15803d;
+  --brand-green-soft: #edfbe9;
+  --sidebar: #1f0f12;
   --sidebar-foreground: #fff4f2;
   --success: #1f8a4c;
   --success-soft: #eaf8ef;
@@ -30,9 +33,9 @@
   --peach: #ffad32;
   --rose: #ff5678;
   --rose-soft: #ffeaf0;
-  --shadow-card: 0 16px 50px rgba(67, 30, 34, 0.08);
-  --shadow-soft: 0 10px 28px rgba(67, 30, 34, 0.06);
-  --shadow-dark: 0 20px 44px rgba(28, 13, 18, 0.35);
+  --shadow-card: 0 20px 56px rgba(71, 27, 23, 0.09);
+  --shadow-soft: 0 14px 34px rgba(71, 27, 23, 0.07);
+  --shadow-dark: 0 24px 54px rgba(28, 13, 18, 0.38);
 }
 
 @theme inline {
@@ -47,6 +50,9 @@
   --color-brand-red-deep: var(--brand-red-deep);
   --color-brand-red-soft: var(--brand-red-soft);
   --color-brand-red-glow: var(--brand-red-glow);
+  --color-brand-green: var(--brand-green);
+  --color-brand-green-deep: var(--brand-green-deep);
+  --color-brand-green-soft: var(--brand-green-soft);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-success: var(--success);
@@ -86,10 +92,10 @@ body {
   font-family: var(--font-sans);
   min-height: 100vh;
   background-image:
-    radial-gradient(circle at 12% 8%, rgba(244, 0, 9, 0.08), transparent 16%),
-    radial-gradient(circle at 82% 12%, rgba(176, 0, 32, 0.08), transparent 18%),
-    radial-gradient(circle at 72% 68%, rgba(255, 173, 50, 0.12), transparent 22%),
-    linear-gradient(180deg, #f8f5f2 0%, #f3efeb 100%);
+    radial-gradient(circle at 12% 8%, rgba(244, 0, 9, 0.10), transparent 17%),
+    radial-gradient(circle at 84% 12%, rgba(57, 187, 31, 0.08), transparent 18%),
+    radial-gradient(circle at 72% 68%, rgba(255, 173, 50, 0.10), transparent 22%),
+    linear-gradient(180deg, #fbf6f1 0%, #f4eeea 100%);
 }
 
 body::before {
@@ -100,6 +106,19 @@ body::before {
   background:
     radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.55), transparent 24%),
     radial-gradient(circle at 80% 78%, rgba(255, 255, 255, 0.48), transparent 24%);
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.45;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px);
+  background-size: 38px 38px;
+  mask-image: linear-gradient(180deg, rgba(0,0,0,0.7), transparent 85%);
 }
 
 button,
@@ -121,6 +140,54 @@ a {
 :focus-visible {
   outline: 2px solid var(--brand-red);
   outline-offset: 2px;
+}
+
+@keyframes float-soft {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-4px); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 rgba(244,0,9,0); }
+  50% { box-shadow: 0 0 0 8px rgba(244,0,9,0.06); }
+}
+
+@keyframes shimmer-slide {
+  0% { transform: translateX(-130%); opacity: 0; }
+  25% { opacity: 1; }
+  100% { transform: translateX(130%); opacity: 0; }
+}
+
+.surface-premium {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.78);
+  background:
+    radial-gradient(circle at top left, rgba(244,0,9,0.10), transparent 26%),
+    radial-gradient(circle at top right, rgba(57,187,31,0.08), transparent 24%),
+    linear-gradient(180deg, rgba(255,255,255,0.92), rgba(255,249,245,0.94));
+  box-shadow: var(--shadow-card);
+}
+
+.surface-premium::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 0%, rgba(255,255,255,0.54) 48%, transparent 100%);
+  opacity: 0.5;
+  transform: translateX(-120%);
+  animation: shimmer-slide 7.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.elevated-chip {
+  border: 1px solid rgba(255,255,255,0.74);
+  background: linear-gradient(180deg, rgba(255,255,255,0.94), rgba(255,244,240,0.88));
+  box-shadow: var(--shadow-soft);
+}
+
+.floating-accent {
+  animation: float-soft 6s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
