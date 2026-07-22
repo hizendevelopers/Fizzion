@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { primaryNavigation } from "@fizzion/config";
 
 import { cn } from "@/lib/utils";
+import { FizZionLogo } from "@/components/brand/fizzion-logo";
 
 import {
   AlertIcon,
@@ -62,15 +63,9 @@ export function Sidebar({ labels }: SidebarProps) {
   return (
     <aside className="hidden w-[17rem] shrink-0 bg-[linear-gradient(180deg,#210f12_0%,#2b1116_28%,#16090d_100%)] text-sidebar-foreground lg:flex">
       <div className="flex w-full flex-col gap-6 p-5">
-        <div className="rounded-[1.85rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.14),rgba(255,255,255,0.04))] p-4 shadow-[var(--shadow-dark)] backdrop-blur">
-          <div className="flex items-center gap-3">
-            <div className="floating-accent flex h-12 w-12 items-center justify-center rounded-[1.35rem] bg-[linear-gradient(135deg,#ff5b52_0%,#f40009_52%,#b10008_100%)] text-white shadow-[0_14px_36px_rgba(244,0,9,0.35)]">
-              <SparkleIcon className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-white">FizZion OS</p>
-              <p className="text-xs text-white/65">Coca-Cola Iraq intelligence</p>
-            </div>
+        <div className="rounded-[1.85rem] border border-[#ead8d0] bg-[linear-gradient(90deg,#fff8f3_0%,#f7ece4_52%,#fff7f1_100%)] p-4 shadow-[var(--shadow-card)]">
+          <div className="flex items-center justify-center rounded-[1.35rem] border border-white/70 bg-white/72 px-3 py-4 shadow-[var(--shadow-soft)]">
+            <FizZionLogo className="h-14 w-[11.25rem]" />
           </div>
         </div>
 

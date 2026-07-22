@@ -37,9 +37,9 @@ export function AppShell({
       <div className="surface-premium flex min-h-[calc(100vh-1.5rem)] overflow-hidden rounded-[2.25rem] border border-white/70 backdrop-blur-xl">
         <Sidebar labels={copy.nav} />
         <div className="flex min-h-screen min-w-0 flex-1 flex-col">
-          <div className="flex items-center justify-between border-b border-white/10 bg-[linear-gradient(90deg,#5e090d_0%,#8d0d13_18%,#c60f18_42%,#f40009_68%,#d70b14_100%)] px-4 py-4 lg:px-8">
-            <PartnershipLockup inverted />
-            <span className="rounded-full border border-white/18 bg-white/10 px-3 py-1 text-xs font-medium text-white shadow-[0_10px_24px_rgba(62,7,11,0.22)] backdrop-blur">
+          <div className="flex items-center justify-between border-b border-[#ead8d0] bg-[linear-gradient(90deg,#fff8f3_0%,#f7ece4_52%,#fff7f1_100%)] px-4 py-4 lg:px-8">
+            <PartnershipLockup />
+            <span className="rounded-full border border-white/80 bg-white/82 px-3 py-1 text-xs font-medium text-muted-foreground shadow-[var(--shadow-soft)] backdrop-blur">
               {copy.partnership}
             </span>
           </div>
