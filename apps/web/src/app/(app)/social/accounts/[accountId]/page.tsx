@@ -91,6 +91,12 @@ export default async function SocialAccountDetailPage({
       note: "Based on currently filtered content",
     }))
     .sort((left, right) => right.share - left.share);
+  const followersRatioDisplay =
+    detail.insights.followersToFollowingRatio != null
+      ? `${detail.insights.followersToFollowingRatio.toFixed(2)}x`
+      : detail.following === 0 && detail.followers != null
+        ? `${formatNumber(detail.followers)}:0`
+        : "Not available";
 
   return (
     <div className="space-y-6">
@@ -297,7 +303,7 @@ export default async function SocialAccountDetailPage({
         <InsightCard
           label="Followers Ratio"
           note="Followers / following"
-          value={detail.insights.followersToFollowingRatio != null ? `${detail.insights.followersToFollowingRatio.toFixed(2)}x` : "Not available"}
+          value={followersRatioDisplay}
         />
         <InsightCard
           label="Comments / Post"
@@ -633,7 +639,11 @@ function DeltaValue({
 }
 
 function formatPercent(value: number | null) {
-  return value != null ? `${value.toFixed(2)}%` : "Not available";
+  if (value == null) {
+    return "Not available";
+  }
+  const normalized = Math.abs(value) < 0.005 ? 0 : value;
+  return `${normalized.toFixed(2)}%`;
 }
 
 function formatDelta(value: number | null) {

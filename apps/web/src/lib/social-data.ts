@@ -205,6 +205,24 @@ export type SocialAccountDetail = SocialDashboardAccount & {
   }>;
 };
 
+function normalizeTinySignedNumber(value: number | null) {
+  if (value == null) {
+    return null;
+  }
+  return Math.abs(value) < 0.0001 ? 0 : value;
+}
+
+function calculateDerivedEngagementRate(
+  engagements: number | null,
+  followers: number | null,
+  reach: number | null,
+) {
+  return normalizeTinySignedNumber(
+    calculateEngagementRateByFollowers({ engagements, followers }) ??
+      calculateEngagementRateByReach({ engagements, reach }),
+  );
+}
+
 export type SocialContentItem = {
   id: string;
   connectionId: string;
@@ -1488,7 +1506,19 @@ export async function getSocialAccountDetail(
       {};
     const likes = rowMetricNumber(metric, "likes");
     const comments = rowMetricNumber(metric, "comments");
-    const engagementRate = rowMetricNumber(metric, "engagement_rate", ["engagementRate"]);
+    const shares = rowMetricNumber(metric, "shares");
+    const saves = rowMetricNumber(metric, "saves");
+    const reach = rowMetricNumber(metric, "reach");
+    const engagements =
+      rowMetricNumber(metric, "metric_value", ["engagements"]) ??
+      calculateNormalizedEngagements({ likes, comments, shares, saves });
+    const nearestPublicationSnapshot = nearestSnapshot(new Date(rowString(post, "published_at")));
+    const followerBaseline = nearestPublicationSnapshot
+      ? rowNullableNumber(nearestPublicationSnapshot, "follower_count")
+      : latestFollowers;
+    const engagementRate =
+      rowMetricNumber(metric, "engagement_rate", ["engagementRate"]) ??
+      calculateDerivedEngagementRate(engagements, followerBaseline, reach);
 
     if (likes != null) {
       likesTotal += likes;
@@ -1548,11 +1578,11 @@ export async function getSocialAccountDetail(
         latestFollowers,
         snapshot7 ? rowNullableNumber(snapshot7, "follower_count") : null,
       ),
-      weeklyPosts: weeklyPosts > 0 ? weeklyPosts : null,
+      weeklyPosts,
       averageLikesLast30Days: likesCount > 0 ? likesTotal / likesCount : null,
       averageCommentsLast30Days: commentsCount > 0 ? commentsTotal / commentsCount : null,
       averageEngagementRateLast30Days:
-        engagementRateCount > 0 ? engagementRateTotal / engagementRateCount : null,
+        engagementRateCount > 0 ? normalizeTinySignedNumber(engagementRateTotal / engagementRateCount) : null,
       followersToFollowingRatio:
         latestFollowers != null && latestFollowing != null && latestFollowing > 0
           ? latestFollowers / latestFollowing
@@ -1697,7 +1727,9 @@ async function hydrateContentItems(
       reach,
       impressions: rowMetricNumber(metric, "impressions"),
       engagements,
-      engagementRateByFollowers: rowMetricNumber(metric, "engagement_rate", ["engagementRate"]),
+      engagementRateByFollowers:
+        rowMetricNumber(metric, "engagement_rate", ["engagementRate"]) ??
+        calculateDerivedEngagementRate(engagements, null, reach),
       engagementRateByReach: calculateEngagementRateByReach({ engagements, reach }),
       watchTimeSeconds: rowMetricNumber(metric, "watch_time_seconds"),
       averageWatchTimeSeconds: rowMetricNumber(metric, "average_watch_time_seconds"),
