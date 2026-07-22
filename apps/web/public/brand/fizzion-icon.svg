@@ -1,7 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-  <rect x="4" y="4" width="56" height="56" rx="18" fill="#111111"/>
-  <path d="M18 18h14v8h-6l8 10-8 10h6v8H18v-8h6l-8-10 8-10h-6z" fill="#F40009"/>
-  <circle cx="44" cy="23" r="6" fill="#F40009"/>
-  <circle cx="47" cy="18" r="2.5" fill="#FFFFFF" opacity=".85"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="FizZion icon">
+  <defs>
+    <linearGradient id="fizzionIconBg" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#120C0B"/>
+      <stop offset="1" stop-color="#1E1614"/>
+    </linearGradient>
+    <linearGradient id="fizzionRingRed" x1="16" y1="12" x2="48" y2="28" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF756D"/>
+      <stop offset="1" stop-color="#F40009"/>
+    </linearGradient>
+    <linearGradient id="fizzionRingGreen" x1="14" y1="42" x2="48" y2="54" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#99F24B"/>
+      <stop offset="1" stop-color="#29A106"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="18" fill="url(#fizzionIconBg)"/>
+  <path d="M18 30c2-8 8-14 18-16 3 0 7 1 10 2" stroke="url(#fizzionRingRed)" stroke-linecap="round" stroke-width="4.5"/>
+  <path d="M18 36c2 7 8 12 17 14 5 1 9 0 13-2" stroke="url(#fizzionRingGreen)" stroke-linecap="round" stroke-width="4.5"/>
+  <path d="M20 20h11c4 0 6 2 6 5 0 3-2 5-6 5h-6l10 0-4 5 10 0c3 0 5 2 5 4 0 3-2 5-6 5H20l11-12L20 20z" fill="#FF3B30"/>
+  <path d="M37.4 21.8c0-1.6 1.2-2.8 2.8-2.8h1.6c1.5 0 2.8 1.2 2.8 2.8v4.1c0 1.9.9 3.5 2.2 4.6 3.5 2.8 5.8 7.3 5.8 12.6v2.8c0 6.1-4.9 11-11 11h-.4c-6.1 0-11-4.9-11-11v-2.8c0-5.3 2.2-9.8 5.8-12.6 1.4-1.1 2.2-2.7 2.2-4.6v-4.1z" fill="#D30B11" stroke="#FFD6D2" stroke-width="1.2"/>
+  <path d="M41 24h2" stroke="#FFE9E7" stroke-linecap="round" stroke-width="1.2"/>
+  <path d="M36.8 34.4c1.8-.8 4.9-.8 8 0" stroke="#FFF5F4" stroke-linecap="round" stroke-width="1.2"/>
+  <path d="M35.9 41.2c2.5 1 7.2 1 10.3 0" stroke="#FFF5F4" stroke-linecap="round" stroke-width="1.2"/>
 </svg>
-

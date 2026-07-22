@@ -1,16 +1,28 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
-  <rect width="120" height="120" rx="32" fill="#111111"/>
-  <circle cx="38" cy="76" r="8" fill="#F40009">
-    <animate attributeName="cy" values="76;38;76" dur="2.6s" repeatCount="indefinite"/>
-    <animate attributeName="opacity" values="1;0.35;1" dur="2.6s" repeatCount="indefinite"/>
-  </circle>
-  <circle cx="60" cy="84" r="11" fill="#FFFFFF">
-    <animate attributeName="cy" values="84;34;84" dur="2.3s" repeatCount="indefinite"/>
-    <animate attributeName="opacity" values="1;0.2;1" dur="2.3s" repeatCount="indefinite"/>
-  </circle>
-  <circle cx="82" cy="72" r="7" fill="#F40009">
-    <animate attributeName="cy" values="72;28;72" dur="2.1s" repeatCount="indefinite"/>
-    <animate attributeName="opacity" values="1;0.4;1" dur="2.1s" repeatCount="indefinite"/>
-  </circle>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none" role="img" aria-label="FizZion loading">
+  <defs>
+    <linearGradient id="loadingBg" x1="12" y1="12" x2="108" y2="108" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#120C0B"/>
+      <stop offset="1" stop-color="#1E1614"/>
+    </linearGradient>
+    <linearGradient id="loadingRed" x1="24" y1="20" x2="88" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF8A82"/>
+      <stop offset="1" stop-color="#F40009"/>
+    </linearGradient>
+    <linearGradient id="loadingGreen" x1="24" y1="72" x2="96" y2="108" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#99F24B"/>
+      <stop offset="1" stop-color="#29A106"/>
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="32" fill="url(#loadingBg)"/>
+  <path d="M28 44c6-17 20-28 40-30 8-1 14 0 22 3" stroke="url(#loadingRed)" stroke-linecap="round" stroke-width="8">
+    <animateTransform attributeName="transform" type="rotate" from="0 60 60" to="360 60 60" dur="5s" repeatCount="indefinite"/>
+  </path>
+  <path d="M30 78c8 15 22 24 39 24 11 0 19-3 27-8" stroke="url(#loadingGreen)" stroke-linecap="round" stroke-width="8">
+    <animateTransform attributeName="transform" type="rotate" from="360 60 60" to="0 60 60" dur="5s" repeatCount="indefinite"/>
+  </path>
+  <path d="M50 30.4c0-2.3 1.8-4.1 4.1-4.1h5.1c2.3 0 4.1 1.8 4.1 4.1v5.9c0 2.8 1.2 5 3.2 6.7 5.1 4.1 8.2 10.4 8.2 18.1v13.5c0 8.7-7.1 15.8-15.8 15.8h-4.1c-8.7 0-15.8-7.1-15.8-15.8V61.1c0-7.7 3.1-14 8.2-18.1 2-1.7 3.2-3.9 3.2-6.7v-5.9z" fill="#D30B11" stroke="#FFE3E0" stroke-width="1.8">
+    <animate attributeName="transform" values="0 60 60; 0 60 58; 0 60 60" dur="1.9s" repeatCount="indefinite"/>
+  </path>
+  <path d="M54.5 47.5c2.5-1 8.5-1 11 0" stroke="#FFF6F5" stroke-linecap="round" stroke-width="1.8"/>
+  <path d="M53.5 59.8c3.6 1.4 12 1.4 15.7 0" stroke="#FFF6F5" stroke-linecap="round" stroke-width="1.8"/>
 </svg>
-
