@@ -72,6 +72,70 @@ function inRange(value: string | null | undefined, start: Date, end: Date) {
   return timestamp >= start.getTime() && timestamp <= end.getTime();
 }
 
+function buildDerivedActivityFeed(input: {
+  socialConnections: Awaited<ReturnType<typeof listSocialConnections>>;
+  websites: Awaited<ReturnType<typeof listWebAdvertisingWebsites>>;
+  webAds: Awaited<ReturnType<typeof listWebAdvertisingAds>>;
+  oohAssets: Awaited<ReturnType<typeof listOohAssets>>;
+  start: Date;
+  end: Date;
+}) {
+  const events: Array<{
+    id: string;
+    action: string;
+    entityType: string;
+    createdAt: string;
+  }> = [];
+
+  for (const connection of input.socialConnections) {
+    if (connection.lastSuccessfulSyncAt && inRange(connection.lastSuccessfulSyncAt, input.start, input.end)) {
+      events.push({
+        id: `social-${connection.id}`,
+        action: `Social sync completed for ${connection.accountName}`,
+        entityType: "social_connection",
+        createdAt: connection.lastSuccessfulSyncAt,
+      });
+    }
+  }
+
+  for (const website of input.websites) {
+    if (website.lastScanAt && inRange(website.lastScanAt, input.start, input.end)) {
+      events.push({
+        id: `website-${website.id}`,
+        action: `Website scan completed for ${website.name}`,
+        entityType: "website_scan",
+        createdAt: website.lastScanAt,
+      });
+    }
+  }
+
+  for (const ad of input.webAds.slice(0, 16)) {
+    if (ad.capturedAt && inRange(ad.capturedAt, input.start, input.end)) {
+      events.push({
+        id: `webad-${ad.id}`,
+        action: `Web advertisement captured on ${ad.websiteName}`,
+        entityType: "web_ad_occurrence",
+        createdAt: ad.capturedAt,
+      });
+    }
+  }
+
+  for (const asset of input.oohAssets.items.slice(0, 12)) {
+    if (asset.installedAt && inRange(asset.installedAt, input.start, input.end)) {
+      events.push({
+        id: `ooh-${asset.id}`,
+        action: `OOH asset monitored in ${asset.city}`,
+        entityType: "ooh_asset",
+        createdAt: asset.installedAt,
+      });
+    }
+  }
+
+  return events
+    .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
+    .slice(0, 18);
+}
+
 export async function getExecutiveOverview(input?: {
   range?: ExecutiveRange;
   startDate?: string;
@@ -125,6 +189,22 @@ export async function getExecutiveOverview(input?: {
   const latestWebsiteSync = websites.map((item) => item.lastScanAt).filter(Boolean).sort().at(-1) ?? null;
   const latestOohUpdate = oohAssets.items.map((item) => item.installedAt).filter(Boolean).sort().at(-1) ?? null;
   const lastSuccessfulPlatformSync = [latestSocialSync, latestWebsiteSync, latestOohUpdate].filter(Boolean).sort().at(-1) ?? null;
+  const derivedActivity = buildDerivedActivityFeed({
+    socialConnections,
+    websites,
+    webAds,
+    oohAssets,
+    start,
+    end,
+  });
+  const recentActivity = (audit.length > 0
+    ? audit.slice(0, 10).map((row) => ({
+        id: rowString(row, "id"),
+        action: rowString(row, "action"),
+        entityType: rowString(row, "entity_type"),
+        createdAt: rowString(row, "created_at"),
+      }))
+    : derivedActivity);
 
   const topCampaigns = campaigns.slice(0, 8).map((row) => ({
     id: rowString(row, "id"),
@@ -190,12 +270,7 @@ export async function getExecutiveOverview(input?: {
       confidence: ad.confidence,
       firstSeenAt: ad.firstSeenAt,
     })),
-    recentActivity: audit.slice(0, 10).map((row) => ({
-      id: rowString(row, "id"),
-      action: rowString(row, "action"),
-      entityType: rowString(row, "entity_type"),
-      createdAt: rowString(row, "created_at"),
-    })),
+    recentActivity,
     alerts: alerts.slice(0, 8).map((row) => ({
       id: rowString(row, "id"),
       status: rowString(row, "status", "open"),
