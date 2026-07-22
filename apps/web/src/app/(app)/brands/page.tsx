@@ -5,6 +5,16 @@ import { getMonitoringDashboardData } from "@/lib/monitoring-dashboard-data";
 
 export default async function BrandsPage() {
   const dashboard = await getMonitoringDashboardData();
+  const totalBrandTouchpoints = Math.max(
+    dashboard.distributions.brandTouchpoints.reduce((sum, item) => sum + item.value, 0),
+    1,
+  );
+  const brandMix = dashboard.distributions.brandTouchpoints.map((item) => ({
+    label: item.label,
+    share: item.value / totalBrandTouchpoints,
+    note: item.note,
+    valueLabel: `${item.value} touchpoints`,
+  }));
 
   return (
     <div className="space-y-6">
@@ -45,6 +55,7 @@ export default async function BrandsPage() {
           subtitle="Current brand pressure across the monitored beverage set"
           brandLabel="Coca-Cola"
           share={dashboard.summary.cokeShareOfVoice}
+          segments={brandMix}
           supportingLabel="Measured from current touchpoints across TV, social, web, and OOH"
         />
         <CategoryBarCard

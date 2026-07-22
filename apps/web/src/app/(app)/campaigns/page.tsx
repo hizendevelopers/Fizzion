@@ -14,6 +14,16 @@ const channelIcons = {
 
 export default async function CampaignsPage() {
   const dashboard = await getMonitoringDashboardData();
+  const totalBrandTouchpoints = Math.max(
+    dashboard.distributions.brandTouchpoints.reduce((sum, item) => sum + item.value, 0),
+    1,
+  );
+  const brandMix = dashboard.distributions.brandTouchpoints.map((item) => ({
+    label: item.label,
+    share: item.value / totalBrandTouchpoints,
+    note: item.note,
+    valueLabel: `${item.value} touchpoints`,
+  }));
 
   return (
     <div className="space-y-6">
@@ -70,6 +80,7 @@ export default async function CampaignsPage() {
             subtitle="Current monitored brand pressure across portfolio and competitors"
             brandLabel="Coca-Cola"
             share={dashboard.summary.cokeShareOfVoice}
+            segments={brandMix}
             supportingLabel={`${Math.round(dashboard.summary.cokeShareOfVoice * 100)}% of tracked beverage attention`}
           />
           <ShareOfVoiceCard

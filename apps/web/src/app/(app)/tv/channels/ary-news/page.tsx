@@ -29,6 +29,12 @@ export default async function AryNewsChannelPage() {
   const totalBrandOccurrences = brandDistribution.reduce((sum, entry) => sum + entry.count, 0);
   const cokeCount = brandDistribution.find((entry) => entry.brand.toLowerCase().includes("coca-cola"))?.count ?? 0;
   const cokeShare = totalBrandOccurrences > 0 ? cokeCount / totalBrandOccurrences : 0;
+  const bottleSegments = brandDistribution.map((entry) => ({
+    label: entry.brand,
+    share: totalBrandOccurrences > 0 ? entry.count / totalBrandOccurrences : 0,
+    note: `${entry.count} recent TV occurrences`,
+    valueLabel: `${entry.count} occurrences`,
+  }));
 
   return (
     <div className="space-y-6">
@@ -229,6 +235,7 @@ export default async function AryNewsChannelPage() {
               subtitle="Live TV brand mix from imported ad occurrences"
               brandLabel="Coca-Cola"
               share={cokeShare}
+              segments={bottleSegments}
               supportingLabel={`${cokeCount} of ${totalBrandOccurrences} recent TV occurrences`}
             />
           </div>

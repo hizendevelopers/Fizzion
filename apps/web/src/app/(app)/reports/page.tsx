@@ -5,6 +5,16 @@ import { getMonitoringDashboardData } from "@/lib/monitoring-dashboard-data";
 
 export default async function ReportsPage() {
   const dashboard = await getMonitoringDashboardData();
+  const totalBrandTouchpoints = Math.max(
+    dashboard.distributions.brandTouchpoints.reduce((sum, item) => sum + item.value, 0),
+    1,
+  );
+  const brandMix = dashboard.distributions.brandTouchpoints.map((item) => ({
+    label: item.label,
+    share: item.value / totalBrandTouchpoints,
+    note: item.note,
+    valueLabel: `${item.value} touchpoints`,
+  }));
 
   return (
     <div className="space-y-6">
@@ -51,6 +61,7 @@ export default async function ReportsPage() {
           subtitle="Current report focus weighted by monitored share of voice"
           brandLabel="Coca-Cola"
           share={dashboard.summary.cokeShareOfVoice}
+          segments={brandMix}
           supportingLabel="Pinned across executive and competitor report packs"
         />
       </section>

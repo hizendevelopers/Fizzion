@@ -18,6 +18,18 @@ type ShareOfVoiceDatum = {
   valueLabel?: string;
 };
 
+const BRAND_COLOR_MAP: Array<{ match: RegExp; color: string }> = [
+  { match: /coca[\s-]?cola|coke/i, color: "#F40009" },
+  { match: /pepsi/i, color: "#005CB9" },
+  { match: /sprite/i, color: "#18A957" },
+  { match: /7up/i, color: "#1DB954" },
+  { match: /mirinda/i, color: "#FF8A00" },
+  { match: /fanta/i, color: "#FF7A00" },
+  { match: /mountain[\s-]?dew|dew/i, color: "#78BE20" },
+];
+
+const FALLBACK_SOV_COLORS = ["#F40009", "#005CB9", "#18A957", "#FF8A00", "#FFBF58", "#8B5CF6", "#06B6D4"];
+
 function clampShare(value: number) {
   if (Number.isNaN(value)) {
     return 0;
@@ -34,28 +46,53 @@ function slugifyId(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "sov";
 }
 
+function colorForShareLabel(label: string, index: number, explicitColor?: string) {
+  if (explicitColor) {
+    return explicitColor;
+  }
+
+  const matched = BRAND_COLOR_MAP.find((entry) => entry.match.test(label));
+  if (matched) {
+    return matched.color;
+  }
+
+  return FALLBACK_SOV_COLORS[index % FALLBACK_SOV_COLORS.length];
+}
+
 function BottleIllustration({
   idPrefix,
-  fillPercent,
+  segments,
 }: {
   idPrefix: string;
-  fillPercent: number;
+  segments: Array<{ share: number; color: string }>;
 }) {
-  const normalizedShare = clampShare(fillPercent / 100);
-  const fillTop = 286 - (182 * normalizedShare);
+  const normalizedSegments = segments
+    .map((segment) => ({
+      share: clampShare(segment.share),
+      color: segment.color,
+    }))
+    .filter((segment) => segment.share > 0);
+  const totalShare = normalizedSegments.reduce((sum, segment) => sum + segment.share, 0);
+  const normalizedTotal = clampShare(totalShare);
+  const fillTop = 286 - (182 * normalizedTotal);
   const clipId = `${idPrefix}-coke-bottle-clip`;
-  const fillId = `${idPrefix}-coke-bottle-fill`;
   const glassId = `${idPrefix}-coke-bottle-glass`;
   const shadowId = `${idPrefix}-coke-bottle-shadow`;
+  let currentTop = 286;
+  const renderedSegments = normalizedSegments.map((segment, index) => {
+    const segmentHeight = 182 * segment.share;
+    currentTop -= segmentHeight;
+    return {
+      key: `${idPrefix}-segment-${index}`,
+      y: currentTop,
+      height: Math.max(segmentHeight, 0),
+      color: segment.color,
+    };
+  });
 
   return (
     <svg className="h-[290px] w-full" fill="none" viewBox="0 0 220 320">
       <defs>
-        <linearGradient id={fillId} x1="0" x2="0" y1="48" y2="306">
-          <stop offset="0%" stopColor="#ff9a8f" />
-          <stop offset="32%" stopColor="#ff4f46" />
-          <stop offset="100%" stopColor="#b30009" />
-        </linearGradient>
         <linearGradient id={glassId} x1="20" x2="190" y1="20" y2="300">
           <stop offset="0%" stopColor="rgba(255,255,255,0.92)" />
           <stop offset="55%" stopColor="rgba(255,250,248,0.72)" />
@@ -80,7 +117,16 @@ function BottleIllustration({
       />
 
       <g clipPath={`url(#${clipId})`}>
-        <rect x="30" y={fillTop} width="150" height="250" fill={`url(#${fillId})`} />
+        {renderedSegments.map((segment) => (
+          <rect
+            key={segment.key}
+            x="30"
+            y={segment.y}
+            width="150"
+            height={segment.height}
+            fill={segment.color}
+          />
+        ))}
         <path
           d={`M28 ${fillTop + 11} C 62 ${fillTop - 2}, 110 ${fillTop + 14}, 182 ${fillTop + 4} L182 320 L28 320 Z`}
           fill="rgba(255,255,255,0.18)"
@@ -126,7 +172,7 @@ function BottleIllustration({
           fontWeight="700"
           textAnchor="middle"
         >
-          {fillPercent.toFixed(1)}%
+          {(normalizedTotal * 100).toFixed(1)}%
         </text>
       </g>
     </svg>
@@ -357,9 +403,12 @@ export function ShareOfVoiceCard({
 }) {
   const normalized = data
     .filter((item) => item.share > 0)
-    .sort((left, right) => right.share - left.share);
+    .sort((left, right) => right.share - left.share)
+    .map((item, index) => ({
+      ...item,
+      resolvedColor: colorForShareLabel(item.label, index, item.color),
+    }));
   const leadItem = normalized[0] ?? null;
-  const leadSharePercent = (leadItem?.share ?? 0) * 100;
   const idPrefix = slugifyId(title);
 
   return (
@@ -370,29 +419,32 @@ export function ShareOfVoiceCard({
       {normalized.length > 0 ? (
         <div className="mt-5 grid gap-5 lg:grid-cols-[240px_1fr] lg:items-center">
           <div className="mx-auto w-full max-w-[240px] rounded-[1.85rem] bg-[linear-gradient(180deg,#fff9f7_0%,#fff2ef_100%)] p-4">
-            <BottleIllustration fillPercent={leadSharePercent} idPrefix={idPrefix} />
+            <BottleIllustration
+              idPrefix={idPrefix}
+              segments={normalized.map((item) => ({ share: item.share, color: item.resolvedColor }))}
+            />
           </div>
 
           <div className="space-y-4">
             <div className="rounded-[1.35rem] border border-border bg-panel-soft px-4 py-4">
-              <p className="text-sm font-semibold text-foreground">
-                {leadItem?.label ?? "Leading share"} owns the biggest slice in this live SOV mix
-              </p>
+              <p className="text-sm font-semibold text-foreground">{leadItem?.label ?? "Leading share"} owns the biggest slice in this live SOV mix</p>
               <p className="mt-1 text-sm leading-7 text-muted-foreground">
-                The bottle fill level tracks the leading share directly from stored records. No interpolation or mock
-                percentages are used here.
+                The bottle now shows the full brand mix using assigned brand colors from current stored records. No interpolation or mock percentages are used here.
               </p>
             </div>
 
             <div className="space-y-4">
               {normalized.map((item, index) => {
                 const width = `${Math.max(item.share * 100, 4)}%`;
-                const color = item.color ?? ["#F40009", "#d33a54", "#ff9d63", "#ffbf58", "#06b6d4", "#8b5cf6"][index % 6];
+                const color = item.resolvedColor;
                 return (
                   <div key={`${title}-${item.label}`}>
                     <div className="flex items-center justify-between gap-4">
                       <div>
-                        <p className="text-sm font-semibold text-foreground">{item.label}</p>
+                        <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                          <span className="h-3 w-3 rounded-full" style={{ background: color }} />
+                          {item.label}
+                        </p>
                         {item.note ? <p className="text-xs text-muted-foreground">{item.note}</p> : null}
                       </div>
                       <span className="text-sm font-semibold text-foreground">
@@ -423,16 +475,24 @@ export function BottleShareOfVoiceCard({
   brandLabel,
   share,
   supportingLabel,
+  segments,
 }: {
   title: string;
   subtitle?: string;
   brandLabel: string;
   share: number;
   supportingLabel?: string;
+  segments?: ShareOfVoiceDatum[];
 }) {
   const normalizedShare = clampShare(share);
   const fillPercent = normalizedShare * 100;
   const idPrefix = slugifyId(`${title}-${brandLabel}`);
+  const resolvedSegments = (segments && segments.length > 0
+    ? segments.filter((item) => item.share > 0).map((item, index) => ({
+        ...item,
+        resolvedColor: colorForShareLabel(item.label, index, item.color),
+      }))
+    : [{ label: brandLabel, share: normalizedShare, note: supportingLabel, resolvedColor: colorForShareLabel(brandLabel, 0) }]);
 
   return (
     <article className="rounded-[1.8rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
@@ -451,23 +511,33 @@ export function BottleShareOfVoiceCard({
 
       <div className="mt-5 grid gap-5 lg:grid-cols-[220px_1fr] lg:items-center">
         <div className="mx-auto w-full max-w-[220px] rounded-[1.8rem] bg-[linear-gradient(180deg,#fff8f7_0%,#fff1ef_100%)] p-4">
-          <BottleIllustration fillPercent={fillPercent} idPrefix={idPrefix} />
+          <BottleIllustration
+            idPrefix={idPrefix}
+            segments={resolvedSegments.map((item) => ({ share: item.share, color: item.resolvedColor }))}
+          />
         </div>
 
         <div className="space-y-4">
           <div className="rounded-[1.35rem] border border-border bg-panel-soft px-4 py-4">
-            <p className="text-sm font-semibold text-foreground">{brandLabel} share of recent TV ad detections</p>
+            <p className="text-sm font-semibold text-foreground">{brandLabel} share of recent monitored detections</p>
             <p className="mt-1 text-sm leading-7 text-muted-foreground">
-              This bottle fills from real occurrence records only. As more Coca-Cola detections are imported, the fill
-              level updates automatically.
+              This bottle segments from real occurrence records only. As more branded detections are imported, every color band updates automatically.
             </p>
           </div>
 
           <div className="h-3 overflow-hidden rounded-full bg-panel-soft">
-            <div
-              className="h-full rounded-full bg-[linear-gradient(90deg,#ff7b72_0%,#F40009_68%,#990007_100%)]"
-              style={{ width: `${Math.max(fillPercent, 3)}%` }}
-            />
+            <div className="flex h-full w-full">
+              {resolvedSegments.map((item) => (
+                <div
+                  key={`${title}-${item.label}-segment-bar`}
+                  className="h-full"
+                  style={{
+                    width: `${Math.max(item.share * 100, item.share > 0 ? 3 : 0)}%`,
+                    background: item.resolvedColor,
+                  }}
+                />
+              ))}
+            </div>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -481,6 +551,20 @@ export function BottleShareOfVoiceCard({
                 {supportingLabel ?? "Based on the latest stored brand mix"}
               </p>
             </div>
+          </div>
+
+          <div className="grid gap-2">
+            {resolvedSegments.map((item) => (
+              <div className="flex items-center justify-between rounded-[1rem] border border-border bg-white px-3 py-2" key={`${title}-${item.label}-legend`}>
+                <span className="flex items-center gap-2 text-sm font-medium text-foreground">
+                  <span className="h-3 w-3 rounded-full" style={{ background: item.resolvedColor }} />
+                  {item.label}
+                </span>
+                <span className="text-sm font-semibold text-foreground">
+                  {item.valueLabel ?? `${(item.share * 100).toFixed(1)}%`}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
