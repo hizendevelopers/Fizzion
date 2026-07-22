@@ -18,6 +18,14 @@ type ShareOfVoiceDatum = {
   valueLabel?: string;
 };
 
+function clampShare(value: number) {
+  if (Number.isNaN(value)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.min(1, value));
+}
+
 function formatValue(value: number, formatter?: (value: number) => string) {
   return formatter ? formatter(value) : value.toLocaleString();
 }
@@ -280,6 +288,125 @@ export function ShareOfVoiceCard({
             {emptyLabel}
           </div>
         )}
+      </div>
+    </article>
+  );
+}
+
+export function BottleShareOfVoiceCard({
+  title,
+  subtitle,
+  brandLabel,
+  share,
+  supportingLabel,
+}: {
+  title: string;
+  subtitle?: string;
+  brandLabel: string;
+  share: number;
+  supportingLabel?: string;
+}) {
+  const normalizedShare = clampShare(share);
+  const fillPercent = normalizedShare * 100;
+  const bottleHeight = 206;
+  const fillTop = 186 - (116 * normalizedShare);
+
+  return (
+    <article className="rounded-[1.8rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {subtitle ?? "Share of voice from current stored occurrences"}
+          </p>
+        </div>
+        <div className="rounded-[1.2rem] border border-border bg-panel-soft px-4 py-3 text-right">
+          <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{brandLabel}</p>
+          <p className="mt-2 text-2xl font-semibold text-foreground">{fillPercent.toFixed(1)}%</p>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-5 lg:grid-cols-[220px_1fr] lg:items-center">
+        <div className="mx-auto w-full max-w-[220px] rounded-[1.8rem] bg-[linear-gradient(180deg,#fff8f7_0%,#fff1ef_100%)] p-4">
+          <svg className="h-[220px] w-full" fill="none" viewBox="0 0 180 220">
+            <defs>
+              <linearGradient id="cokeBottleFill" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stopColor="#ff6b6b" />
+                <stop offset="100%" stopColor="#F40009" />
+              </linearGradient>
+              <clipPath id="cokeBottleClip">
+                <path d="M67 18c0-6 5-11 11-11h24c6 0 11 5 11 11v18c0 7 4 13 10 18 16 12 26 31 26 54v47c0 27-22 49-49 49H80c-27 0-49-22-49-49v-47c0-23 10-42 26-54 6-5 10-11 10-18V18z" />
+              </clipPath>
+            </defs>
+
+            <path
+              d="M67 18c0-6 5-11 11-11h24c6 0 11 5 11 11v18c0 7 4 13 10 18 16 12 26 31 26 54v47c0 27-22 49-49 49H80c-27 0-49-22-49-49v-47c0-23 10-42 26-54 6-5 10-11 10-18V18z"
+              fill="#fffaf9"
+              stroke="#d3c1b8"
+              strokeWidth="6"
+            />
+
+            <g clipPath="url(#cokeBottleClip)">
+              <rect x="24" y={fillTop} width="132" height={bottleHeight} fill="url(#cokeBottleFill)" opacity="0.92" />
+              <path
+                d={`M24 ${fillTop + 8} C 52 ${fillTop - 2}, 88 ${fillTop + 12}, 156 ${fillTop + 4} L156 220 L24 220 Z`}
+                fill="rgba(255,255,255,0.2)"
+              />
+            </g>
+
+            <path
+              d="M67 18c0-6 5-11 11-11h24c6 0 11 5 11 11v18c0 7 4 13 10 18 16 12 26 31 26 54v47c0 27-22 49-49 49H80c-27 0-49-22-49-49v-47c0-23 10-42 26-54 6-5 10-11 10-18V18z"
+              stroke="#ffffff"
+              strokeOpacity="0.78"
+              strokeWidth="2"
+            />
+
+            <g>
+              <rect x="54" y="92" width="72" height="20" rx="10" fill="#1f2340" />
+              <text
+                x="90"
+                y="105"
+                fill="#ffffff"
+                fontFamily="Arial, sans-serif"
+                fontSize="10"
+                fontWeight="700"
+                textAnchor="middle"
+              >
+                {fillPercent.toFixed(1)}%
+              </text>
+            </g>
+          </svg>
+        </div>
+
+        <div className="space-y-4">
+          <div className="rounded-[1.35rem] border border-border bg-panel-soft px-4 py-4">
+            <p className="text-sm font-semibold text-foreground">{brandLabel} share of recent TV ad detections</p>
+            <p className="mt-1 text-sm leading-7 text-muted-foreground">
+              This bottle fills from real occurrence records only. As more Coca-Cola detections are imported, the fill
+              level updates automatically.
+            </p>
+          </div>
+
+          <div className="h-3 overflow-hidden rounded-full bg-panel-soft">
+            <div
+              className="h-full rounded-full bg-[linear-gradient(90deg,#ff7b72_0%,#F40009_68%,#990007_100%)]"
+              style={{ width: `${Math.max(fillPercent, 3)}%` }}
+            />
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-[1.25rem] border border-border px-4 py-3">
+              <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Current SOV</p>
+              <p className="mt-2 text-2xl font-semibold text-foreground">{fillPercent.toFixed(1)}%</p>
+            </div>
+            <div className="rounded-[1.25rem] border border-border px-4 py-3">
+              <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Coverage note</p>
+              <p className="mt-2 text-sm font-medium text-foreground">
+                {supportingLabel ?? "Based on the latest stored brand mix"}
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </article>
   );

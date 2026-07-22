@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 
+import { BottleShareOfVoiceCard } from "@/components/states/insight-charts";
 import { SourceControlPanel } from "@/components/tv/source-control-panel";
 import { UploadManifestPanel } from "@/components/tv/upload-manifest-panel";
 import { StatusBadge } from "@/components/tv/status-badge";
@@ -24,6 +25,10 @@ export default async function AryNewsChannelPage() {
   }
 
   const gate = getAuthorizationGateSummary(channel.source, channel.authorization);
+  const brandDistribution = aggregateByBrand(channel.recentOccurrences);
+  const totalBrandOccurrences = brandDistribution.reduce((sum, entry) => sum + entry.count, 0);
+  const cokeCount = brandDistribution.find((entry) => entry.brand.toLowerCase().includes("coca-cola"))?.count ?? 0;
+  const cokeShare = totalBrandOccurrences > 0 ? cokeCount / totalBrandOccurrences : 0;
 
   return (
     <div className="space-y-6">
@@ -219,10 +224,20 @@ export default async function AryNewsChannelPage() {
           </div>
 
           <div className="rounded-[1.6rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
+            <BottleShareOfVoiceCard
+              title="Coca-Cola Share Of Voice"
+              subtitle="Live TV brand mix from imported ad occurrences"
+              brandLabel="Coca-Cola"
+              share={cokeShare}
+              supportingLabel={`${cokeCount} of ${totalBrandOccurrences} recent TV occurrences`}
+            />
+          </div>
+
+          <div className="rounded-[1.6rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
             <h2 className="text-lg font-semibold text-foreground">Brand distribution</h2>
             <div className="mt-4 space-y-3">
               {channel.recentOccurrences.length > 0 ? (
-                aggregateByBrand(channel.recentOccurrences).map((entry) => (
+                brandDistribution.map((entry) => (
                   <div key={entry.brand}>
                     <div className="flex items-center justify-between text-sm">
                       <span className="font-medium text-foreground">{entry.brand}</span>
