@@ -2,7 +2,7 @@ import type { SocialProviderKey } from "@/lib/social-schemas";
 
 export const APIFY_ACTORS = {
   tiktok: "GdWCkxBtKWOsKjdch",
-  instagram: "shu8hvrXbJbY3Eb9W",
+  instagram: "fcz9izasQrM1LD56D",
   youtube: "h7sDV53CddomktSi5",
   facebook: "4Hv5RhChiaDk6iwad",
 } as const satisfies Record<SocialProviderKey, string>;

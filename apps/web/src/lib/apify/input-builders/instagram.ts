@@ -2,16 +2,16 @@ import type { NormalizedSocialInput } from "@/lib/apify/unified-provider";
 
 /**
  * Build Instagram Actor input from normalized user input.
- * Instagram Actor shu8hvrXbJbY3Eb9W supports profile URLs.
+ * Instagram Actor fcz9izasQrM1LD56D supports post scraping by username.
  */
 export function buildInstagramInput(
   normalized: NormalizedSocialInput,
   resultsLimit = 100,
 ): Record<string, unknown> {
-  const profileUrl = normalized.normalizedUrl;
+  const username = normalized.username ?? normalized.handle;
 
-  if (!profileUrl) {
-    throw new Error("Instagram profile URL is required.");
+  if (!username) {
+    throw new Error("Instagram username is required.");
   }
 
   if (resultsLimit < 1) {
@@ -19,12 +19,14 @@ export function buildInstagramInput(
   }
 
   return {
-    resultsType: "posts",
-    directUrls: [profileUrl],
-    resultsLimit,
-    searchType: "hashtag",
-    searchLimit: 10,
-    addParentData: true,
+    scrapeType: "posts",
+    username,
+    hashtag: "",
+    keyword: "",
+    maxResults: resultsLimit,
+    minLikes: 0,
+    includeVideos: true,
+    includeComments: false,
   };
 }
 
