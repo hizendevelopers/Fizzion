@@ -9,6 +9,8 @@ import { CategoryBarCard, RadialStatCard, ShareOfVoiceCard } from "@/components/
 import { getSocialAccountDetail, listSocialContent } from "@/lib/social-data";
 import { formatNumber } from "@/lib/social-utils";
 
+const CONTENT_PAGE_SIZE = 12;
+
 export default async function SocialAccountDetailPage({
   params,
   searchParams,
@@ -23,6 +25,7 @@ export default async function SocialAccountDetailPage({
   const contentType = getSingleSearchParam(resolvedSearchParams.contentType) ?? "all";
   const sort = parseSortFilter(resolvedSearchParams.sort);
   const query = getSingleSearchParam(resolvedSearchParams.q) ?? "";
+  const page = Math.max(1, Number(getSingleSearchParam(resolvedSearchParams.page) ?? "1") || 1);
   const detail = await getSocialAccountDetail(accountId, { days });
 
   if (!detail) {
@@ -37,25 +40,31 @@ export default async function SocialAccountDetailPage({
   }
 
   const content = await listSocialContent(accountId, {
-    page: 1,
-    limit: 8,
+    days: days ?? undefined,
+    page,
+    limit: CONTENT_PAGE_SIZE,
     sort,
     q: query || undefined,
     contentType: contentType === "all" ? undefined : contentType,
   });
 
+  const totalPages = Math.max(1, Math.ceil(content.total / CONTENT_PAGE_SIZE));
+  const hasPreviousPage = page > 1;
+  const hasNextPage = page < totalPages;
   const sectionTabs = [
     { label: "Overview", href: "#overview" },
-    { label: "Growth", href: "#growth" },
+    { label: "Insights", href: "#insights" },
     { label: "Engagement", href: "#engagement" },
     { label: "History", href: "#history" },
-    { label: "Posts", href: "#posts" },
+    { label: "Content", href: "#content-feed" },
   ];
   const dateRangeOptions = [
+    { value: "1", label: "Today" },
     { value: "7", label: "Last 7 days" },
+    { value: "14", label: "Last 14 days" },
     { value: "30", label: "Last 30 days" },
-    { value: "90", label: "Last 90 days" },
-    { value: "all", label: "All time" },
+    { value: "60", label: "Last 60 days" },
+    { value: "all", label: "All available" },
   ];
   const contentTypeOptions = [
     { value: "all", label: "All content" },
@@ -74,7 +83,7 @@ export default async function SocialAccountDetailPage({
   const hashtagPerformance = detail.topHashtags.slice(0, 6).map((item) => ({
     label: item.hashtag,
     value: item.engagements,
-    note: `${item.postCount} posts · Reach ${formatNumber(item.reach)}`,
+    note: `${item.postCount} posts | Reach ${formatNumber(item.reach)}`,
   }));
   const topPostConfidenceTotal = Math.max(content.items.length, 1);
   const postsWithMetrics = content.items.filter((item) => item.engagements != null || item.views != null).length;
@@ -97,6 +106,18 @@ export default async function SocialAccountDetailPage({
       : detail.following === 0 && detail.followers != null
         ? `${formatNumber(detail.followers)}:0`
         : "Not available";
+  const currentRangeLabel =
+    days === 1
+      ? "Today"
+      : days === 7
+        ? "Last 7 days"
+        : days === 14
+          ? "Last 14 days"
+          : days === 30
+            ? "Last 30 days"
+            : days === 60
+              ? "Last 60 days"
+              : "All available";
 
   return (
     <div className="space-y-6">
@@ -142,7 +163,7 @@ export default async function SocialAccountDetailPage({
             </div>
           </div>
 
-          <div className="space-y-4 xl:min-w-[480px]">
+          <div className="space-y-4 xl:min-w-[520px]">
             <div className="grid gap-4 md:grid-cols-3">
               <TopMetric
                 label="Followers"
@@ -164,7 +185,8 @@ export default async function SocialAccountDetailPage({
                 <div>
                   <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Real data coverage</p>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Imported through Apify public scraping. Metrics only appear when the source actually returns them.
+                    Imported through Apify public scraping. Original profile picture, synchronized content,
+                    captions, hashtags, and metrics only appear when the source actually returns them.
                   </p>
                 </div>
                 <a
@@ -269,11 +291,36 @@ export default async function SocialAccountDetailPage({
         </form>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-5" id="growth">
+      <section className="grid gap-5 xl:grid-cols-6" id="insights">
         <InsightCard
-          label="Followers Growth Rate"
-          note="30-day"
+          label="30-Day Follower Growth"
+          note="Real snapshot delta"
           value={formatPercent(detail.insights.followerGrowthRate30Days)}
+        />
+        <InsightCard
+          label="60-Day Follower Growth"
+          note="Real snapshot delta"
+          value={formatPercent(detail.insights.followerGrowthRate60Days)}
+        />
+        <InsightCard
+          label="30-Day ER"
+          note="Derived from imported actions"
+          value={formatPercent(detail.insights.averageEngagementRateLast30Days)}
+        />
+        <InsightCard
+          label="60-Day ER"
+          note="Derived from imported actions"
+          value={formatPercent(detail.insights.averageEngagementRateLast60Days)}
+        />
+        <InsightCard
+          label="Posts in 30 Days"
+          note="Published content"
+          value={formatNumber(detail.insights.postsLast30Days)}
+        />
+        <InsightCard
+          label="Posts in 60 Days"
+          note="Published content"
+          value={formatNumber(detail.insights.postsLast60Days)}
         />
         <InsightCard
           label="Weekly Followers"
@@ -281,9 +328,9 @@ export default async function SocialAccountDetailPage({
           value={formatNumber(detail.insights.weeklyFollowerGain)}
         />
         <InsightCard
-          label="Engagement Rate"
-          note="Average over 30 days"
-          value={formatPercent(detail.insights.averageEngagementRateLast30Days)}
+          label="Weekly Posts"
+          note="Published in last 7 days"
+          value={formatNumber(detail.insights.weeklyPosts)}
         />
         <InsightCard
           label="Average Likes"
@@ -296,11 +343,6 @@ export default async function SocialAccountDetailPage({
           value={formatNumber(detail.insights.averageCommentsLast30Days)}
         />
         <InsightCard
-          label="Weekly Posts"
-          note="Published in last 7 days"
-          value={formatNumber(detail.insights.weeklyPosts)}
-        />
-        <InsightCard
           label="Followers Ratio"
           note="Followers / following"
           value={followersRatioDisplay}
@@ -310,21 +352,11 @@ export default async function SocialAccountDetailPage({
           note="Last 30 days"
           value={detail.insights.commentsPerPostLast30Days != null ? detail.insights.commentsPerPostLast30Days.toFixed(2) : "Not available"}
         />
-        <InsightCard
-          label="Views"
-          note="Current imported total"
-          value={formatNumber(detail.views)}
-        />
-        <InsightCard
-          label="Engagements"
-          note="Current imported total"
-          value={formatNumber(detail.engagements)}
-        />
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-2" id="engagement">
+      <section className="grid gap-6 xl:grid-cols-2" id="engagement">
         <SocialTrendChart
-          title="Followers"
+          title={`Followers | ${currentRangeLabel}`}
           metric="followers"
           points={detail.trend}
           color="#22c55e"
@@ -332,7 +364,7 @@ export default async function SocialAccountDetailPage({
           valueFormatter={formatNumber}
         />
         <SocialTrendChart
-          title="Following"
+          title={`Following | ${currentRangeLabel}`}
           metric="following"
           points={detail.trend}
           color="#06b6d4"
@@ -340,7 +372,7 @@ export default async function SocialAccountDetailPage({
           valueFormatter={formatNumber}
         />
         <SocialTrendChart
-          title="Engagement Rate"
+          title={`Engagement Rate | ${currentRangeLabel}`}
           metric="engagementRate"
           points={detail.trend}
           color="#fb923c"
@@ -348,14 +380,30 @@ export default async function SocialAccountDetailPage({
           valueFormatter={(value) => formatPercent(value)}
         />
         <SocialTrendChart
-          title="Average Likes"
+          title={`Average Likes | ${currentRangeLabel}`}
           metric="averageLikes"
           points={detail.trend}
           color="#ef4444"
           fill="rgba(239,68,68,0.14)"
           valueFormatter={formatNumber}
         />
-      </div>
+        <SocialTrendChart
+          title={`Average Comments | ${currentRangeLabel}`}
+          metric="averageComments"
+          points={detail.trend}
+          color="#8b5cf6"
+          fill="rgba(139,92,246,0.14)"
+          valueFormatter={formatNumber}
+        />
+        <SocialTrendChart
+          title={`Engagements | ${currentRangeLabel}`}
+          metric="engagements"
+          points={detail.trend}
+          color="#f59e0b"
+          fill="rgba(245,158,11,0.16)"
+          valueFormatter={formatNumber}
+        />
+      </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
         <CategoryBarCard
@@ -394,21 +442,7 @@ export default async function SocialAccountDetailPage({
         />
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-1">
-        <CategoryBarCard
-          data={content.items.slice(0, 5).map((item) => ({
-            label: item.title || item.contentTypeLabel,
-            value: item.engagements ?? item.views ?? 0,
-            note: `${item.contentTypeLabel} · ${formatDisplayDate(item.publishedAt)}`,
-          }))}
-          subtitle="Top visible content items from the active filter set"
-          title="Content Performance Snapshot"
-          formatter={formatNumber}
-          emptyLabel="No content performance snapshot is available for the current filters."
-        />
-      </section>
-
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+      <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <section className="rounded-[1.8rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]" id="history">
           <div className="flex items-center justify-between">
             <div>
@@ -496,7 +530,7 @@ export default async function SocialAccountDetailPage({
                       <span className="text-xs text-muted-foreground">{item.postCount} posts</span>
                     </div>
                     <p className="mt-2 text-xs text-muted-foreground">
-                      Engagements: {formatNumber(item.engagements)} · Reach: {formatNumber(item.reach)}
+                      Engagements: {formatNumber(item.engagements)} | Reach: {formatNumber(item.reach)}
                     </p>
                   </div>
                 ))
@@ -508,60 +542,162 @@ export default async function SocialAccountDetailPage({
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      <section className="rounded-[1.9rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]" id="posts">
-        <div className="flex items-center justify-between">
+      <section className="rounded-[1.9rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]" id="content-feed">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <h2 className="text-xl font-semibold text-foreground">Top Posts</h2>
+            <h2 className="text-xl font-semibold text-foreground">Synchronized Content</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Real imported content sorted by engagements, with original caption and live imported metrics.
+              Real imported posts and reels with original captions, hashtags, likes, views, comments,
+              shares, saves, and any other source-returned metrics.
             </p>
             <p className="mt-2 text-xs text-muted-foreground">
-              Showing {content.total} matching records for the current filters.
+              Showing {content.items.length} of {content.total} matching records for the current filters.
             </p>
           </div>
           <span className="rounded-full bg-panel-soft px-3 py-2 text-xs text-muted-foreground">
-            Sorted by engagements
+            Sorted by {sort.replaceAll("_", " ")}
           </span>
         </div>
 
         <div className="mt-5 grid gap-4 xl:grid-cols-2">
           {content.items.length > 0 ? (
             content.items.map((item) => (
-              <Link
-                className="rounded-[1.5rem] border border-border bg-panel-soft p-4 transition hover:border-brand-red/30"
-                href={`/social/content/${item.id}`}
-                key={item.id}
-              >
+              <article className="rounded-[1.5rem] border border-border bg-panel-soft p-4" key={item.id}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-base font-semibold text-foreground">{item.title}</p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      {item.contentTypeLabel} · {formatDisplayDate(item.publishedAt)}
+                      {item.contentTypeLabel} | {formatDisplayDate(item.publishedAt)}
                     </p>
                   </div>
                   <span className="rounded-full bg-white px-3 py-1 text-xs text-muted-foreground">
                     {formatNumber(item.engagements)} engagements
                   </span>
                 </div>
+
                 <p className="mt-3 line-clamp-4 text-sm leading-6 text-muted-foreground">
-                  {item.caption || item.description}
+                  {item.caption || item.description || "No caption was returned for this content item."}
                 </p>
-                <div className="mt-4 flex flex-wrap gap-3 text-xs text-muted-foreground">
-                  <span>Likes: {formatNumber(item.likes)}</span>
-                  <span>Comments: {formatNumber(item.comments)}</span>
-                  <span>Views: {formatNumber(item.views)}</span>
-                  <span>Reach: {formatNumber(item.reach)}</span>
+
+                {item.hashtags.length > 0 ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {item.hashtags.slice(0, 8).map((hashtag) => (
+                      <span
+                        className="rounded-full border border-border bg-white px-3 py-1 text-xs text-muted-foreground"
+                        key={`${item.id}-${hashtag}`}
+                      >
+                        #{hashtag}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <MetricPill label="Likes" value={formatNumber(item.likes)} />
+                  <MetricPill label="Comments" value={formatNumber(item.comments)} />
+                  <MetricPill label="Views / Plays" value={formatNumber(item.views)} />
+                  <MetricPill label="Shares" value={formatNumber(item.shares)} />
+                  <MetricPill label="Saves" value={formatNumber(item.saves)} />
+                  <MetricPill label="Reposts" value="Not available" />
+                  <MetricPill label="Reach" value={formatNumber(item.reach)} />
+                  <MetricPill label="Impressions" value={formatNumber(item.impressions)} />
+                  <MetricPill
+                    label="Engagement Rate"
+                    value={
+                      item.engagementRateByFollowers != null
+                        ? `${item.engagementRateByFollowers.toFixed(2)}%`
+                        : item.engagementRateByReach != null
+                          ? `${item.engagementRateByReach.toFixed(2)}%`
+                          : "Not available"
+                    }
+                  />
                 </div>
-              </Link>
+
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                    <span>Tagged: {item.taggedAccounts.length > 0 ? item.taggedAccounts.length : 0}</span>
+                    <span>Collaborators: {item.collaborators.length > 0 ? item.collaborators.length : 0}</span>
+                    <span>Mentions: {item.mentions.length > 0 ? item.mentions.length : 0}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    <Link
+                      className="text-sm font-semibold text-brand-red"
+                      href={`/social/content/${item.id}`}
+                    >
+                      View details
+                    </Link>
+                    {item.permalink ? (
+                      <a
+                        className="text-sm font-semibold text-foreground"
+                        href={item.permalink}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        Open original
+                      </a>
+                    ) : null}
+                  </div>
+                </div>
+              </article>
             ))
           ) : (
             <div className="rounded-[1.5rem] border border-dashed border-border bg-panel-soft px-5 py-6 text-sm text-muted-foreground xl:col-span-2">
-              No content has been synchronized for this account yet.
+              No content has been synchronized for this account and filter combination yet.
             </div>
           )}
         </div>
+
+        {content.total > CONTENT_PAGE_SIZE ? (
+          <div className="mt-5 flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">
+              Page {page} of {totalPages}
+            </span>
+            <div className="flex gap-3">
+              <Link
+                className={`rounded-full px-4 py-2 text-sm font-medium ${
+                  hasPreviousPage
+                    ? "border border-border bg-panel-soft text-foreground"
+                    : "cursor-not-allowed border border-border/60 bg-panel-soft/50 text-muted-foreground"
+                }`}
+                href={
+                  hasPreviousPage
+                    ? buildAccountHref(accountId, {
+                        q: query,
+                        range: days == null ? "all" : String(days),
+                        contentType,
+                        sort,
+                        page: String(page - 1),
+                      })
+                    : "#content-feed"
+                }
+              >
+                Previous
+              </Link>
+              <Link
+                className={`rounded-full px-4 py-2 text-sm font-medium ${
+                  hasNextPage
+                    ? "border border-border bg-panel-soft text-foreground"
+                    : "cursor-not-allowed border border-border/60 bg-panel-soft/50 text-muted-foreground"
+                }`}
+                href={
+                  hasNextPage
+                    ? buildAccountHref(accountId, {
+                        q: query,
+                        range: days == null ? "all" : String(days),
+                        contentType,
+                        sort,
+                        page: String(page + 1),
+                      })
+                    : "#content-feed"
+                }
+              >
+                Next
+              </Link>
+            </div>
+          </div>
+        ) : null}
       </section>
     </div>
   );
@@ -638,6 +774,15 @@ function DeltaValue({
   );
 }
 
+function MetricPill({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[1.2rem] border border-border bg-white px-3 py-3">
+      <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
+      <p className="mt-2 text-sm font-semibold text-foreground">{value}</p>
+    </div>
+  );
+}
+
 function formatPercent(value: number | null) {
   if (value == null) {
     return "Not available";
@@ -679,14 +824,17 @@ function getSingleSearchParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function parseDaysFilter(value: string | string[] | undefined) {
+function parseDaysFilter(value: string | string[] | undefined): 1 | 7 | 14 | 30 | 60 | null {
   const resolved = getSingleSearchParam(value);
   if (!resolved || resolved === "all") {
     return null;
   }
 
-  const parsed = Number(resolved);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 30;
+  if (resolved === "1" || resolved === "7" || resolved === "14" || resolved === "30" || resolved === "60") {
+    return Number(resolved) as 1 | 7 | 14 | 30 | 60;
+  }
+
+  return 30;
 }
 
 function parseSortFilter(value: string | string[] | undefined) {
@@ -702,4 +850,17 @@ function parseSortFilter(value: string | string[] | undefined) {
   }
 
   return "engagements";
+}
+
+function buildAccountHref(accountId: string, params: Record<string, string>) {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value && value !== "all" && value !== "1") {
+      search.set(key, value);
+    } else if (key === "range" && value === "1") {
+      search.set(key, value);
+    }
+  }
+  const query = search.toString();
+  return query ? `/social/accounts/${accountId}?${query}#content-feed` : `/social/accounts/${accountId}#content-feed`;
 }

@@ -53,6 +53,7 @@ export const socialContentQuerySchema = z.object({
   q: z.string().trim().max(200).optional(),
   contentType: z.string().trim().max(100).optional(),
   sort: z.enum(["newest", "reach", "views", "engagements", "engagement_rate"]).default("newest"),
+  days: z.union([z.literal(1), z.literal(7), z.literal(14), z.literal(30), z.literal(60)]).optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(12),
 });

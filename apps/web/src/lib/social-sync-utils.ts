@@ -1,8 +1,12 @@
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
-import { APIFY_ACTORS, INSTAGRAM_SUPPLEMENTAL_PROFILE_ACTORS } from "@/lib/apify/actors";
+import {
+  APIFY_ACTORS,
+  INSTAGRAM_CONTENT_FALLBACK_ACTORS,
+  INSTAGRAM_SUPPLEMENTAL_PROFILE_ACTORS,
+} from "@/lib/apify/actors";
 import { startApifyActor, startApifyActorById, waitForApifyRun, readEntireDataset } from "@/lib/apify/apify-service";
 import { buildTikTokInput } from "@/lib/apify/input-builders/tiktok";
-import { buildInstagramInput } from "@/lib/apify/input-builders/instagram";
+import { buildInstagramInput, buildInstagramLegacyInput } from "@/lib/apify/input-builders/instagram";
 import { buildInstagramProfileInput } from "@/lib/apify/input-builders/instagram-profile";
 import { buildYouTubeInput } from "@/lib/apify/input-builders/youtube";
 import { buildFacebookInput } from "@/lib/apify/input-builders/facebook";
@@ -54,7 +58,7 @@ export interface ScrapeBundleResult {
     runId: string;
     datasetId?: string;
     status: string;
-    purpose: "profile";
+    purpose: "profile" | "content_fallback";
   }>;
 }
 
@@ -200,6 +204,18 @@ export async function startPlatformScrapeBundle(
         purpose: "profile",
       });
     }
+
+    const fallbackInput = buildInstagramLegacyInput(normalized, Number(options?.resultsLimit ?? 100));
+    for (const actorId of INSTAGRAM_CONTENT_FALLBACK_ACTORS) {
+      const fallbackRun = await startApifyActorById(actorId, fallbackInput);
+      supplemental.push({
+        actorId,
+        runId: fallbackRun.runId,
+        datasetId: fallbackRun.datasetId,
+        status: fallbackRun.status,
+        purpose: "content_fallback",
+      });
+    }
   }
 
   return {
@@ -230,7 +246,7 @@ export async function processAndSaveResults(
   organizationId: string,
   socialAccountId: string,
   datasetId: string,
-  supplementalProfileDatasetIds: string[] = [],
+  supplementalDatasets: Array<{ datasetId: string; purpose: "profile" | "content_fallback" }> = [],
   onProgress?: (progress: SyncProgress) => void,
 ): Promise<SyncResult> {
   const supabase = getSupabaseAdminClient();
@@ -238,6 +254,7 @@ export async function processAndSaveResults(
 
   const allItems: Record<string, unknown>[] = [];
   const supplementalProfileItems: Record<string, unknown>[] = [];
+  const fallbackContentItems: Record<string, unknown>[] = [];
   let profile: NormalizedSocialProfile | undefined;
   let contentItems: NormalizedSocialContent[] = [];
   let commentItems: NormalizedSocialComment[] = [];
@@ -255,10 +272,19 @@ export async function processAndSaveResults(
       emitProgress("fetching_results", 30, allItems.length, `Fetched ${allItems.length} items`);
     });
 
-    for (const supplementalDatasetId of supplementalProfileDatasetIds) {
-      await readEntireDataset(supplementalDatasetId, async (batch) => {
-        supplementalProfileItems.push(...batch);
+    for (const supplementalDataset of supplementalDatasets) {
+      await readEntireDataset(supplementalDataset.datasetId, async (batch) => {
+        if (supplementalDataset.purpose === "profile") {
+          supplementalProfileItems.push(...batch);
+          return;
+        }
+
+        fallbackContentItems.push(...batch);
       });
+    }
+
+    if (allItems.length === 0 && fallbackContentItems.length > 0) {
+      allItems.push(...fallbackContentItems);
     }
 
     if (allItems.length === 0) {
@@ -360,6 +386,15 @@ export async function processAndSaveResults(
         profile_image_url: profile.profileImageUrl,
         external_account_id: profile.externalAccountId,
       }).eq("id", connectionId);
+
+      await supabase.from("social_accounts").update({
+        display_name: profile.displayName,
+        profile_image_url: profile.profileImageUrl,
+        bio: profile.bio,
+        is_verified: profile.verified ?? false,
+        last_synchronized_at: now,
+        updated_at: now,
+      }).eq("id", socialAccountId);
     }
 
     // Save content items
@@ -650,9 +685,11 @@ export async function performFullSync(
     throw new Error(`Scraper ${platform} finished with status: ${runStatus.status}`);
   }
 
-  const supplementalProfileDatasetIds = scrapeBundle.supplemental
-    .map((run) => run.datasetId)
-    .filter((item): item is string => Boolean(item));
+  const supplementalDatasets = scrapeBundle.supplemental.flatMap((run) =>
+    run.datasetId
+      ? [{ datasetId: run.datasetId, purpose: run.purpose }]
+      : [],
+  );
 
   for (const supplementalRun of scrapeBundle.supplemental) {
     const supplementalStatus = await waitForApifyRun(supplementalRun.runId, 300);
@@ -666,12 +703,12 @@ export async function performFullSync(
   // Process and save results
   return processAndSaveResults(
     connectionId,
-    platform,
-    organizationId,
-    socialAccountId,
-    datasetId,
-    supplementalProfileDatasetIds,
-    onProgress,
+      platform,
+      organizationId,
+      socialAccountId,
+      datasetId,
+      supplementalDatasets,
+      onProgress,
   );
 }
 

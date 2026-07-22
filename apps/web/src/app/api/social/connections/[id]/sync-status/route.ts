@@ -73,9 +73,11 @@ export async function GET(
         connection.organization_id,
         connection.social_account_id,
         latestJob.dataset_id,
-        supplementalRuns
-          .map((item) => item.datasetId)
-          .filter((datasetId): datasetId is string => typeof datasetId === "string" && datasetId.length > 0),
+        supplementalRuns.flatMap((item) =>
+          typeof item.datasetId === "string" && item.datasetId.length > 0
+            ? [{ datasetId: item.datasetId, purpose: item.purpose === "content_fallback" ? "content_fallback" : "profile" }]
+            : [],
+        ),
       );
     } else if (
       ["FAILED", "ABORTED", "TIMED-OUT"].includes(runStatus.status) ||

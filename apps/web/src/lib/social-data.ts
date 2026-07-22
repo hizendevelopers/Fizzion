@@ -183,12 +183,18 @@ export type SocialAccountDetail = SocialDashboardAccount & {
   insights: {
     trackedSince: string | null;
     followerGrowthRate30Days: number | null;
+    followerGrowthRate60Days: number | null;
     followerGrowthRate90Days: number | null;
     weeklyFollowerGain: number | null;
     weeklyPosts: number | null;
+    postsLast30Days: number;
+    postsLast60Days: number;
     averageLikesLast30Days: number | null;
+    averageLikesLast60Days: number | null;
     averageCommentsLast30Days: number | null;
+    averageCommentsLast60Days: number | null;
     averageEngagementRateLast30Days: number | null;
+    averageEngagementRateLast60Days: number | null;
     followersToFollowingRatio: number | null;
     commentsPerPostLast30Days: number | null;
   };
@@ -1248,7 +1254,7 @@ export async function getSocialAccountDetail(
       .select("*")
       .eq("social_account_id", connection.socialAccountId)
       .order("captured_at", { ascending: false })
-      .limit(14),
+      .limit(90),
     supabase
       .from("social_posts")
       .select("*")
@@ -1467,6 +1473,7 @@ export async function getSocialAccountDetail(
 
   const latestSnapshot = snapshotRows.at(-1) ?? null;
   const latestSnapshotDate = latestSnapshot ? new Date(rowString(latestSnapshot, "captured_at")) : new Date();
+  const snapshot60 = nearestSnapshot(new Date(latestSnapshotDate.getTime() - 1000 * 60 * 60 * 24 * 60));
   const snapshot30 = nearestSnapshot(new Date(latestSnapshotDate.getTime() - 1000 * 60 * 60 * 24 * 30));
   const snapshot90 = nearestSnapshot(new Date(latestSnapshotDate.getTime() - 1000 * 60 * 60 * 24 * 90));
   const snapshot7 = nearestSnapshot(new Date(latestSnapshotDate.getTime() - 1000 * 60 * 60 * 24 * 7));
@@ -1487,8 +1494,10 @@ export async function getSocialAccountDetail(
 
   const latestFollowers = latestSnapshot ? rowNullableNumber(latestSnapshot, "follower_count") : connection.followers;
   const latestFollowing = latestSnapshot ? rowNullableNumber(latestSnapshot, "following_count") : connection.following;
+  const last60DaysDate = new Date(latestSnapshotDate.getTime() - 1000 * 60 * 60 * 24 * 60);
   const last30DaysDate = new Date(latestSnapshotDate.getTime() - 1000 * 60 * 60 * 24 * 30);
   const last7DaysDate = new Date(latestSnapshotDate.getTime() - 1000 * 60 * 60 * 24 * 7);
+  const recentPosts60Days = filteredPostRows.filter((post) => new Date(rowString(post, "published_at")) >= last60DaysDate);
   const recentPosts = filteredPostRows.filter((post) => new Date(rowString(post, "published_at")) >= last30DaysDate);
   const weeklyPosts = filteredPostRows.filter((post) => new Date(rowString(post, "published_at")) >= last7DaysDate).length;
 
@@ -1498,6 +1507,12 @@ export async function getSocialAccountDetail(
   let commentsCount = 0;
   let engagementRateTotal = 0;
   let engagementRateCount = 0;
+  let likesTotal60 = 0;
+  let likesCount60 = 0;
+  let commentsTotal60 = 0;
+  let commentsCount60 = 0;
+  let engagementRateTotal60 = 0;
+  let engagementRateCount60 = 0;
 
   for (const post of recentPosts) {
     const metric =
@@ -1531,6 +1546,41 @@ export async function getSocialAccountDetail(
     if (engagementRate != null) {
       engagementRateTotal += engagementRate;
       engagementRateCount += 1;
+    }
+  }
+
+  for (const post of recentPosts60Days) {
+    const metric =
+      contentMetricLookup.get(rowString(post, "id")) ??
+      metricLookup.get(rowString(post, "id")) ??
+      {};
+    const likes = rowMetricNumber(metric, "likes");
+    const comments = rowMetricNumber(metric, "comments");
+    const shares = rowMetricNumber(metric, "shares");
+    const saves = rowMetricNumber(metric, "saves");
+    const reach = rowMetricNumber(metric, "reach");
+    const engagements =
+      rowMetricNumber(metric, "metric_value", ["engagements"]) ??
+      calculateNormalizedEngagements({ likes, comments, shares, saves });
+    const nearestPublicationSnapshot = nearestSnapshot(new Date(rowString(post, "published_at")));
+    const followerBaseline = nearestPublicationSnapshot
+      ? rowNullableNumber(nearestPublicationSnapshot, "follower_count")
+      : latestFollowers;
+    const engagementRate =
+      rowMetricNumber(metric, "engagement_rate", ["engagementRate"]) ??
+      calculateDerivedEngagementRate(engagements, followerBaseline, reach);
+
+    if (likes != null) {
+      likesTotal60 += likes;
+      likesCount60 += 1;
+    }
+    if (comments != null) {
+      commentsTotal60 += comments;
+      commentsCount60 += 1;
+    }
+    if (engagementRate != null) {
+      engagementRateTotal60 += engagementRate;
+      engagementRateCount60 += 1;
     }
   }
 
@@ -1570,6 +1620,10 @@ export async function getSocialAccountDetail(
         latestFollowers,
         snapshot30 ? rowNullableNumber(snapshot30, "follower_count") : null,
       ),
+      followerGrowthRate60Days: growthPercent(
+        latestFollowers,
+        snapshot60 ? rowNullableNumber(snapshot60, "follower_count") : null,
+      ),
       followerGrowthRate90Days: growthPercent(
         latestFollowers,
         snapshot90 ? rowNullableNumber(snapshot90, "follower_count") : null,
@@ -1579,10 +1633,16 @@ export async function getSocialAccountDetail(
         snapshot7 ? rowNullableNumber(snapshot7, "follower_count") : null,
       ),
       weeklyPosts,
+      postsLast30Days: recentPosts.length,
+      postsLast60Days: recentPosts60Days.length,
       averageLikesLast30Days: likesCount > 0 ? likesTotal / likesCount : null,
+      averageLikesLast60Days: likesCount60 > 0 ? likesTotal60 / likesCount60 : null,
       averageCommentsLast30Days: commentsCount > 0 ? commentsTotal / commentsCount : null,
+      averageCommentsLast60Days: commentsCount60 > 0 ? commentsTotal60 / commentsCount60 : null,
       averageEngagementRateLast30Days:
         engagementRateCount > 0 ? normalizeTinySignedNumber(engagementRateTotal / engagementRateCount) : null,
+      averageEngagementRateLast60Days:
+        engagementRateCount60 > 0 ? normalizeTinySignedNumber(engagementRateTotal60 / engagementRateCount60) : null,
       followersToFollowingRatio:
         latestFollowers != null && latestFollowing != null && latestFollowing > 0
           ? latestFollowers / latestFollowing
@@ -1625,6 +1685,14 @@ export async function listSocialContent(connectionId: string, query: SocialConte
 
   if (query.contentType) {
     postsQuery = postsQuery.eq("content_type", query.contentType);
+  }
+  if (query.days) {
+    const publishedAfter = new Date();
+    publishedAfter.setHours(0, 0, 0, 0);
+    if (query.days > 1) {
+      publishedAfter.setDate(publishedAfter.getDate() - (query.days - 1));
+    }
+    postsQuery = postsQuery.gte("published_at", publishedAfter.toISOString());
   }
   if (query.q) {
     postsQuery = postsQuery.or(`caption.ilike.%${query.q}%,title.ilike.%${query.q}%,description.ilike.%${query.q}%`);

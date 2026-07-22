@@ -7,6 +7,10 @@ export const APIFY_ACTORS = {
   facebook: "4Hv5RhChiaDk6iwad",
 } as const satisfies Record<SocialProviderKey, string>;
 
+export const INSTAGRAM_CONTENT_PRIMARY_ACTOR = APIFY_ACTORS.instagram;
+export const INSTAGRAM_CONTENT_FALLBACK_ACTORS = [
+  "shu8hvrXbJbY3Eb9W",
+] as const;
 export const INSTAGRAM_PROFILE_APIFY_ACTOR = "dSCLg0C3YEZ83HzYX";
 export const INSTAGRAM_PROFILE_APIFY_ACTOR_V2 = "bGApZ3CtTxA9fv2rl";
 export const INSTAGRAM_SUPPLEMENTAL_PROFILE_ACTORS = [

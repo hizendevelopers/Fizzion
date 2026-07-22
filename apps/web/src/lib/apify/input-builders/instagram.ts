@@ -30,3 +30,30 @@ export function buildInstagramInput(
   };
 }
 
+/**
+ * Legacy Instagram Actor shu8hvrXbJbY3Eb9W expects direct profile URLs.
+ */
+export function buildInstagramLegacyInput(
+  normalized: NormalizedSocialInput,
+  resultsLimit = 100,
+): Record<string, unknown> {
+  const profileUrl = normalized.normalizedUrl;
+
+  if (!profileUrl) {
+    throw new Error("Instagram profile URL is required.");
+  }
+
+  if (resultsLimit < 1) {
+    throw new Error("resultsLimit must be at least 1.");
+  }
+
+  return {
+    resultsType: "posts",
+    directUrls: [profileUrl],
+    resultsLimit,
+    searchType: "hashtag",
+    searchLimit: 10,
+    addParentData: true,
+  };
+}
+
