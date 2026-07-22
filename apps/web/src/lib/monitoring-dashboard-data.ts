@@ -67,6 +67,25 @@ type ProductProfile = {
   isPreview: boolean;
 };
 
+type CreativeProfile = {
+  id: string;
+  brand: string;
+  product: string;
+  campaign: string;
+  name: string;
+  mediaType: string;
+  aspectRatio: string;
+  durationLabel: string;
+  approvalState: "approved" | "pending" | "review" | "active";
+  occurrences: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  tags: string[];
+  thumbnailUrl: string;
+  notes: string;
+  isPreview: boolean;
+};
+
 function rowString(row: GenericRow, key: string, fallback = "") {
   const value = row[key];
   return typeof value === "string" ? value : fallback;
@@ -521,6 +540,134 @@ export async function getMonitoringDashboardData() {
     date.setDate(date.getDate() - (13 - index));
     return date.toISOString().slice(5, 10);
   });
+  const creativeLibrary: CreativeProfile[] = [
+    {
+      id: "creative-coke-matchday-film",
+      brand: "Coca-Cola",
+      product: "Coca-Cola Original Taste",
+      campaign: "Coca-Cola Matchday Moments",
+      name: "Matchday Hero Film",
+      mediaType: "Video",
+      aspectRatio: "16:9",
+      durationLabel: "30s",
+      approvalState: "approved",
+      occurrences: 34,
+      firstSeenAt: "2026-06-14T18:00:00.000Z",
+      lastSeenAt: "2026-07-22T08:30:00.000Z",
+      tags: ["Football", "Hero spot", "Broadcast"],
+      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/c/ce/Coca-Cola_logo.svg",
+      notes: "Primary TV creative used in sports adjacency and recap programming.",
+      isPreview: true,
+    },
+    {
+      id: "creative-coke-refresh-static",
+      brand: "Coca-Cola",
+      product: "Coca-Cola Original Taste",
+      campaign: "Coca-Cola Summer Refresh",
+      name: "Summer Chill Static",
+      mediaType: "Display",
+      aspectRatio: "1:1",
+      durationLabel: "Static",
+      approvalState: "active",
+      occurrences: 21,
+      firstSeenAt: "2026-06-02T10:15:00.000Z",
+      lastSeenAt: "2026-07-21T20:05:00.000Z",
+      tags: ["Web", "Outdoor", "Heat relief"],
+      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/c/ce/Coca-Cola_logo.svg",
+      notes: "Static refreshment panel adapted for web ad units and DOOH boards.",
+      isPreview: true,
+    },
+    {
+      id: "creative-coke-zero-digital",
+      brand: "Coca-Cola",
+      product: "Coca-Cola Zero Sugar",
+      campaign: "Coca-Cola Summer Refresh",
+      name: "Zero Sugar Night Drive",
+      mediaType: "Video",
+      aspectRatio: "9:16",
+      durationLabel: "15s",
+      approvalState: "pending",
+      occurrences: 12,
+      firstSeenAt: "2026-07-05T16:00:00.000Z",
+      lastSeenAt: "2026-07-20T22:10:00.000Z",
+      tags: ["Reels", "Zero sugar", "Nightlife"],
+      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/c/ce/Coca-Cola_logo.svg",
+      notes: "Short-form vertical adaptation for creator and social reel placements.",
+      isPreview: true,
+    },
+    {
+      id: "creative-sprite-summer",
+      brand: "Sprite",
+      product: "Sprite Lemon-Lime",
+      campaign: "Coca-Cola Summer Refresh",
+      name: "Sprite Summer Splash",
+      mediaType: "Video",
+      aspectRatio: "16:9",
+      durationLabel: "20s",
+      approvalState: "approved",
+      occurrences: 18,
+      firstSeenAt: "2026-06-20T11:30:00.000Z",
+      lastSeenAt: "2026-07-22T09:20:00.000Z",
+      tags: ["Cooling", "Youth", "TV"],
+      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/b/b9/Sprite_Logo.svg",
+      notes: "Summer cooling spot supporting lemon-lime portfolio visibility.",
+      isPreview: true,
+    },
+    {
+      id: "creative-pepsi-beats",
+      brand: "Pepsi",
+      product: "Pepsi Cola",
+      campaign: "Pepsi Summer Beats",
+      name: "Summer Beats Anthem",
+      mediaType: "Video",
+      aspectRatio: "16:9",
+      durationLabel: "30s",
+      approvalState: "review",
+      occurrences: 27,
+      firstSeenAt: "2026-06-19T19:45:00.000Z",
+      lastSeenAt: "2026-07-21T21:55:00.000Z",
+      tags: ["Music", "Competitor", "TV"],
+      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/5/58/Pepsi_2023_%28with_2014_wordmark%29.svg",
+      notes: "Competitor hero creative tracked for youth/music overlap with Coke flights.",
+      isPreview: true,
+    },
+    {
+      id: "creative-7up-heat",
+      brand: "7UP",
+      product: "7UP Regular",
+      campaign: "7UP Heat Relief",
+      name: "Heat Relief Key Visual",
+      mediaType: "Display",
+      aspectRatio: "4:5",
+      durationLabel: "Static",
+      approvalState: "active",
+      occurrences: 14,
+      firstSeenAt: "2026-06-24T13:05:00.000Z",
+      lastSeenAt: "2026-07-18T18:15:00.000Z",
+      tags: ["Heat relief", "Competitor", "Display"],
+      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/4/43/7Up_logo_%282024%29.svg",
+      notes: "Competitor display creative showing seasonal relevance in hot weather windows.",
+      isPreview: true,
+    },
+    {
+      id: "creative-mirinda-orange",
+      brand: "Mirinda",
+      product: "Mirinda Orange",
+      campaign: "Mirinda Flavor Burst",
+      name: "Flavor Burst Burst",
+      mediaType: "Display",
+      aspectRatio: "1:1",
+      durationLabel: "Static",
+      approvalState: "pending",
+      occurrences: 9,
+      firstSeenAt: "2026-07-01T14:00:00.000Z",
+      lastSeenAt: "2026-07-17T17:40:00.000Z",
+      tags: ["Orange", "Competitor", "Flavor"],
+      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/2/28/Mirinda_brand_logo.png",
+      notes: "Flavor-led competitor packshot creative flagged for burst monitoring.",
+      isPreview: true,
+    },
+  ];
 
   return {
     summary: {
@@ -575,5 +722,6 @@ export async function getMonitoringDashboardData() {
     portfolioBrands,
     competitorBrands,
     products: productCatalog,
+    creatives: creativeLibrary,
   };
 }
