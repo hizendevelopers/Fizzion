@@ -1359,6 +1359,8 @@ export async function getSocialAccountDetail(
     likesCount: number;
     commentsSum: number;
     commentsCount: number;
+    viewsSum: number;
+    viewsCount: number;
     engagementsSum: number;
     engagementRateSum: number;
     engagementRateCount: number;
@@ -1367,12 +1369,14 @@ export async function getSocialAccountDetail(
 
   const dailyPostSummary = new Map<string, DailyPostSummary>();
 
-  function appendDailySummary(dayKey: string, metric: GenericRow) {
+  function appendDailySummary(dayKey: string, metric: GenericRow, followerBaseline: number | null) {
     const summary = dailyPostSummary.get(dayKey) ?? {
       likesSum: 0,
       likesCount: 0,
       commentsSum: 0,
       commentsCount: 0,
+      viewsSum: 0,
+      viewsCount: 0,
       engagementsSum: 0,
       engagementRateSum: 0,
       engagementRateCount: 0,
@@ -1381,8 +1385,16 @@ export async function getSocialAccountDetail(
 
     const likes = rowMetricNumber(metric, "likes");
     const comments = rowMetricNumber(metric, "comments");
-    const engagements = rowMetricNumber(metric, "metric_value", ["engagements"]);
-    const engagementRate = rowMetricNumber(metric, "engagement_rate", ["engagementRate"]);
+    const views = rowMetricNumber(metric, "views", ["plays", "video_views"]);
+    const shares = rowMetricNumber(metric, "shares");
+    const saves = rowMetricNumber(metric, "saves");
+    const reach = rowMetricNumber(metric, "reach");
+    const engagements =
+      rowMetricNumber(metric, "metric_value", ["engagements"]) ??
+      calculateNormalizedEngagements({ likes, comments, shares, saves });
+    const engagementRate =
+      rowMetricNumber(metric, "engagement_rate", ["engagementRate"]) ??
+      calculateDerivedEngagementRate(engagements, followerBaseline, reach);
 
     if (likes != null) {
       summary.likesSum += likes;
@@ -1391,6 +1403,10 @@ export async function getSocialAccountDetail(
     if (comments != null) {
       summary.commentsSum += comments;
       summary.commentsCount += 1;
+    }
+    if (views != null) {
+      summary.viewsSum += views;
+      summary.viewsCount += 1;
     }
     if (engagements != null) {
       summary.engagementsSum += engagements;
@@ -1409,7 +1425,11 @@ export async function getSocialAccountDetail(
       metricLookup.get(rowString(post, "id")) ??
       {};
     const dayKey = getDayKey(rowString(post, "published_at"));
-    appendDailySummary(dayKey, metric);
+    const nearestPublicationSnapshot = nearestSnapshot(new Date(rowString(post, "published_at")));
+    const followerBaseline = nearestPublicationSnapshot
+      ? rowNullableNumber(nearestPublicationSnapshot, "follower_count")
+      : connection.followers;
+    appendDailySummary(dayKey, metric, followerBaseline);
     for (const hashtag of rowStringArray(post, "hashtags")) {
       const existing = hashtagMap.get(hashtag) ?? {
         hashtag,
@@ -1425,35 +1445,6 @@ export async function getSocialAccountDetail(
       });
     }
   }
-
-  const trend = filteredSnapshotRows.map((row) => {
-    const dayKey = getDayKey(rowString(row, "captured_at"));
-    const dailySummary = dailyPostSummary.get(dayKey);
-
-    return {
-      date: rowString(row, "captured_at"),
-      followers: rowNullableNumber(row, "follower_count"),
-      following: rowNullableNumber(row, "following_count"),
-      contentCount: rowNullableNumber(row, "content_count"),
-      reach: rowMetricNumber(row, "reach"),
-      impressions: rowMetricNumber(row, "impressions"),
-      engagements: rowMetricNumber(row, "engagements") ?? dailySummary?.engagementsSum ?? null,
-      views: rowMetricNumber(row, "views"),
-      engagementRate:
-        rowMetricNumber(row, "engagement_rate") ??
-        (dailySummary && dailySummary.engagementRateCount > 0
-          ? dailySummary.engagementRateSum / dailySummary.engagementRateCount
-          : null),
-      averageLikes:
-        dailySummary && dailySummary.likesCount > 0
-          ? dailySummary.likesSum / dailySummary.likesCount
-          : null,
-      averageComments:
-        dailySummary && dailySummary.commentsCount > 0
-          ? dailySummary.commentsSum / dailySummary.commentsCount
-          : null,
-    } satisfies SocialTrendPoint;
-  });
 
   function nearestSnapshot(targetDate: Date) {
     let best: GenericRow | null = null;
@@ -1583,6 +1574,43 @@ export async function getSocialAccountDetail(
       engagementRateCount60 += 1;
     }
   }
+
+  const snapshotByDay = new Map(filteredSnapshotRows.map((row) => [getDayKey(rowString(row, "captured_at")), row]));
+  const trendDayKeys = [...new Set([...snapshotByDay.keys(), ...dailyPostSummary.keys()])].sort((left, right) =>
+    left.localeCompare(right),
+  );
+
+  const trend = trendDayKeys.map((dayKey) => {
+    const snapshotRow = snapshotByDay.get(dayKey);
+    const dailySummary = dailyPostSummary.get(dayKey);
+    const trendDate = snapshotRow ? rowString(snapshotRow, "captured_at") : `${dayKey}T00:00:00.000Z`;
+
+    return {
+      date: trendDate,
+      followers: snapshotRow ? rowNullableNumber(snapshotRow, "follower_count") : null,
+      following: snapshotRow ? rowNullableNumber(snapshotRow, "following_count") : null,
+      contentCount: snapshotRow ? rowNullableNumber(snapshotRow, "content_count") : dailySummary?.postCount ?? null,
+      reach: snapshotRow ? rowMetricNumber(snapshotRow, "reach") : null,
+      impressions: snapshotRow ? rowMetricNumber(snapshotRow, "impressions") : null,
+      engagements: (snapshotRow ? rowMetricNumber(snapshotRow, "engagements") : null) ?? dailySummary?.engagementsSum ?? null,
+      views:
+        (snapshotRow ? rowMetricNumber(snapshotRow, "views") : null) ??
+        (dailySummary && dailySummary.viewsCount > 0 ? dailySummary.viewsSum : null),
+      engagementRate:
+        (snapshotRow ? rowMetricNumber(snapshotRow, "engagement_rate") : null) ??
+        (dailySummary && dailySummary.engagementRateCount > 0
+          ? dailySummary.engagementRateSum / dailySummary.engagementRateCount
+          : null),
+      averageLikes:
+        dailySummary && dailySummary.likesCount > 0
+          ? dailySummary.likesSum / dailySummary.likesCount
+          : null,
+      averageComments:
+        dailySummary && dailySummary.commentsCount > 0
+          ? dailySummary.commentsSum / dailySummary.commentsCount
+          : null,
+    } satisfies SocialTrendPoint;
+  });
 
   const historyRows = [...filteredSnapshotRows]
     .reverse()
