@@ -103,7 +103,7 @@ function ProductGroupSection({
             key={product.id}
           >
             <div className="rounded-[1.5rem] border border-border bg-[linear-gradient(180deg,#fffaf8_0%,#fff1ec_100%)] p-4">
-              <ProductPackshot product={product} />
+              <ProductVisual product={product} />
             </div>
 
             <div className="space-y-4">
@@ -150,76 +150,19 @@ function ProductGroupSection({
   );
 }
 
-function ProductPackshot({
-  product,
-}: {
-  product: Awaited<ReturnType<typeof getMonitoringDashboardData>>["products"][number];
-}) {
-  return product.format === "bottle" ? <BottlePackshot product={product} /> : <CanPackshot product={product} />;
-}
-
-function BottlePackshot({
+function ProductVisual({
   product,
 }: {
   product: Awaited<ReturnType<typeof getMonitoringDashboardData>>["products"][number];
 }) {
   return (
-    <svg className="mx-auto h-[220px] w-full" fill="none" viewBox="0 0 180 240">
-      <defs>
-        <linearGradient id={`${product.id}-glass`} x1="20" x2="160" y1="20" y2="220">
-          <stop offset="0%" stopColor="#ffffff" />
-          <stop offset="100%" stopColor="#f5ece8" />
-        </linearGradient>
-        <linearGradient id={`${product.id}-drink`} x1="30" x2="130" y1="30" y2="210">
-          <stop offset="0%" stopColor={product.color} />
-          <stop offset="100%" stopColor={product.accent} />
-        </linearGradient>
-      </defs>
-
-      <path d="M70 18h40c5 0 9 4 9 9v17c0 7 4 13 10 18 14 12 22 29 22 51v56c0 31-25 56-56 56h-10c-31 0-56-25-56-56v-56c0-22 8-39 22-51 6-5 10-11 10-18V27c0-5 4-9 9-9Z" fill={`url(#${product.id}-glass)`} stroke="#d8c8c1" strokeWidth="4" />
-      <path d="M38 123c0-14 5-26 13-35 7-8 11-15 11-25V34h56v29c0 10 4 17 11 25 8 9 13 21 13 35v47c0 26-21 47-47 47H85c-26 0-47-21-47-47v-47Z" fill={`url(#${product.id}-drink)`} opacity="0.94" />
-      <rect x="50" y="95" width="80" height="34" rx="17" fill="#fff7f1" stroke="#d8c8c1" strokeWidth="2" />
-      <text x="90" y="109" fill={product.accent} fontFamily="Arial, sans-serif" fontSize="11" fontWeight="700" textAnchor="middle">
-        {product.brand.toUpperCase()}
-      </text>
-      <text x="90" y="122" fill={product.color} fontFamily="Arial, sans-serif" fontSize="10" fontWeight="700" textAnchor="middle">
-        {product.name.replace(product.brand, "").trim() || "Original"}
-      </text>
-      <text x="90" y="182" fill="#ffffff" fontFamily="Arial, sans-serif" fontSize="18" fontWeight="700" textAnchor="middle">
-        {product.volumeLabel}
-      </text>
-    </svg>
-  );
-}
-
-function CanPackshot({
-  product,
-}: {
-  product: Awaited<ReturnType<typeof getMonitoringDashboardData>>["products"][number];
-}) {
-  return (
-    <svg className="mx-auto h-[220px] w-full" fill="none" viewBox="0 0 180 240">
-      <defs>
-        <linearGradient id={`${product.id}-body`} x1="35" x2="145" y1="20" y2="220">
-          <stop offset="0%" stopColor={product.color} />
-          <stop offset="100%" stopColor={product.accent} />
-        </linearGradient>
-      </defs>
-
-      <rect x="42" y="18" width="96" height="190" rx="26" fill={`url(#${product.id}-body)`} />
-      <rect x="50" y="24" width="80" height="10" rx="5" fill="#d8dadd" opacity="0.9" />
-      <rect x="50" y="192" width="80" height="10" rx="5" fill="#c9ccd0" opacity="0.95" />
-      <rect x="56" y="78" width="68" height="48" rx="18" fill="rgba(255,255,255,0.92)" />
-      <text x="90" y="97" fill={product.color} fontFamily="Arial, sans-serif" fontSize="11" fontWeight="700" textAnchor="middle">
-        {product.brand.toUpperCase()}
-      </text>
-      <text x="90" y="111" fill={product.accent} fontFamily="Arial, sans-serif" fontSize="10" fontWeight="700" textAnchor="middle">
-        {product.name.replace(product.brand, "").trim() || "Classic"}
-      </text>
-      <text x="90" y="170" fill="#ffffff" fontFamily="Arial, sans-serif" fontSize="18" fontWeight="700" textAnchor="middle">
-        {product.volumeLabel}
-      </text>
-    </svg>
+    <div className="flex h-[220px] items-center justify-center overflow-hidden rounded-[1.2rem] bg-white/65 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+      <img
+        alt={`${product.name} logo`}
+        className="h-full w-full object-contain"
+        src={product.imageUrl}
+      />
+    </div>
   );
 }
 

@@ -63,6 +63,7 @@ type ProductProfile = {
   touchpoints: number;
   shareOfVoice: number;
   notes: string;
+  imageUrl: string;
   isPreview: boolean;
 };
 
@@ -367,6 +368,7 @@ export async function getMonitoringDashboardData() {
       touchpoints: 28,
       shareOfVoice: 0.16,
       notes: "Flagship cola SKU with the highest media monitoring pressure.",
+      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/c/ce/Coca-Cola_logo.svg",
       isPreview: true,
     },
     {
@@ -382,6 +384,7 @@ export async function getMonitoringDashboardData() {
       touchpoints: 18,
       shareOfVoice: 0.11,
       notes: "Zero-sugar messaging monitored heavily in digital and urban OOH environments.",
+      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/c/ce/Coca-Cola_logo.svg",
       isPreview: true,
     },
     {
@@ -397,6 +400,7 @@ export async function getMonitoringDashboardData() {
       touchpoints: 14,
       shareOfVoice: 0.08,
       notes: "Seasonal refreshment SKU tracked against lemon-lime competitors.",
+      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/b/b9/Sprite_Logo.svg",
       isPreview: true,
     },
     {
@@ -412,6 +416,7 @@ export async function getMonitoringDashboardData() {
       touchpoints: 8,
       shareOfVoice: 0.04,
       notes: "Lightweight digital-only monitoring for zero-sugar lemon-lime demand.",
+      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/b/b9/Sprite_Logo.svg",
       isPreview: true,
     },
     {
@@ -427,6 +432,7 @@ export async function getMonitoringDashboardData() {
       touchpoints: 22,
       shareOfVoice: 0.13,
       notes: "Primary cola competitor SKU with strong music and sports association.",
+      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/5/58/Pepsi_2023_%28with_2014_wordmark%29.svg",
       isPreview: true,
     },
     {
@@ -442,6 +448,7 @@ export async function getMonitoringDashboardData() {
       touchpoints: 11,
       shareOfVoice: 0.06,
       notes: "Sugar-free competitor variant monitored in creator and digital-heavy flights.",
+      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/8/84/Pepsi_Zero_Sugar_2023.svg",
       isPreview: true,
     },
     {
@@ -457,6 +464,7 @@ export async function getMonitoringDashboardData() {
       touchpoints: 12,
       shareOfVoice: 0.07,
       notes: "Competitor heat-relief proposition monitored in TV and web banners.",
+      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/4/43/7Up_logo_%282024%29.svg",
       isPreview: true,
     },
     {
@@ -472,6 +480,7 @@ export async function getMonitoringDashboardData() {
       touchpoints: 6,
       shareOfVoice: 0.03,
       notes: "Low-volume but strategically important sugar-free competitor SKU.",
+      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/4/43/7Up_logo_%282024%29.svg",
       isPreview: true,
     },
     {
@@ -487,6 +496,7 @@ export async function getMonitoringDashboardData() {
       touchpoints: 10,
       shareOfVoice: 0.06,
       notes: "Flavor-led competitor SKU with occasional burst creativity.",
+      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/2/28/Mirinda_brand_logo.png",
       isPreview: true,
     },
     {
@@ -502,6 +512,7 @@ export async function getMonitoringDashboardData() {
       touchpoints: 5,
       shareOfVoice: 0.03,
       notes: "Smaller citrus extension monitored for regional digital bursts.",
+      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/2/28/Mirinda_brand_logo.png",
       isPreview: true,
     },
   ];
