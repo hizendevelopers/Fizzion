@@ -5,7 +5,7 @@ import { SocialAccountActions } from "@/components/social/social-account-actions
 import { SocialExportButton } from "@/components/social/social-export-button";
 import { SocialProfileAvatar } from "@/components/social/social-profile-avatar";
 import { SocialTrendChart } from "@/components/social/social-trend-chart";
-import { CategoryBarCard, RadialStatCard } from "@/components/states/insight-charts";
+import { CategoryBarCard, RadialStatCard, ShareOfVoiceCard } from "@/components/states/insight-charts";
 import { getSocialAccountDetail, listSocialContent } from "@/lib/social-data";
 import { formatNumber } from "@/lib/social-utils";
 
@@ -78,6 +78,19 @@ export default async function SocialAccountDetailPage({
   }));
   const topPostConfidenceTotal = Math.max(content.items.length, 1);
   const postsWithMetrics = content.items.filter((item) => item.engagements != null || item.views != null).length;
+  const contentTypeCounts = new Map<string, number>();
+  for (const item of content.items) {
+    const label = item.contentTypeLabel || "Other";
+    contentTypeCounts.set(label, (contentTypeCounts.get(label) ?? 0) + 1);
+  }
+  const contentTypeShareOfVoice = [...contentTypeCounts.entries()]
+    .map(([label, value]) => ({
+      label,
+      share: value / Math.max(content.items.length, 1),
+      valueLabel: `${value} post${value === 1 ? "" : "s"}`,
+      note: "Based on currently filtered content",
+    }))
+    .sort((left, right) => right.share - left.share);
 
   return (
     <div className="space-y-6">
@@ -364,6 +377,18 @@ export default async function SocialAccountDetailPage({
           formatter={formatNumber}
           emptyLabel="No account-level metric mix is available yet."
         />
+        <ShareOfVoiceCard
+          data={
+            contentTypeShareOfVoice.length > 0
+              ? contentTypeShareOfVoice
+              : [{ label: "No content", share: 0, valueLabel: "0 posts", note: "No filtered content available" }]
+          }
+          subtitle="Share of the current filtered content mix by content type"
+          title="Share Of Voice by Content Type"
+        />
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-1">
         <CategoryBarCard
           data={content.items.slice(0, 5).map((item) => ({
             label: item.title || item.contentTypeLabel,
@@ -507,7 +532,7 @@ export default async function SocialAccountDetailPage({
                   <div>
                     <p className="text-base font-semibold text-foreground">{item.title}</p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      {item.contentType} · {formatDisplayDate(item.publishedAt)}
+                      {item.contentTypeLabel} · {formatDisplayDate(item.publishedAt)}
                     </p>
                   </div>
                   <span className="rounded-full bg-white px-3 py-1 text-xs text-muted-foreground">

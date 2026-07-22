@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { AreaTrendCard, CategoryBarCard, RadialStatCard } from "@/components/states/insight-charts";
+import { AreaTrendCard, CategoryBarCard, RadialStatCard, ShareOfVoiceCard } from "@/components/states/insight-charts";
 import { WebAdScanButton } from "@/components/app/web-ad-scan-button";
 import { KpiCard } from "@/components/states/kpi-card";
 import {
@@ -77,6 +77,16 @@ export default async function WebAdvertisingPage(
     { label: "Confirmed", value: filteredAds.filter((ad) => normalizeReview(ad.reviewStatus) === "confirmed").length, color: "#22c55e" },
     { label: "Needs review", value: filteredAds.filter((ad) => normalizeReview(ad.reviewStatus) === "needs-review").length, color: "#f59e0b" },
   ];
+  const totalDetectedAds = Math.max(filteredWebsites.reduce((sum, website) => sum + website.adsDetected, 0), 1);
+  const shareOfVoiceByWebsite = filteredWebsites
+    .filter((website) => website.adsDetected > 0)
+    .map((website) => ({
+      label: website.name,
+      note: `${website.pagesMonitored} pages · ${website.scansCompleted} scans`,
+      share: website.adsDetected / totalDetectedAds,
+      valueLabel: `${website.adsDetected} ads`,
+    }))
+    .slice(0, 6);
 
   return (
     <div className="space-y-6">
@@ -292,10 +302,26 @@ export default async function WebAdvertisingPage(
           subtitle="Websites ranked by detected ad evidence"
           title="Website Coverage"
         />
+        <ShareOfVoiceCard
+          data={shareOfVoiceByWebsite}
+          subtitle="Each website's real share of the detected ad footprint in the current view"
+          title="Share Of Voice by Website"
+        />
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-2">
         <CategoryBarCard
           data={reviewMix}
           subtitle="How much of the current gallery is review-ready versus still pending review"
           title="Review Status Mix"
+        />
+        <RadialStatCard
+          color="#22c55e"
+          subtitle="Captured ads already above the confirmation threshold"
+          title="Confirmed Ad Ratio"
+          total={Math.max(filteredAds.length, 1)}
+          value={reviewMix[0].value}
+          valueLabel={`${Math.round((reviewMix[0].value / Math.max(filteredAds.length, 1)) * 100)}%`}
         />
       </section>
 

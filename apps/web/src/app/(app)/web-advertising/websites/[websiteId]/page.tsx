@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { WebAdScanButton } from "@/components/app/web-ad-scan-button";
-import { AreaTrendCard, CategoryBarCard, RadialStatCard } from "@/components/states/insight-charts";
+import { AreaTrendCard, CategoryBarCard, RadialStatCard, ShareOfVoiceCard } from "@/components/states/insight-charts";
 import { getWebAdvertisingWebsiteDetail } from "@/lib/web-ad-data";
 
 export default async function WebAdvertisingWebsiteDetailPage(
@@ -38,6 +38,15 @@ export default async function WebAdvertisingWebsiteDetailPage(
     { label: "Running", value: runningCount, color: "#06b6d4" },
     { label: "Failed", value: failedCount, color: "#ef4444" },
   ];
+  const totalWebsiteAds = Math.max(website.ads.length, 1);
+  const shareOfVoiceByPage = pageCoverage
+    .filter((page) => page.value > 0)
+    .map((page) => ({
+      label: page.label,
+      note: page.note,
+      share: page.value / totalWebsiteAds,
+      valueLabel: `${page.value} captures`,
+    }));
 
   return (
     <div className="space-y-6">
@@ -164,10 +173,26 @@ export default async function WebAdvertisingWebsiteDetailPage(
           subtitle="Where recent captures are appearing inside this monitoring scope"
           title="Page-Level Coverage"
         />
+        <ShareOfVoiceCard
+          data={shareOfVoiceByPage}
+          subtitle="Each monitored page's share of this website's captured ad evidence"
+          title="Share Of Voice by Page"
+        />
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-2">
         <CategoryBarCard
           data={runMix}
           subtitle="Operational mix of run outcomes for this website"
           title="Run Status Distribution"
+        />
+        <RadialStatCard
+          color="#06b6d4"
+          subtitle="This website's captured evidence that belongs to its busiest monitored page"
+          title="Top Page Concentration"
+          total={Math.max(totalWebsiteAds, 1)}
+          value={pageCoverage[0]?.value ?? 0}
+          valueLabel={`${Math.round(((pageCoverage[0]?.value ?? 0) / Math.max(totalWebsiteAds, 1)) * 100)}%`}
         />
       </section>
 

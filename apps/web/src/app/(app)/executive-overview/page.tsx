@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { AreaTrendCard, CategoryBarCard, RadialStatCard } from "@/components/states/insight-charts";
+import { AreaTrendCard, CategoryBarCard, RadialStatCard, ShareOfVoiceCard } from "@/components/states/insight-charts";
 import { KpiCard } from "@/components/states/kpi-card";
 import { getExecutiveOverview } from "@/lib/executive-data";
 
@@ -20,6 +20,15 @@ export default async function ExecutiveOverviewPage() {
   ];
   const totalSources = Math.max(overview.kpis.totalConnectedDataSources, 1);
   const healthySources = Math.max(totalSources - overview.dataHealth.staleSources, 0);
+  const totalTouchpoints = Math.max(
+    channelTouchpointData.reduce((sum, item) => sum + item.value, 0),
+    1,
+  );
+  const shareOfVoiceByChannel = channelTouchpointData.map((item) => ({
+    label: item.label,
+    note: item.note,
+    share: item.value / totalTouchpoints,
+  }));
 
   return (
     <div className="space-y-6">
@@ -88,10 +97,26 @@ export default async function ExecutiveOverviewPage() {
           subtitle="Touchpoint totals across each intelligence channel"
           title="Touchpoints by Channel"
         />
+        <ShareOfVoiceCard
+          data={shareOfVoiceByChannel}
+          subtitle="Each channel's share of the current total touchpoint footprint"
+          title="Share Of Voice by Channel"
+        />
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-2">
         <CategoryBarCard
           data={healthData}
           subtitle="Open operational issues that affect data quality and freshness"
           title="Data Health Breakdown"
+        />
+        <RadialStatCard
+          color="#06b6d4"
+          subtitle="Connected sources that are actively contributing to the current touchpoint picture"
+          title="Healthy Source Ratio"
+          total={totalSources}
+          value={healthySources}
+          valueLabel={`${Math.round((healthySources / totalSources) * 100)}%`}
         />
       </section>
 

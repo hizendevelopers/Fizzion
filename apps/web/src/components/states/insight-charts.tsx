@@ -10,6 +10,14 @@ type CategoryDatum = {
   note?: string;
 };
 
+type ShareOfVoiceDatum = {
+  label: string;
+  share: number;
+  note?: string;
+  color?: string;
+  valueLabel?: string;
+};
+
 function formatValue(value: number, formatter?: (value: number) => string) {
   return formatter ? formatter(value) : value.toLocaleString();
 }
@@ -220,6 +228,58 @@ export function RadialStatCard({
             <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">{value}/{total}</p>
           </div>
         </div>
+      </div>
+    </article>
+  );
+}
+
+export function ShareOfVoiceCard({
+  title,
+  subtitle,
+  data,
+  emptyLabel = "Not enough distribution data is available yet.",
+}: {
+  title: string;
+  subtitle?: string;
+  data: ShareOfVoiceDatum[];
+  emptyLabel?: string;
+}) {
+  const normalized = data
+    .filter((item) => item.share > 0)
+    .sort((left, right) => right.share - left.share);
+
+  return (
+    <article className="rounded-[1.8rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
+      <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+      <p className="mt-1 text-sm text-muted-foreground">{subtitle ?? "Real proportional distribution from current data"}</p>
+
+      <div className="mt-5 space-y-4">
+        {normalized.length > 0 ? (
+          normalized.map((item, index) => {
+            const width = `${Math.max(item.share * 100, 4)}%`;
+            const color = item.color ?? ["#F40009", "#d33a54", "#ff9d63", "#ffbf58", "#06b6d4", "#8b5cf6"][index % 6];
+            return (
+              <div key={`${title}-${item.label}`}>
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{item.label}</p>
+                    {item.note ? <p className="text-xs text-muted-foreground">{item.note}</p> : null}
+                  </div>
+                  <span className="text-sm font-semibold text-foreground">
+                    {item.valueLabel ?? `${(item.share * 100).toFixed(1)}%`}
+                  </span>
+                </div>
+                <div className="mt-2 h-3 overflow-hidden rounded-full bg-panel-soft">
+                  <div className="h-full rounded-full" style={{ width, background: color }} />
+                </div>
+              </div>
+            );
+          })
+        ) : (
+          <div className="rounded-[1.2rem] border border-dashed border-border px-4 py-5 text-sm text-muted-foreground">
+            {emptyLabel}
+          </div>
+        )}
       </div>
     </article>
   );

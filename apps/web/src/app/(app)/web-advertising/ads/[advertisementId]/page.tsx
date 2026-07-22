@@ -1,12 +1,17 @@
 import Link from "next/link";
 
-import { getWebAdvertisingAdDetail } from "@/lib/web-ad-data";
+import { ImageLightbox } from "@/components/states/image-lightbox";
+import { ShareOfVoiceCard } from "@/components/states/insight-charts";
+import { getWebAdvertisingAdDetail, listWebAdvertisingAds } from "@/lib/web-ad-data";
 
 export default async function WebAdvertisingAdDetailPage(
   { params }: { params: Promise<{ advertisementId: string }> },
 ) {
   const { advertisementId } = await params;
-  const ad = await getWebAdvertisingAdDetail(advertisementId);
+  const [ad, allAds] = await Promise.all([
+    getWebAdvertisingAdDetail(advertisementId),
+    listWebAdvertisingAds(),
+  ]);
 
   if (!ad) {
     return (
@@ -15,6 +20,23 @@ export default async function WebAdvertisingAdDetailPage(
       </div>
     );
   }
+
+  const adsByWebsite = new Map<string, { name: string; count: number }>();
+  for (const item of allAds) {
+    const existing = adsByWebsite.get(item.websiteId) ?? { name: item.websiteName, count: 0 };
+    existing.count += 1;
+    adsByWebsite.set(item.websiteId, existing);
+  }
+  const totalAds = Math.max(allAds.length, 1);
+  const shareOfVoiceByWebsite = [...adsByWebsite.entries()]
+    .map(([websiteId, item]) => ({
+      label: item.name,
+      note: websiteId === ad.websiteId ? "Current advertisement website" : "Other monitored website",
+      share: item.count / totalAds,
+      valueLabel: `${item.count} ads`,
+    }))
+    .sort((left, right) => right.share - left.share)
+    .slice(0, 6);
 
   return (
     <div className="space-y-6">
@@ -50,34 +72,36 @@ export default async function WebAdvertisingAdDetailPage(
         <article className="rounded-[1.8rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
           <h2 className="text-lg font-semibold text-foreground">Screenshot Evidence</h2>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <div className="overflow-hidden rounded-[1.3rem] border border-border bg-panel-soft">
-              {ad.screenshotUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  alt={`Cropped advertisement screenshot from ${ad.websiteName}`}
-                  className="h-full min-h-56 w-full object-cover"
-                  src={ad.screenshotUrl}
-                />
-              ) : (
-                <div className="px-4 py-8 text-center text-xs text-muted-foreground">
-                  Cropped advertisement screenshot not available
-                </div>
-              )}
+            <div className="overflow-hidden rounded-[1.3rem] border border-border bg-panel-soft p-3">
+              <ImageLightbox
+                alt={`Cropped advertisement screenshot from ${ad.websiteName}`}
+                src={ad.screenshotUrl}
+                title="Cropped advertisement evidence"
+              />
             </div>
-            <div className="overflow-hidden rounded-[1.3rem] border border-border bg-panel-soft">
-              {ad.evidenceUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  alt={`Full-page evidence screenshot from ${ad.websiteName}`}
-                  className="h-full min-h-56 w-full object-cover"
-                  src={ad.evidenceUrl}
-                />
-              ) : (
-                <div className="px-4 py-8 text-center text-xs text-muted-foreground">
-                  Full-page evidence screenshot not available
-                </div>
-              )}
+            <div className="overflow-hidden rounded-[1.3rem] border border-border bg-panel-soft p-3">
+              <ImageLightbox
+                alt={`Full-page evidence screenshot from ${ad.websiteName}`}
+                src={ad.evidenceUrl}
+                title="Full-page evidence screenshot"
+              />
             </div>
+          </div>
+        </article>
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-2">
+        <ShareOfVoiceCard
+          data={shareOfVoiceByWebsite}
+          subtitle="How this website compares with other monitored websites in captured ad volume"
+          title="Share Of Voice by Website"
+        />
+        <article className="rounded-[1.8rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
+          <h2 className="text-lg font-semibold text-foreground">Evidence Actions</h2>
+          <div className="mt-4 space-y-3">
+            <ActionLink href={ad.screenshotUrl} label="Open cropped ad image" />
+            <ActionLink href={ad.evidenceUrl} label="Open full-page evidence image" />
+            <ActionLink href={ad.pageUrl} label="Open source page" />
           </div>
         </article>
       </section>
@@ -91,5 +115,26 @@ function Row({ label, value }: { label: string; value: string }) {
       <span className="text-muted-foreground">{label}</span>
       <span className="max-w-[60%] text-right font-semibold text-foreground">{value}</span>
     </div>
+  );
+}
+
+function ActionLink({ href, label }: { href: string | null; label: string }) {
+  if (!href) {
+    return (
+      <div className="rounded-[1.2rem] border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+        {label} is not available for this record.
+      </div>
+    );
+  }
+
+  return (
+    <a
+      className="block rounded-[1.2rem] border border-border bg-panel-soft px-4 py-3 text-sm font-semibold text-foreground transition hover:border-brand-red/30 hover:text-brand-red"
+      href={href}
+      rel="noreferrer"
+      target="_blank"
+    >
+      {label}
+    </a>
   );
 }
