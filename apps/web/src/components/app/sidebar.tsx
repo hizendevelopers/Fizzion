@@ -63,9 +63,9 @@ export function Sidebar({ labels }: SidebarProps) {
   return (
     <aside className="hidden w-[17rem] shrink-0 bg-[linear-gradient(180deg,#210f12_0%,#2b1116_28%,#16090d_100%)] text-sidebar-foreground lg:flex">
       <div className="flex w-full flex-col gap-6 p-5">
-        <div className="rounded-[1.85rem] border border-[#ead8d0] bg-[linear-gradient(90deg,#fff8f3_0%,#f7ece4_52%,#fff7f1_100%)] p-4 shadow-[var(--shadow-card)]">
-          <div className="flex items-center justify-center rounded-[1.35rem] border border-white/70 bg-white/72 px-3 py-4 shadow-[var(--shadow-soft)]">
-            <FizZionLogo className="h-14 w-[11.25rem]" />
+        <div className="px-2 pt-1">
+          <div className="flex items-center justify-center">
+            <FizZionLogo className="h-14 w-[11.25rem] drop-shadow-[0_6px_22px_rgba(255,255,255,0.18)]" />
           </div>
         </div>
 
