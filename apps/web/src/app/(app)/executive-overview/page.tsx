@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { OohIcon, SocialIcon, WebIcon } from "@/components/app/ui-icons";
 import { AreaTrendCard, CategoryBarCard, RadialStatCard, ShareOfVoiceCard } from "@/components/states/insight-charts";
 import { KpiCard } from "@/components/states/kpi-card";
 import { getExecutiveOverview } from "@/lib/executive-data";
@@ -60,7 +61,12 @@ export default async function ExecutiveOverviewPage() {
         {overview.channelBreakdown.map((channel) => (
           <article className="rounded-[1.8rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]" key={channel.key}>
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-foreground">{channel.title}</h2>
+              <div className="flex items-center gap-3">
+                <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-border bg-[linear-gradient(135deg,#fff8f6_0%,#fff1ec_100%)] text-brand-red shadow-[var(--shadow-soft)]">
+                  <ChannelIcon channelKey={channel.key} />
+                </span>
+                <h2 className="text-lg font-semibold text-foreground">{channel.title}</h2>
+              </div>
               <span className="rounded-full bg-panel-soft px-3 py-1 text-xs text-muted-foreground">
                 {channel.freshness}
               </span>
@@ -206,6 +212,18 @@ export default async function ExecutiveOverviewPage() {
       </section>
     </div>
   );
+}
+
+function ChannelIcon({ channelKey }: { channelKey: string }) {
+  if (channelKey === "ooh") {
+    return <OohIcon className="h-5 w-5" />;
+  }
+
+  if (channelKey === "social") {
+    return <SocialIcon className="h-5 w-5" />;
+  }
+
+  return <WebIcon className="h-5 w-5" />;
 }
 
 function buildRecentActivityTrend(items: Array<{ createdAt: string }>) {
