@@ -152,12 +152,6 @@ a {
   50% { box-shadow: 0 0 0 8px rgba(244,0,9,0.06); }
 }
 
-@keyframes shimmer-slide {
-  0% { transform: translateX(-130%); opacity: 0; }
-  25% { opacity: 1; }
-  100% { transform: translateX(130%); opacity: 0; }
-}
-
 .surface-premium {
   position: relative;
   overflow: hidden;
@@ -167,17 +161,6 @@ a {
     radial-gradient(circle at top right, rgba(57,187,31,0.08), transparent 24%),
     linear-gradient(180deg, rgba(255,255,255,0.92), rgba(255,249,245,0.94));
   box-shadow: var(--shadow-card);
-}
-
-.surface-premium::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(115deg, transparent 0%, rgba(255,255,255,0.54) 48%, transparent 100%);
-  opacity: 0.5;
-  transform: translateX(-120%);
-  animation: shimmer-slide 7.2s ease-in-out infinite;
-  pointer-events: none;
 }
 
 .elevated-chip {
