@@ -50,6 +50,22 @@ type ReportProfile = {
   highlights: string[];
 };
 
+type ProductProfile = {
+  id: string;
+  brand: string;
+  name: string;
+  category: string;
+  format: "bottle" | "can";
+  color: string;
+  accent: string;
+  volumeLabel: string;
+  channels: string[];
+  touchpoints: number;
+  shareOfVoice: number;
+  notes: string;
+  isPreview: boolean;
+};
+
 function rowString(row: GenericRow, key: string, fallback = "") {
   const value = row[key];
   return typeof value === "string" ? value : fallback;
@@ -337,6 +353,158 @@ export async function getMonitoringDashboardData() {
   const competitorBrands = brandProfiles.filter((brand) => brand.group === "competitor");
   const portfolioBrands = brandProfiles.filter((brand) => brand.group === "portfolio");
   const totalBrandTouchpoints = Math.max(sum(brandProfiles.map((brand) => brand.touchpoints)), 1);
+  const productCatalog: ProductProfile[] = [
+    {
+      id: "product-coke-original",
+      brand: "Coca-Cola",
+      name: "Coca-Cola Original Taste",
+      category: "Cola",
+      format: "bottle",
+      color: "#F40009",
+      accent: "#4C070B",
+      volumeLabel: "500 ml",
+      channels: ["TV", "Social", "Web", "OOH"],
+      touchpoints: 28,
+      shareOfVoice: 0.16,
+      notes: "Flagship cola SKU with the highest media monitoring pressure.",
+      isPreview: true,
+    },
+    {
+      id: "product-coke-zero",
+      brand: "Coca-Cola",
+      name: "Coca-Cola Zero Sugar",
+      category: "Cola",
+      format: "can",
+      color: "#161616",
+      accent: "#F40009",
+      volumeLabel: "330 ml",
+      channels: ["Social", "Web", "OOH"],
+      touchpoints: 18,
+      shareOfVoice: 0.11,
+      notes: "Zero-sugar messaging monitored heavily in digital and urban OOH environments.",
+      isPreview: true,
+    },
+    {
+      id: "product-sprite-original",
+      brand: "Sprite",
+      name: "Sprite Lemon-Lime",
+      category: "Lemon-Lime",
+      format: "bottle",
+      color: "#18A957",
+      accent: "#0B5D2E",
+      volumeLabel: "500 ml",
+      channels: ["TV", "Social", "Web"],
+      touchpoints: 14,
+      shareOfVoice: 0.08,
+      notes: "Seasonal refreshment SKU tracked against lemon-lime competitors.",
+      isPreview: true,
+    },
+    {
+      id: "product-sprite-zero",
+      brand: "Sprite",
+      name: "Sprite Zero Sugar",
+      category: "Lemon-Lime",
+      format: "can",
+      color: "#11A54B",
+      accent: "#D8FFE6",
+      volumeLabel: "330 ml",
+      channels: ["Social", "Web"],
+      touchpoints: 8,
+      shareOfVoice: 0.04,
+      notes: "Lightweight digital-only monitoring for zero-sugar lemon-lime demand.",
+      isPreview: true,
+    },
+    {
+      id: "product-pepsi-original",
+      brand: "Pepsi",
+      name: "Pepsi Cola",
+      category: "Cola",
+      format: "bottle",
+      color: "#005CB9",
+      accent: "#C8142F",
+      volumeLabel: "500 ml",
+      channels: ["TV", "Social", "Web"],
+      touchpoints: 22,
+      shareOfVoice: 0.13,
+      notes: "Primary cola competitor SKU with strong music and sports association.",
+      isPreview: true,
+    },
+    {
+      id: "product-pepsi-black",
+      brand: "Pepsi",
+      name: "Pepsi Black",
+      category: "Cola",
+      format: "can",
+      color: "#101820",
+      accent: "#005CB9",
+      volumeLabel: "330 ml",
+      channels: ["Social", "Web"],
+      touchpoints: 11,
+      shareOfVoice: 0.06,
+      notes: "Sugar-free competitor variant monitored in creator and digital-heavy flights.",
+      isPreview: true,
+    },
+    {
+      id: "product-7up-original",
+      brand: "7UP",
+      name: "7UP Regular",
+      category: "Lemon-Lime",
+      format: "bottle",
+      color: "#1DB954",
+      accent: "#ED1C24",
+      volumeLabel: "500 ml",
+      channels: ["TV", "Web"],
+      touchpoints: 12,
+      shareOfVoice: 0.07,
+      notes: "Competitor heat-relief proposition monitored in TV and web banners.",
+      isPreview: true,
+    },
+    {
+      id: "product-7up-free",
+      brand: "7UP",
+      name: "7UP Free",
+      category: "Lemon-Lime",
+      format: "can",
+      color: "#1FAF4B",
+      accent: "#FFFFFF",
+      volumeLabel: "330 ml",
+      channels: ["Web", "Social"],
+      touchpoints: 6,
+      shareOfVoice: 0.03,
+      notes: "Low-volume but strategically important sugar-free competitor SKU.",
+      isPreview: true,
+    },
+    {
+      id: "product-mirinda-orange",
+      brand: "Mirinda",
+      name: "Mirinda Orange",
+      category: "Orange Soda",
+      format: "bottle",
+      color: "#FF8A00",
+      accent: "#A24500",
+      volumeLabel: "500 ml",
+      channels: ["TV", "Social"],
+      touchpoints: 10,
+      shareOfVoice: 0.06,
+      notes: "Flavor-led competitor SKU with occasional burst creativity.",
+      isPreview: true,
+    },
+    {
+      id: "product-mirinda-citrus",
+      brand: "Mirinda",
+      name: "Mirinda Citrus",
+      category: "Orange Soda",
+      format: "can",
+      color: "#FFA126",
+      accent: "#0E8B57",
+      volumeLabel: "330 ml",
+      channels: ["Social", "Web"],
+      touchpoints: 5,
+      shareOfVoice: 0.03,
+      notes: "Smaller citrus extension monitored for regional digital bursts.",
+      isPreview: true,
+    },
+  ];
   const labels14 = Array.from({ length: 14 }, (_, index) => {
     const date = new Date();
     date.setDate(date.getDate() - (13 - index));
@@ -395,5 +563,6 @@ export async function getMonitoringDashboardData() {
     },
     portfolioBrands,
     competitorBrands,
+    products: productCatalog,
   };
 }
