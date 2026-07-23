@@ -2,7 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { unstable_noStore as noStore } from "next/cache";
 
+import { AreaTrendCard } from "@/components/states/insight-charts";
 import { StatusBadge } from "@/components/tv/status-badge";
+import { YouTubeLiveEmbed } from "@/components/tv/youtube-live-embed";
 import { getConnectedYouTubeTvChannel } from "@/lib/youtube-tv-data";
 
 function formatCompactNumber(value: number | null | undefined) {
@@ -32,6 +34,24 @@ function formatDate(value: string | null | undefined) {
   });
 }
 
+function buildUploadTrend(feed: Array<{ publishedAt: string | null }>) {
+  const grouped = new Map<string, number>();
+
+  for (const video of feed) {
+    if (!video.publishedAt) continue;
+    const key = video.publishedAt.slice(0, 10);
+    grouped.set(key, (grouped.get(key) ?? 0) + 1);
+  }
+
+  return [...grouped.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .slice(-7)
+    .map(([label, value]) => ({
+      label: new Date(label).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      value,
+    }));
+}
+
 export default async function TvChannelDetailPage({
   params,
 }: {
@@ -47,6 +67,11 @@ export default async function TvChannelDetailPage({
   }
 
   const liveVideo = channel.feed.find((video) => video.liveStatus === "live") ?? null;
+  const lastUpload = channel.feed.find((video) => video.liveStatus === "recorded") ?? channel.feed[0] ?? null;
+  const liveCount = channel.feed.filter((video) => video.liveStatus === "live").length;
+  const upcomingCount = channel.feed.filter((video) => video.liveStatus === "upcoming").length;
+  const recordedCount = channel.feed.filter((video) => video.liveStatus === "recorded").length;
+  const uploadTrend = buildUploadTrend(channel.feed);
 
   return (
     <div className="space-y-6">
@@ -121,12 +146,8 @@ export default async function TvChannelDetailPage({
             </a>
           </div>
 
-          <div className="mt-5 overflow-hidden rounded-[1.4rem] border border-white/10 bg-black/15">
-            {liveVideo.thumbnailUrl ? (
-              <img src={liveVideo.thumbnailUrl} alt={liveVideo.title} className="h-[22rem] w-full object-cover" />
-            ) : (
-              <div className="flex h-[22rem] items-center justify-center text-sm text-white/70">No live thumbnail available</div>
-            )}
+          <div className="mt-5">
+            <YouTubeLiveEmbed embedUrl={liveVideo.embedUrl} title={liveVideo.title} />
           </div>
         </section>
       ) : null}
@@ -142,6 +163,39 @@ export default async function TvChannelDetailPage({
           <Link href="/tv/channels" className="text-sm font-semibold text-brand-red">
             Back to TV channels
           </Link>
+        </div>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-3">
+          <MetricCard label="Current live feeds" value={String(liveCount)} />
+          <MetricCard label="Upcoming streams" value={String(upcomingCount)} />
+          <MetricCard label="Recent uploads" value={String(recordedCount)} />
+        </div>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <div className="rounded-[1.4rem] border border-border bg-panel-soft px-4 py-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Last live detected</p>
+            <p className="mt-3 text-base font-semibold text-foreground">
+              {liveVideo?.title ?? "No active live stream at the moment"}
+            </p>
+          </div>
+          <div className="rounded-[1.4rem] border border-border bg-panel-soft px-4 py-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Last uploaded video</p>
+            <p className="mt-3 text-base font-semibold text-foreground">
+              {lastUpload?.title ?? "No recent uploaded video"}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-5">
+          <AreaTrendCard
+            title="Upload activity trend"
+            subtitle="Recent publishing volume from the connected channel feed"
+            data={uploadTrend}
+            color="#F40009"
+            fill="rgba(244,0,9,0.12)"
+            formatter={(value) => `${value}`}
+            emptyLabel="No recent upload trend points are available for this channel yet."
+          />
         </div>
 
         <div className="mt-5 grid gap-4">

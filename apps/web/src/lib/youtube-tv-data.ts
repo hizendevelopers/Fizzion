@@ -17,6 +17,7 @@ export type YouTubeChannelSearchResult = {
 
 export type YouTubeVideoSummary = {
   id: string;
+  videoId: string;
   title: string;
   description: string | null;
   thumbnailUrl: string | null;
@@ -25,6 +26,7 @@ export type YouTubeVideoSummary = {
   durationLabel: string | null;
   viewCount: number | null;
   url: string;
+  embedUrl: string;
 };
 
 export type ConnectedYouTubeTvChannel = YouTubeChannelSearchResult & {
@@ -243,6 +245,7 @@ async function getChannelFeed(channelId: string) {
 
     return {
       id: videoId,
+      videoId,
       title: rowString(detailSnippet, "title", rowString(snippet, "title", "Untitled video")),
       description: rowNullableString(detailSnippet, "description"),
       thumbnailUrl: rowNullableString(highThumb, "url"),
@@ -251,6 +254,7 @@ async function getChannelFeed(channelId: string) {
       durationLabel: formatIsoDuration(rowNullableString(contentDetails, "duration")),
       viewCount: rowNullableNumber(stats, "viewCount"),
       url: `https://www.youtube.com/watch?v=${videoId}`,
+      embedUrl: `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&playsinline=1`,
     } satisfies YouTubeVideoSummary;
   });
 }

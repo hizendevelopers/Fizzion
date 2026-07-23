@@ -4,6 +4,8 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 
+import { AreaTrendCard } from "@/components/states/insight-charts";
+import { YouTubeLiveEmbed } from "@/components/tv/youtube-live-embed";
 import type { ConnectedYouTubeTvChannel, YouTubeChannelSearchResult } from "@/lib/youtube-tv-data";
 
 type YouTubeTvMonitorProps = {
@@ -43,6 +45,24 @@ function feedBadgeClass(status: "live" | "upcoming" | "recorded") {
   return "bg-panel-soft text-foreground";
 }
 
+function buildUploadTrend(feed: ConnectedYouTubeTvChannel["feed"]) {
+  const grouped = new Map<string, number>();
+
+  for (const video of feed) {
+    if (!video.publishedAt) continue;
+    const key = video.publishedAt.slice(0, 10);
+    grouped.set(key, (grouped.get(key) ?? 0) + 1);
+  }
+
+  return [...grouped.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .slice(-7)
+    .map(([label, value]) => ({
+      label: new Date(label).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      value,
+    }));
+}
+
 export function YouTubeTvMonitor({ initialChannels }: YouTubeTvMonitorProps) {
   const [search, setSearch] = useState("");
   const [searchBusy, setSearchBusy] = useState(false);
@@ -63,6 +83,18 @@ export function YouTubeTvMonitor({ initialChannels }: YouTubeTvMonitorProps) {
           liveVideo: channel.feed.find((video) => video.liveStatus === "live") ?? null,
         }))
         .filter((entry) => entry.liveVideo),
+    [channels],
+  );
+  const channelTrendData = useMemo(
+    () =>
+      channels.map((channel) => ({
+        channel,
+        liveCount: channel.feed.filter((video) => video.liveStatus === "live").length,
+        upcomingCount: channel.feed.filter((video) => video.liveStatus === "upcoming").length,
+        recordedCount: channel.feed.filter((video) => video.liveStatus === "recorded").length,
+        lastUpload: channel.feed.find((video) => video.liveStatus === "recorded") ?? channel.feed[0] ?? null,
+        uploadTrend: buildUploadTrend(channel.feed),
+      })),
     [channels],
   );
 
@@ -239,20 +271,11 @@ export function YouTubeTvMonitor({ initialChannels }: YouTubeTvMonitorProps) {
             <div className="mt-5 grid gap-4 xl:grid-cols-2">
               {pinnedLiveEntries.map(({ channel, liveVideo }) =>
                 liveVideo ? (
-                  <a
+                  <div
                     key={`${channel.id}-${liveVideo.id}`}
-                    href={liveVideo.url}
-                    target="_blank"
-                    rel="noreferrer"
                     className="grid gap-4 rounded-[1.5rem] border border-white/10 bg-white/8 p-4 md:grid-cols-[220px_1fr]"
                   >
-                    <div className="overflow-hidden rounded-[1.2rem] border border-white/10 bg-black/20">
-                      {liveVideo.thumbnailUrl ? (
-                        <img src={liveVideo.thumbnailUrl} alt={liveVideo.title} className="h-full w-full object-cover" />
-                      ) : (
-                        <div className="flex h-full min-h-32 items-center justify-center text-sm text-white/70">No thumbnail</div>
-                      )}
-                    </div>
+                    <YouTubeLiveEmbed embedUrl={liveVideo.embedUrl} title={liveVideo.title} />
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="rounded-full bg-brand-red px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-white">
@@ -264,8 +287,24 @@ export function YouTubeTvMonitor({ initialChannels }: YouTubeTvMonitorProps) {
                       <p className="mt-2 line-clamp-3 text-sm text-white/72">
                         {liveVideo.description || "No live-stream description returned by YouTube."}
                       </p>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <Link
+                          href={`/tv/channels/${channel.id}`}
+                          className="rounded-full bg-white/12 px-4 py-2 text-sm font-semibold text-white"
+                        >
+                          Open channel detail
+                        </Link>
+                        <a
+                          href={liveVideo.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-full border border-white/14 bg-transparent px-4 py-2 text-sm font-semibold text-white/88"
+                        >
+                          Open on YouTube
+                        </a>
+                      </div>
                     </div>
-                  </a>
+                  </div>
                 ) : null,
               )}
             </div>
@@ -352,7 +391,7 @@ export function YouTubeTvMonitor({ initialChannels }: YouTubeTvMonitorProps) {
         </div>
 
         <div className="grid gap-4 xl:grid-cols-2">
-          {channels.map((channel) => (
+          {channelTrendData.map(({ channel, liveCount, upcomingCount, recordedCount, lastUpload, uploadTrend }) => (
             <article key={channel.id} className="rounded-[1.6rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
               <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <div className="flex gap-4">
@@ -377,6 +416,9 @@ export function YouTubeTvMonitor({ initialChannels }: YouTubeTvMonitorProps) {
                       <span className="rounded-full bg-panel-soft px-3 py-1.5">Subscribers {formatCompactNumber(channel.subscriberCount)}</span>
                       <span className="rounded-full bg-panel-soft px-3 py-1.5">Videos {formatCompactNumber(channel.videoCount)}</span>
                       <span className="rounded-full bg-panel-soft px-3 py-1.5">Views {formatCompactNumber(channel.viewCount)}</span>
+                      <span className="rounded-full bg-panel-soft px-3 py-1.5">Live now {liveCount}</span>
+                      <span className="rounded-full bg-panel-soft px-3 py-1.5">Upcoming {upcomingCount}</span>
+                      <span className="rounded-full bg-panel-soft px-3 py-1.5">Recent recorded {recordedCount}</span>
                     </div>
                   </div>
                 </div>
@@ -416,6 +458,29 @@ export function YouTubeTvMonitor({ initialChannels }: YouTubeTvMonitorProps) {
               </div>
 
               <div className="mt-5 grid gap-3">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="rounded-[1.3rem] border border-border bg-panel-soft px-4 py-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Last live detected</p>
+                    <p className="mt-3 text-sm font-semibold text-foreground">
+                      {channel.feed.find((video) => video.liveStatus === "live")?.title ?? "No active live stream"}
+                    </p>
+                  </div>
+                  <div className="rounded-[1.3rem] border border-border bg-panel-soft px-4 py-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Last uploaded video</p>
+                    <p className="mt-3 text-sm font-semibold text-foreground">
+                      {lastUpload?.title ?? "No recent uploaded video"}
+                    </p>
+                  </div>
+                </div>
+                <AreaTrendCard
+                  title="Upload activity trend"
+                  subtitle="Recent content publishing volume from the connected YouTube feed"
+                  data={uploadTrend}
+                  color="#F40009"
+                  fill="rgba(244,0,9,0.12)"
+                  formatter={(value) => `${value}`}
+                  emptyLabel="No recent upload trend points are available for this channel yet."
+                />
                 {channel.feed.length === 0 ? (
                   <div className="rounded-[1.4rem] border border-dashed border-border bg-panel-soft px-4 py-8 text-center text-sm text-muted-foreground">
                     No live stream or recent uploads were returned yet for this channel.
