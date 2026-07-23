@@ -143,3 +143,15 @@ export function getApifyApiToken(): string {
   }
   return value;
 }
+
+export function getOptionalYouTubeApiKey() {
+  return getEnvValue(["YOUTUBE_API_KEY", "GOOGLE_API_KEY"]);
+}
+
+export function getYouTubeApiKey(): string {
+  const value = getOptionalYouTubeApiKey();
+  if (!value) {
+    throw new Error("YOUTUBE_API_KEY is not configured. Add it to your .env.local file.");
+  }
+  return value;
+}

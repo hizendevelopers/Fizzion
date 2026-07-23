@@ -60,8 +60,9 @@ export function OohInventoryClient({
               </span>
               <h1 className="mt-4 text-3xl font-semibold tracking-tight text-foreground">OOH Intelligence</h1>
               <p className="mt-3 text-sm leading-7 text-muted-foreground">
-                Explore, compare, and manage outdoor media inventory across Karachi and Baghdad with synchronized
-                mapping, campaign context, commercial rates, and estimated audience signals.
+                Build your real outdoor inventory here, upload site images yourself, separate billboard and digital
+                screen assets cleanly, and manage commercial rates, dates, campaign budgets, and map coverage in one
+                workflow.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -69,10 +70,16 @@ export function OohInventoryClient({
                 Last updated {lastUpdatedLabel}
               </div>
               <Link
-                href="/ooh-intelligence/assets/new"
+                href="/ooh-intelligence/assets/new?mediaType=BILLBOARD"
                 className="rounded-full bg-brand-red px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-soft)] transition hover:bg-brand-red-deep"
               >
-                Add Location
+                Add Billboard
+              </Link>
+              <Link
+                href="/ooh-intelligence/assets/new?mediaType=DIGITAL_SCREEN"
+                className="rounded-full border border-border bg-white px-5 py-3 text-sm font-semibold text-foreground shadow-[var(--shadow-soft)] transition hover:border-brand-red/35"
+              >
+                Add Digital Screen
               </Link>
             </div>
           </div>
@@ -82,7 +89,7 @@ export function OohInventoryClient({
             <KpiCard label="Active Campaigns" value={String(analytics.activeCampaigns)} note="Current placements in filtered scope" />
             <KpiCard label="Billboards" value={String(analytics.totalBillboards)} note="Static inventory count" tone="brand" />
             <KpiCard label="Digital Screens" value={String(analytics.totalDigitalScreens)} note="LED and digital-screen count" tone="info" />
-            <KpiCard label="Daily Impressions" value={formatCompactNumber(analytics.estimatedDailyImpressions)} note="Estimated demo impressions" />
+            <KpiCard label="Daily Impressions" value={formatCompactNumber(analytics.estimatedDailyImpressions)} note="Estimated from uploaded asset audience records" />
             <KpiCard label="Average Daily Rate" value={formatCurrency(analytics.averageDailyRate, query.city === "Baghdad" ? "IQD" : "PKR")} note="Computed from filtered placements" />
           </div>
 
@@ -187,7 +194,16 @@ export function OohInventoryClient({
                 <div className="max-h-[540px] space-y-3 overflow-y-auto p-4">
                   {assets.length === 0 ? (
                     <div className="rounded-3xl border border-dashed border-border bg-panel-soft px-5 py-10 text-center text-sm text-muted-foreground">
-                      No OOH assets matched the current filters. Adjust city, area, or media type and try again.
+                      No OOH assets matched the current filters yet. Start by adding a billboard or digital screen,
+                      then upload the picture, rates, and dates to see them here.
+                      <div className="mt-4 flex flex-wrap justify-center gap-2">
+                        <Link href="/ooh-intelligence/assets/new?mediaType=BILLBOARD" className="rounded-full bg-brand-red px-4 py-2 text-xs font-semibold text-white">
+                          Add Billboard
+                        </Link>
+                        <Link href="/ooh-intelligence/assets/new?mediaType=DIGITAL_SCREEN" className="rounded-full border border-border bg-white px-4 py-2 text-xs font-semibold text-foreground">
+                          Add Digital Screen
+                        </Link>
+                      </div>
                     </div>
                   ) : null}
                   {assets.map((asset) => (

@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import type { OohAreaItem, OohAssetDetail, OohBrandItem } from "@/lib/ooh/ooh-data";
@@ -13,16 +13,17 @@ type OohAssetFormProps = {
   areas: OohAreaItem[];
   brands: OohBrandItem[];
   initialAsset?: OohAssetDetail | null;
+  initialMediaType?: "BILLBOARD" | "DIGITAL_SCREEN";
 };
 
-function buildDefaultFormValue(asset?: OohAssetDetail | null): OohAssetCreateInput {
+function buildDefaultFormValue(asset?: OohAssetDetail | null, initialMediaType?: "BILLBOARD" | "DIGITAL_SCREEN"): OohAssetCreateInput {
   const currentPlacement = asset?.placements.find((placement) => placement.status === "CURRENT") ?? asset?.placements[0];
   const currentImageCreative = asset?.images.find((image) => image.imageType === "CREATIVE");
   const currentImageProof = asset?.images.find((image) => image.imageType === "PROOF_OF_PLAY");
 
   return {
     assetCode: asset?.assetCode ?? "",
-    mediaType: (asset?.mediaType as "BILLBOARD" | "DIGITAL_SCREEN" | undefined) ?? "BILLBOARD",
+    mediaType: (asset?.mediaType as "BILLBOARD" | "DIGITAL_SCREEN" | undefined) ?? initialMediaType ?? "BILLBOARD",
     status:
       (asset?.status as "ACTIVE" | "AVAILABLE" | "RESERVED" | "MAINTENANCE" | "NEEDS_COORDINATES" | "INACTIVE" | undefined) ??
       "ACTIVE",
@@ -95,9 +96,33 @@ function buildDefaultFormValue(asset?: OohAssetDetail | null): OohAssetCreateInp
   };
 }
 
-export function OohAssetForm({ mode, areas, brands, initialAsset }: OohAssetFormProps) {
+function differenceInCampaignDays(start: string | null | undefined, end: string | null | undefined) {
+  if (!start || !end) return null;
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    return null;
+  }
+
+  const diff = endDate.getTime() - startDate.getTime();
+  if (diff < 0) {
+    return null;
+  }
+
+  return Math.floor(diff / 86_400_000) + 1;
+}
+
+function formatMoney(value: number | null | undefined, currency: string | null | undefined) {
+  if (value === null || value === undefined) {
+    return "Not available";
+  }
+
+  return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value)} ${currency ?? ""}`.trim();
+}
+
+export function OohAssetForm({ mode, areas, brands, initialAsset, initialMediaType }: OohAssetFormProps) {
   const router = useRouter();
-  const [form, setForm] = useState<OohAssetCreateInput>(() => buildDefaultFormValue(initialAsset));
+  const [form, setForm] = useState<OohAssetCreateInput>(() => buildDefaultFormValue(initialAsset, initialMediaType));
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
@@ -105,6 +130,34 @@ export function OohAssetForm({ mode, areas, brands, initialAsset }: OohAssetForm
     () => areas.filter((area) => area.city === form.city || form.city.length === 0),
     [areas, form.city],
   );
+  const campaignDays = useMemo(
+    () => differenceInCampaignDays(form.installedAt, form.removedAt),
+    [form.installedAt, form.removedAt],
+  );
+  const campaignBudget = useMemo(() => {
+    if (form.dailyCost === null || form.dailyCost === undefined || campaignDays === null) {
+      return null;
+    }
+
+    return form.dailyCost * campaignDays;
+  }, [campaignDays, form.dailyCost]);
+
+  useEffect(() => {
+    setForm((current) => {
+      const nextWeekly = current.dailyCost === null || current.dailyCost === undefined ? null : current.dailyCost * 7;
+      const nextMonthly = current.dailyCost === null || current.dailyCost === undefined ? null : current.dailyCost * 30;
+
+      if (current.weeklyCost === nextWeekly && current.monthlyCost === nextMonthly) {
+        return current;
+      }
+
+      return {
+        ...current,
+        weeklyCost: nextWeekly,
+        monthlyCost: nextMonthly,
+      };
+    });
+  }, [form.dailyCost]);
 
   function updateField<Key extends keyof OohAssetCreateInput>(key: Key, value: OohAssetCreateInput[Key]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -182,8 +235,8 @@ export function OohAssetForm({ mode, areas, brands, initialAsset }: OohAssetForm
                 {mode === "create" ? "Add OOH Location" : `Edit ${initialAsset?.assetCode ?? "OOH Asset"}`}
               </h1>
               <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground">
-                Create or update the physical asset, current placement, commercial data, and audience estimates in one
-                transaction-ready workflow.
+                Create or update a billboard or digital screen, upload the proof images yourself, and let the platform
+                auto-calculate weekly, monthly, and full campaign budget values from your per-day commercial rate.
               </p>
             </div>
           </div>
@@ -306,16 +359,14 @@ export function OohAssetForm({ mode, areas, brands, initialAsset }: OohAssetForm
               <TextField label="Brand logo URL" value={form.brandLogoUrl ?? ""} onChange={(value) => updateField("brandLogoUrl", value || null)} />
               <TextField label="Campaign name" value={form.campaignName ?? ""} onChange={(value) => updateField("campaignName", value || null)} />
               <TextField label="Campaign slogan" value={form.campaignSlogan ?? ""} onChange={(value) => updateField("campaignSlogan", value || null)} className="md:col-span-2" />
-              <TextField label="Installed at" value={form.installedAt ?? ""} onChange={(value) => updateField("installedAt", value || null)} placeholder="YYYY-MM-DD" />
-              <TextField label="Removed at" value={form.removedAt ?? ""} onChange={(value) => updateField("removedAt", value || null)} placeholder="YYYY-MM-DD" />
             </div>
           </FormSection>
 
           <FormSection title="Commercial and availability">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <NumberField label="Daily cost" value={form.dailyCost} onChange={(value) => updateField("dailyCost", value)} />
-              <NumberField label="Weekly cost" value={form.weeklyCost} onChange={(value) => updateField("weeklyCost", value)} />
-              <NumberField label="Monthly cost" value={form.monthlyCost} onChange={(value) => updateField("monthlyCost", value)} />
+              <NumberField label="Weekly cost" value={form.weeklyCost} onChange={(value) => updateField("weeklyCost", value)} readOnly />
+              <NumberField label="Monthly cost" value={form.monthlyCost} onChange={(value) => updateField("monthlyCost", value)} readOnly />
               <TextField label="Currency" value={form.currency ?? ""} onChange={(value) => updateField("currency", value || null)} />
               <SelectField
                 label="Placement status"
@@ -323,8 +374,8 @@ export function OohAssetForm({ mode, areas, brands, initialAsset }: OohAssetForm
                 options={["CURRENT", "SCHEDULED", "COMPLETED"].map((value) => ({ label: value, value }))}
                 onChange={(value) => updateField("placementStatus", value as OohAssetCreateInput["placementStatus"])}
               />
-              <TextField label="Availability start" value={form.availabilityStartDate ?? ""} onChange={(value) => updateField("availabilityStartDate", value || null)} placeholder="YYYY-MM-DD" />
-              <TextField label="Availability end" value={form.availabilityEndDate ?? ""} onChange={(value) => updateField("availabilityEndDate", value || null)} placeholder="YYYY-MM-DD" />
+              <TextField label="Start date" value={form.installedAt ?? ""} onChange={(value) => updateField("installedAt", value || null)} placeholder="YYYY-MM-DD" />
+              <TextField label="End date" value={form.removedAt ?? ""} onChange={(value) => updateField("removedAt", value || null)} placeholder="YYYY-MM-DD" />
               <SelectField
                 label="Availability status"
                 value={form.availabilityStatus}
@@ -335,6 +386,17 @@ export function OohAssetForm({ mode, areas, brands, initialAsset }: OohAssetForm
               <TextField label="Contact name" value={form.contactName ?? ""} onChange={(value) => updateField("contactName", value || null)} />
               <TextField label="Contact phone" value={form.contactPhone ?? ""} onChange={(value) => updateField("contactPhone", value || null)} />
               <TextField label="Availability notes" value={form.availabilityNotes ?? ""} onChange={(value) => updateField("availabilityNotes", value || null)} className="md:col-span-2" />
+              <TextField label="Availability start" value={form.availabilityStartDate ?? ""} onChange={(value) => updateField("availabilityStartDate", value || null)} placeholder="YYYY-MM-DD" />
+              <TextField label="Availability end" value={form.availabilityEndDate ?? ""} onChange={(value) => updateField("availabilityEndDate", value || null)} placeholder="YYYY-MM-DD" />
+            </div>
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
+              <SummaryCard label="7-day commercial value" value={formatMoney(form.weeklyCost, form.currency)} note="Auto-calculated from per-day cost × 7" />
+              <SummaryCard label="30-day commercial value" value={formatMoney(form.monthlyCost, form.currency)} note="Auto-calculated from per-day cost × 30" />
+              <SummaryCard
+                label="Campaign budget"
+                value={formatMoney(campaignBudget, form.currency)}
+                note={campaignDays === null ? "Add a valid start and end date to calculate total budget." : `${campaignDays} campaign day${campaignDays === 1 ? "" : "s"} × per-day cost`}
+              />
             </div>
           </FormSection>
 
@@ -481,10 +543,12 @@ function NumberField({
   label,
   value,
   onChange,
+  readOnly = false,
 }: {
   label: string;
   value: number | null | undefined;
   onChange: (value: number | null) => void;
+  readOnly?: boolean;
 }) {
   return (
     <label className="grid gap-2 text-sm">
@@ -492,10 +556,21 @@ function NumberField({
       <input
         type="number"
         value={value ?? ""}
+        readOnly={readOnly}
         onChange={(event) => onChange(event.target.value === "" ? null : Number(event.target.value))}
-        className="rounded-2xl border border-border bg-panel-soft px-4 py-3 text-sm"
+        className={`rounded-2xl border border-border bg-panel-soft px-4 py-3 text-sm ${readOnly ? "cursor-not-allowed opacity-80" : ""}`}
       />
     </label>
+  );
+}
+
+function SummaryCard({ label, value, note }: { label: string; value: string; note: string }) {
+  return (
+    <div className="rounded-[1.3rem] border border-border bg-panel-soft px-4 py-4 shadow-[var(--shadow-soft)]">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
+      <p className="mt-3 text-2xl font-semibold text-foreground">{value}</p>
+      <p className="mt-2 text-xs leading-5 text-muted-foreground">{note}</p>
+    </div>
   );
 }
 

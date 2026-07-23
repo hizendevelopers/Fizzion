@@ -61,7 +61,7 @@ export function Sidebar({ labels }: SidebarProps) {
   }
 
   return (
-    <aside className="hidden w-[17rem] shrink-0 bg-[linear-gradient(180deg,#210f12_0%,#2b1116_28%,#16090d_100%)] text-sidebar-foreground lg:flex">
+    <aside className="hidden w-[17rem] shrink-0 bg-[linear-gradient(180deg,#38171c_0%,#2f1419_34%,#211015_100%)] text-sidebar-foreground lg:flex">
       <div className="flex w-full flex-col gap-6 p-5">
         <div className="px-2 pt-1">
           <div className="flex items-center justify-center">

@@ -3,11 +3,16 @@ import { unstable_noStore as noStore } from "next/cache";
 
 import { StatusBadge } from "@/components/tv/status-badge";
 import { getTvChannelOverview } from "@/lib/tv-data";
+import { YouTubeTvMonitor } from "@/components/tv/youtube-tv-monitor";
+import { listConnectedYouTubeTvChannels } from "@/lib/youtube-tv-data";
 
 export default async function TvChannelsPage() {
   noStore();
 
-  const aryChannel = await getTvChannelOverview("ary-news");
+  const [aryChannel, youtubeChannels] = await Promise.all([
+    getTvChannelOverview("ary-news"),
+    listConnectedYouTubeTvChannels(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -64,6 +69,8 @@ export default async function TvChannelsPage() {
           </p>
         )}
       </section>
+
+      <YouTubeTvMonitor initialChannels={youtubeChannels} />
     </div>
   );
 }

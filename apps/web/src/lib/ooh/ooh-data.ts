@@ -1151,7 +1151,6 @@ export async function listOohAreas() {
     if (await shouldUseOohFallback()) {
       return listOohAreasFallback();
     }
-    await ensureOohDemoData();
     const supabase = getOptionalSupabaseAdminClient();
     if (!supabase) {
       return [] as OohAreaItem[];
@@ -1181,7 +1180,6 @@ export async function listOohBrands() {
     if (await shouldUseOohFallback()) {
       return listOohBrandsFallback();
     }
-    await ensureOohDemoData();
     const supabase = getOptionalSupabaseAdminClient();
     if (!supabase) {
       return [] as OohBrandItem[];
@@ -1192,7 +1190,9 @@ export async function listOohBrands() {
       .select("id, name, slug, category, logo_url, is_dummy_brand")
       .order("name");
 
-    return ((data ?? []) as GenericRow[]).map((row) => ({
+    return ((data ?? []) as GenericRow[])
+      .filter((row) => !Boolean(row["is_dummy_brand"]))
+      .map((row) => ({
       id: rowString(row, "id"),
       name: rowString(row, "name"),
       slug: rowString(row, "slug"),
@@ -1229,7 +1229,6 @@ export async function listOohAssets(query: OohAssetListQuery) {
     if (await shouldUseOohFallback()) {
       return listOohAssetsFallback(query);
     }
-    await ensureOohDemoData();
     const supabase = getOptionalSupabaseAdminClient();
     if (!supabase) {
       return { items: [] as OohAssetListItem[], total: 0, page: query.page, limit: query.limit };
@@ -1258,6 +1257,11 @@ export async function listOohAssets(query: OohAssetListQuery) {
 
     const filteredItems = assetRows
       .map((row) => mapAssetListItem(row, lookups))
+      .filter((item) => {
+        if (!item.brandId) return true;
+        const brandRow = lookups.brandLookup.get(item.brandId);
+        return !Boolean(brandRow?.["is_dummy_brand"]);
+      })
       .filter((item) => (query.brandId ? item.brandId === query.brandId : true))
       .filter((item) => (query.minCost !== undefined ? (item.dailyCost ?? Number.NEGATIVE_INFINITY) >= query.minCost : true))
       .filter((item) => (query.maxCost !== undefined ? (item.dailyCost ?? Number.POSITIVE_INFINITY) <= query.maxCost : true))
@@ -1295,7 +1299,6 @@ export async function getOohAssetDetail(assetId: string) {
     if (await shouldUseOohFallback()) {
       return getOohAssetDetailFallback(assetId);
     }
-    await ensureOohDemoData();
     const supabase = getOptionalSupabaseAdminClient();
     if (!supabase) {
       return null;
