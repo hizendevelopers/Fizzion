@@ -729,13 +729,19 @@ function mapAssetListItem(
   const area = areaId ? lookups.areas.get(areaId) ?? null : null;
   const metric = lookups.metricLookup.get(assetId) ?? {};
   const images = lookups.imageLookup.get(assetId) ?? [];
-  const primaryImage = images.find((image) => rowNullableString(image, "image_url"));
   const { placement, campaign, brand } = mapPrimaryPlacement(
     assetId,
     lookups.placementLookup,
     lookups.campaignLookup,
     lookups.brandLookup,
   );
+  const primaryImage =
+    images.find((image) => Boolean(image["is_primary"]) && rowNullableString(image, "image_url")) ??
+    images.find((image) => rowString(image, "image_type") === "SITE_PHOTO" && rowNullableString(image, "image_url")) ??
+    images.find((image) => rowNullableString(image, "image_url")) ??
+    null;
+  const placementCreativeImageUrl = placement ? rowNullableString(placement, "creative_image_url") : null;
+  const placementProofImageUrl = placement ? rowNullableString(placement, "proof_of_play_url") : null;
 
   return {
     id: assetId,
@@ -759,7 +765,10 @@ function mapAssetListItem(
     expectedDailyAudience: rowNullableNumber(metric, "expected_daily_audience"),
     estimatedDailyImpressions: rowNullableNumber(metric, "estimated_daily_impressions"),
     visibilityScore: rowNullableNumber(metric, "visibility_score"),
-    primaryImageUrl: primaryImage ? rowNullableString(primaryImage, "image_url") : null,
+    primaryImageUrl:
+      (primaryImage ? rowNullableString(primaryImage, "image_url") : null) ??
+      placementCreativeImageUrl ??
+      placementProofImageUrl,
     placementStatus: placement ? rowNullableString(placement, "status") : null,
     installedAt: placement ? rowNullableString(placement, "installed_at") : null,
     numberOfFaces: rowNullableNumber(row, "number_of_faces"),

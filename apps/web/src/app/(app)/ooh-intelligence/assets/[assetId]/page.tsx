@@ -11,6 +11,15 @@ type PageProps = {
   params: Promise<{ assetId: string }>;
 };
 
+type OohDisplayImage = {
+  id: string;
+  imageUrl: string;
+  imageType: string;
+  altText: string | null;
+  sortOrder: number;
+  isPrimary: boolean;
+};
+
 function formatCurrency(value: number | null | undefined, currency: string | null | undefined) {
   if (value === null || value === undefined) return "Not available";
   return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value)} ${currency ?? ""}`.trim();
@@ -29,7 +38,55 @@ export default async function OohAssetDetailPage({ params }: PageProps) {
   }
 
   const currentPlacement = asset.placements.find((placement) => placement.status === "CURRENT") ?? asset.placements[0] ?? null;
-  const heroImage = asset.images.find((image) => image.isPrimary) ?? asset.images[0] ?? null;
+  const heroImage =
+    asset.images.find((image) => image.isPrimary && image.imageType === "SITE_PHOTO") ??
+    asset.images.find((image) => image.imageType === "SITE_PHOTO") ??
+    asset.images.find((image) => image.isPrimary) ??
+    asset.images[0] ??
+    (currentPlacement?.creativeImageUrl
+      ? {
+          id: "placement-creative",
+          imageUrl: currentPlacement.creativeImageUrl,
+          imageType: "CREATIVE",
+          altText: `${asset.locationName} creative preview`,
+          sortOrder: -1,
+          isPrimary: false,
+        }
+      : null) ??
+    (currentPlacement?.proofOfPlayUrl
+      ? {
+          id: "placement-proof",
+          imageUrl: currentPlacement.proofOfPlayUrl,
+          imageType: "PROOF_OF_PLAY",
+          altText: `${asset.locationName} proof of play`,
+          sortOrder: -1,
+          isPrimary: false,
+        }
+      : null);
+  const fallbackGalleryImagesSeed: Array<OohDisplayImage | null> = [
+    currentPlacement?.creativeImageUrl
+      ? {
+          id: "placement-creative",
+          imageUrl: currentPlacement.creativeImageUrl,
+          imageType: "CREATIVE",
+          altText: `${asset.locationName} creative preview`,
+          sortOrder: 0,
+          isPrimary: false,
+        }
+      : null,
+    currentPlacement?.proofOfPlayUrl
+      ? {
+          id: "placement-proof",
+          imageUrl: currentPlacement.proofOfPlayUrl,
+          imageType: "PROOF_OF_PLAY",
+          altText: `${asset.locationName} proof of play`,
+          sortOrder: 1,
+          isPrimary: false,
+        }
+      : null,
+  ];
+  const fallbackGalleryImages = fallbackGalleryImagesSeed.filter((image): image is OohDisplayImage => image !== null);
+  const galleryImages: OohDisplayImage[] = asset.images.length > 0 ? asset.images : fallbackGalleryImages;
 
   return (
     <div className="space-y-6">
@@ -41,7 +98,7 @@ export default async function OohAssetDetailPage({ params }: PageProps) {
                 <img src={heroImage.imageUrl} alt={heroImage.altText ?? asset.assetCode} className="h-[360px] w-full object-cover" />
               ) : (
                 <div className="flex h-[360px] items-center justify-center bg-panel-soft text-sm text-muted-foreground">
-                  No site photograph available
+                  No uploaded image available
                 </div>
               )}
             </div>
@@ -151,7 +208,7 @@ export default async function OohAssetDetailPage({ params }: PageProps) {
 
           <DetailSection title="Image gallery">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {asset.images.map((image) => (
+              {galleryImages.map((image) => (
                 <div key={image.id} className="overflow-hidden rounded-[1.5rem] border border-border bg-white shadow-[var(--shadow-soft)]">
                   <img src={image.imageUrl} alt={image.altText ?? asset.assetCode} className="h-56 w-full object-cover" />
                   <div className="px-4 py-3 text-sm text-muted-foreground">
@@ -160,6 +217,11 @@ export default async function OohAssetDetailPage({ params }: PageProps) {
                   </div>
                 </div>
               ))}
+              {galleryImages.length === 0 ? (
+                <div className="rounded-[1.5rem] border border-dashed border-border bg-panel-soft px-4 py-10 text-center text-sm text-muted-foreground md:col-span-2 xl:col-span-3">
+                  No uploaded images are attached to this OOH asset yet.
+                </div>
+              ) : null}
             </div>
           </DetailSection>
         </div>

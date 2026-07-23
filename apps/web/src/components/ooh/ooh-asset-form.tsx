@@ -189,7 +189,25 @@ export function OohAssetForm({ mode, areas, brands, initialAsset, initialMediaTy
           isPrimary: form.images.length === 0 && imageType === "SITE_PHOTO",
         });
       }
-      setForm((current) => ({ ...current, images: [...current.images, ...uploadedImages] }));
+      setForm((current) => {
+        const nextImages = [...current.images, ...uploadedImages];
+        const latestSitePhoto = [...uploadedImages].reverse().find((image) => image.imageType === "SITE_PHOTO") ?? null;
+        const latestCreative = [...uploadedImages].reverse().find((image) => image.imageType === "CREATIVE") ?? null;
+        const latestProof = [...uploadedImages].reverse().find((image) => image.imageType === "PROOF_OF_PLAY") ?? null;
+        const normalizedImages = nextImages.map((image, index) => ({
+          ...image,
+          isPrimary: latestSitePhoto
+            ? image.imageUrl === latestSitePhoto.imageUrl
+            : image.isPrimary || index === 0,
+        }));
+
+        return {
+          ...current,
+          images: normalizedImages,
+          creativeImageUrl: latestCreative?.imageUrl ?? current.creativeImageUrl,
+          proofOfPlayUrl: latestProof?.imageUrl ?? current.proofOfPlayUrl,
+        };
+      });
       setStatus(`${uploadedImages.length} image${uploadedImages.length > 1 ? "s" : ""} uploaded successfully.`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Image upload failed.");
