@@ -31,17 +31,17 @@ type TopbarProps = {
 
 export function Topbar({ locale, timezone, copy }: TopbarProps) {
   return (
-    <header className="sticky top-0 z-30 border-b border-[#d9bcb2] bg-[linear-gradient(180deg,rgba(241,225,215,0.96),rgba(229,209,198,0.94))] backdrop-blur-xl">
+    <header className="sticky top-0 z-30 border-b border-white/10 bg-[linear-gradient(180deg,rgba(56,34,47,0.96),rgba(69,39,56,0.94))] backdrop-blur-xl">
       <div className="flex flex-col gap-4 px-4 py-4 lg:px-8">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-1 flex-col gap-3 xl:flex-row xl:items-center">
             <div className="elevated-chip flex h-12 w-full items-center gap-3 rounded-full px-4 xl:max-w-xl">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-red/8 text-brand-red">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-red/16 text-brand-red-soft">
                 <SearchIcon className="h-4 w-4" />
               </span>
               <input
                 aria-label="Global search"
-                className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+                className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/46"
                 placeholder={copy.searchPlaceholder}
                 type="search"
               />
@@ -74,7 +74,7 @@ export function Topbar({ locale, timezone, copy }: TopbarProps) {
 
 function FilterPill({ icon, label }: { icon: React.ReactNode; label: string }) {
   return (
-    <span className="elevated-chip inline-flex h-10 items-center gap-2 rounded-full px-4 text-sm text-muted-foreground transition duration-300 hover:-translate-y-0.5">
+    <span className="inline-flex h-10 items-center gap-2 rounded-full border border-white/12 bg-white/8 px-4 text-sm text-white/78 shadow-[0_14px_24px_rgba(10,5,10,0.18)] transition duration-300 hover:-translate-y-0.5 hover:bg-white/10">
       <span className="text-brand-red">{icon}</span>
       {label}
     </span>
@@ -92,10 +92,10 @@ function StatusPill({
 }) {
   const className =
     tone === "success"
-      ? "border border-white/16 bg-brand-green-soft/95 text-brand-green-deep shadow-[var(--shadow-soft)]"
+      ? "border border-brand-green/18 bg-brand-green-soft/95 text-brand-green-deep shadow-[var(--shadow-soft)]"
     : tone === "info"
-        ? "border border-white/80 bg-white text-foreground shadow-[var(--shadow-soft)]"
-        : "border border-white/80 bg-white text-foreground shadow-[var(--shadow-soft)]";
+        ? "border border-white/12 bg-white/10 text-white shadow-[0_14px_24px_rgba(10,5,10,0.18)]"
+        : "border border-white/12 bg-white/8 text-white shadow-[0_14px_24px_rgba(10,5,10,0.18)]";
 
   return (
     <span className={`inline-flex h-10 items-center gap-2 rounded-full px-4 text-sm font-medium transition duration-300 hover:-translate-y-0.5 ${className}`}>

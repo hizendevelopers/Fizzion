@@ -155,3 +155,7 @@ export function getYouTubeApiKey(): string {
   }
   return value;
 }
+
+export function getOptionalCronSecret() {
+  return getEnvValue(["CRON_SECRET", "TV_YOUTUBE_SYNC_SECRET"]);
+}
