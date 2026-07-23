@@ -34,6 +34,24 @@ export type ConnectedYouTubeTvChannel = YouTubeChannelSearchResult & {
   feed: YouTubeVideoSummary[];
 };
 
+function mapConnectedRow(row: GenericRow, feed: YouTubeVideoSummary[]): ConnectedYouTubeTvChannel {
+  return {
+    id: rowString(row, "id"),
+    channelId: rowString(row, "channel_id"),
+    title: rowString(row, "title"),
+    handle: rowNullableString(row, "handle"),
+    description: rowNullableString(row, "description"),
+    thumbnailUrl: rowNullableString(row, "thumbnail_url"),
+    customUrl: rowNullableString(row, "custom_url"),
+    subscriberCount: rowNullableNumber(row, "subscriber_count"),
+    videoCount: rowNullableNumber(row, "video_count"),
+    viewCount: rowNullableNumber(row, "view_count"),
+    connectedAt: rowString(row, "connected_at"),
+    lastSyncedAt: rowNullableString(row, "last_synced_at"),
+    feed,
+  };
+}
+
 function rowString(row: GenericRow, key: string, fallback = "") {
   const value = row[key];
   return typeof value === "string" ? value : fallback;
@@ -237,6 +255,21 @@ async function getChannelFeed(channelId: string) {
   });
 }
 
+async function fetchYouTubeChannelById(channelId: string) {
+  const details = await youtubeFetch("channels", {
+    part: "snippet,statistics",
+    id: channelId,
+    maxResults: 1,
+  });
+
+  const item = ((details.items ?? []) as GenericRow[])[0];
+  if (!item) {
+    throw new Error("The requested YouTube channel could not be found.");
+  }
+
+  return normalizeChannel(item, item);
+}
+
 export async function listConnectedYouTubeTvChannels() {
   const supabase = getOptionalSupabaseAdminClient();
   if (!supabase) {
@@ -250,23 +283,35 @@ export async function listConnectedYouTubeTvChannels() {
     .order("connected_at", { ascending: false });
 
   const rows = (result.data ?? []) as GenericRow[];
-  const channels = await Promise.all(rows.map(async (row) => ({
-    id: rowString(row, "id"),
-    channelId: rowString(row, "channel_id"),
-    title: rowString(row, "title"),
-    handle: rowNullableString(row, "handle"),
-    description: rowNullableString(row, "description"),
-    thumbnailUrl: rowNullableString(row, "thumbnail_url"),
-    customUrl: rowNullableString(row, "custom_url"),
-    subscriberCount: rowNullableNumber(row, "subscriber_count"),
-    videoCount: rowNullableNumber(row, "video_count"),
-    viewCount: rowNullableNumber(row, "view_count"),
-    connectedAt: rowString(row, "connected_at"),
-    lastSyncedAt: rowNullableString(row, "last_synced_at"),
-    feed: await getChannelFeed(rowString(row, "channel_id")),
-  })));
+  const channels = await Promise.all(rows.map(async (row) => {
+    const feed = await getChannelFeed(rowString(row, "channel_id"));
+    return mapConnectedRow(row, feed);
+  }));
 
   return channels;
+}
+
+export async function getConnectedYouTubeTvChannel(channelIdOrRowId: string) {
+  const supabase = getOptionalSupabaseAdminClient();
+  if (!supabase) {
+    return null;
+  }
+
+  const { data } = await supabase
+    .from("tv_youtube_channels")
+    .select("*")
+    .or(`id.eq.${channelIdOrRowId},channel_id.eq.${channelIdOrRowId}`)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+
+  if (!data) {
+    return null;
+  }
+
+  const row = data as GenericRow;
+  const feed = await getChannelFeed(rowString(row, "channel_id"));
+  return mapConnectedRow(row, feed);
 }
 
 export async function connectYouTubeTvChannel(input: YouTubeChannelSearchResult) {
@@ -298,4 +343,68 @@ export async function connectYouTubeTvChannel(input: YouTubeChannelSearchResult)
   }
 
   return result.data.id as string;
+}
+
+export async function refreshConnectedYouTubeTvChannel(channelIdOrRowId: string) {
+  const supabase = getSupabaseAdminClient();
+  const existing = await supabase
+    .from("tv_youtube_channels")
+    .select("*")
+    .or(`id.eq.${channelIdOrRowId},channel_id.eq.${channelIdOrRowId}`)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+
+  if (!existing.data) {
+    throw new Error("The connected YouTube channel could not be found.");
+  }
+
+  const row = existing.data as GenericRow;
+  const latest = await fetchYouTubeChannelById(rowString(row, "channel_id"));
+  const syncedAt = new Date().toISOString();
+
+  const updated = await supabase
+    .from("tv_youtube_channels")
+    .update({
+      title: latest.title,
+      handle: latest.handle,
+      custom_url: latest.customUrl,
+      description: latest.description,
+      thumbnail_url: latest.thumbnailUrl,
+      subscriber_count: latest.subscriberCount,
+      video_count: latest.videoCount,
+      view_count: latest.viewCount,
+      last_synced_at: syncedAt,
+    })
+    .eq("id", rowString(row, "id"))
+    .select("*")
+    .single();
+
+  if (updated.error || !updated.data) {
+    throw new Error(updated.error?.message ?? "Unable to refresh the connected YouTube channel.");
+  }
+
+  const feed = await getChannelFeed(rowString(row, "channel_id"));
+  return mapConnectedRow(updated.data as GenericRow, feed);
+}
+
+export async function refreshAllConnectedYouTubeTvChannels() {
+  const channels = await listConnectedYouTubeTvChannels();
+  return Promise.all(channels.map((channel) => refreshConnectedYouTubeTvChannel(channel.id)));
+}
+
+export async function disconnectYouTubeTvChannel(channelIdOrRowId: string) {
+  const supabase = getSupabaseAdminClient();
+  const result = await supabase
+    .from("tv_youtube_channels")
+    .update({
+      is_active: false,
+      updated_at: new Date().toISOString(),
+    })
+    .or(`id.eq.${channelIdOrRowId},channel_id.eq.${channelIdOrRowId}`)
+    .eq("is_active", true);
+
+  if (result.error) {
+    throw new Error(result.error.message);
+  }
 }

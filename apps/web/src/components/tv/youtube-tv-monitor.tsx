@@ -2,6 +2,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 
 import type { ConnectedYouTubeTvChannel, YouTubeChannelSearchResult } from "@/lib/youtube-tv-data";
 
@@ -49,8 +50,21 @@ export function YouTubeTvMonitor({ initialChannels }: YouTubeTvMonitorProps) {
   const [searchResults, setSearchResults] = useState<YouTubeChannelSearchResult[]>([]);
   const [channels, setChannels] = useState(initialChannels);
   const [status, setStatus] = useState<string | null>(null);
+  const [refreshBusyId, setRefreshBusyId] = useState<string | null>(null);
+  const [disconnectBusyId, setDisconnectBusyId] = useState<string | null>(null);
+  const [syncAllBusy, setSyncAllBusy] = useState(false);
 
   const connectedIds = useMemo(() => new Set(channels.map((channel) => channel.channelId)), [channels]);
+  const pinnedLiveEntries = useMemo(
+    () =>
+      channels
+        .map((channel) => ({
+          channel,
+          liveVideo: channel.feed.find((video) => video.liveStatus === "live") ?? null,
+        }))
+        .filter((entry) => entry.liveVideo),
+    [channels],
+  );
 
   async function runSearch() {
     const trimmed = search.trim();
@@ -110,6 +124,73 @@ export function YouTubeTvMonitor({ initialChannels }: YouTubeTvMonitorProps) {
     }
   }
 
+  async function refreshAllChannels() {
+    setSyncAllBusy(true);
+    setStatus(null);
+    try {
+      const response = await fetch("/api/tv/youtube/channels/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.message ?? "Unable to refresh connected channels.");
+      }
+
+      setChannels(payload.items as ConnectedYouTubeTvChannel[]);
+      setStatus(`${payload.refreshedCount ?? 0} connected YouTube channel${payload.refreshedCount === 1 ? "" : "s"} refreshed successfully.`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Unable to refresh connected channels.");
+    } finally {
+      setSyncAllBusy(false);
+    }
+  }
+
+  async function refreshChannel(channelId: string) {
+    setRefreshBusyId(channelId);
+    setStatus(null);
+    try {
+      const response = await fetch(`/api/tv/youtube/channels/${channelId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "refresh" }),
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.message ?? "Unable to refresh this channel.");
+      }
+
+      const nextItem = payload.item as ConnectedYouTubeTvChannel;
+      setChannels((current) => current.map((item) => (item.id === nextItem.id ? nextItem : item)));
+      setStatus(`${nextItem.title} refreshed successfully.`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Unable to refresh this channel.");
+    } finally {
+      setRefreshBusyId(null);
+    }
+  }
+
+  async function disconnectChannel(channelId: string, channelTitle: string) {
+    setDisconnectBusyId(channelId);
+    setStatus(null);
+    try {
+      const response = await fetch(`/api/tv/youtube/channels/${channelId}`, {
+        method: "DELETE",
+      });
+      const payload = await response.json().catch(() => ({ ok: response.ok }));
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.message ?? "Unable to disconnect this channel.");
+      }
+
+      setChannels((current) => current.filter((item) => item.id !== channelId));
+      setStatus(`${channelTitle} disconnected from TV Intelligence.`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Unable to disconnect this channel.");
+    } finally {
+      setDisconnectBusyId(null);
+    }
+  }
+
   return (
     <section className="rounded-[1.9rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
       <div className="flex flex-col gap-5">
@@ -124,10 +205,72 @@ export function YouTubeTvMonitor({ initialChannels }: YouTubeTvMonitorProps) {
               upcoming broadcasts, and recent uploaded videos on this platform.
             </p>
           </div>
-          <div className="rounded-[1.4rem] border border-border bg-panel-soft px-4 py-3 text-sm text-muted-foreground">
-            Connected channels: <span className="font-semibold text-foreground">{channels.length}</span>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="rounded-[1.4rem] border border-border bg-panel-soft px-4 py-3 text-sm text-muted-foreground">
+              Connected channels: <span className="font-semibold text-foreground">{channels.length}</span>
+            </div>
+            <button
+              type="button"
+              onClick={refreshAllChannels}
+              disabled={syncAllBusy || channels.length === 0}
+              className="rounded-full border border-border bg-white px-4 py-2 text-sm font-semibold text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {syncAllBusy ? "Refreshing..." : "Refresh all channels"}
+            </button>
           </div>
         </div>
+
+        {pinnedLiveEntries.length > 0 ? (
+          <div className="rounded-[1.8rem] border border-brand-red/20 bg-[linear-gradient(135deg,#2f1217_0%,#5a171f_42%,#7e131b_100%)] p-5 text-white shadow-[var(--shadow-dark)]">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <span className="inline-flex rounded-full bg-white/14 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white/80">
+                  Live now
+                </span>
+                <h3 className="mt-3 text-2xl font-semibold">Pinned live YouTube stream monitoring</h3>
+                <p className="mt-2 max-w-3xl text-sm leading-7 text-white/72">
+                  These streams are currently live on connected YouTube channels and are pinned here for quick monitoring.
+                </p>
+              </div>
+              <div className="rounded-[1.3rem] border border-white/12 bg-white/8 px-4 py-3 text-sm text-white/78">
+                Auto updates whenever you refresh channel data
+              </div>
+            </div>
+            <div className="mt-5 grid gap-4 xl:grid-cols-2">
+              {pinnedLiveEntries.map(({ channel, liveVideo }) =>
+                liveVideo ? (
+                  <a
+                    key={`${channel.id}-${liveVideo.id}`}
+                    href={liveVideo.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="grid gap-4 rounded-[1.5rem] border border-white/10 bg-white/8 p-4 md:grid-cols-[220px_1fr]"
+                  >
+                    <div className="overflow-hidden rounded-[1.2rem] border border-white/10 bg-black/20">
+                      {liveVideo.thumbnailUrl ? (
+                        <img src={liveVideo.thumbnailUrl} alt={liveVideo.title} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full min-h-32 items-center justify-center text-sm text-white/70">No thumbnail</div>
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-brand-red px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-white">
+                          Live
+                        </span>
+                        <span className="text-xs text-white/70">{channel.title}</span>
+                      </div>
+                      <p className="mt-3 text-lg font-semibold">{liveVideo.title}</p>
+                      <p className="mt-2 line-clamp-3 text-sm text-white/72">
+                        {liveVideo.description || "No live-stream description returned by YouTube."}
+                      </p>
+                    </div>
+                  </a>
+                ) : null,
+              )}
+            </div>
+          </div>
+        ) : null}
 
         <div className="rounded-[1.6rem] border border-border bg-panel-soft/65 p-4">
           <div className="grid gap-3 lg:grid-cols-[1.4fr_auto]">
@@ -245,6 +388,31 @@ export function YouTubeTvMonitor({ initialChannels }: YouTubeTvMonitorProps) {
                 >
                   Open channel
                 </a>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <Link
+                  href={`/tv/channels/${channel.id}`}
+                  className="rounded-full bg-brand-red px-4 py-2 text-sm font-semibold text-white"
+                >
+                  Open detail
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => refreshChannel(channel.id)}
+                  disabled={refreshBusyId === channel.id}
+                  className="rounded-full border border-border bg-panel-soft px-4 py-2 text-sm font-semibold text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {refreshBusyId === channel.id ? "Refreshing..." : "Refresh"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => disconnectChannel(channel.id, channel.title)}
+                  disabled={disconnectBusyId === channel.id}
+                  className="rounded-full border border-border bg-white px-4 py-2 text-sm font-semibold text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {disconnectBusyId === channel.id ? "Disconnecting..." : "Disconnect"}
+                </button>
               </div>
 
               <div className="mt-5 grid gap-3">
