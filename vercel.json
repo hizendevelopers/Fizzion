@@ -5,7 +5,9 @@
       "framework": "nextjs"
     },
     "media-ai": {
-      "root": "services/media-ai"
+      "root": "services/media-ai",
+      "framework": "fastapi",
+      "entrypoint": "app/main.py"
     }
   },
   "rewrites": [
@@ -27,7 +29,7 @@
   "crons": [
     {
       "path": "/api/tv/youtube/channels/scheduled-sync",
-      "schedule": "*/30 * * * *"
+      "schedule": "0 6 * * *"
     }
   ]
 }

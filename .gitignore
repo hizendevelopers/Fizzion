@@ -27,3 +27,4 @@ uploads
 tmp-dev-*.log
 .tmp-*.log
 apps/web/.data
+.vercel/
