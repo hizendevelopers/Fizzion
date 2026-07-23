@@ -61,8 +61,8 @@ export function Sidebar({ labels }: SidebarProps) {
   }
 
   return (
-    <aside className="hidden w-[17rem] shrink-0 bg-[linear-gradient(180deg,#24151d_0%,#2d1a24_32%,#3a2230_68%,#2a1821_100%)] text-sidebar-foreground lg:flex">
-      <div className="flex w-full flex-col gap-6 p-5">
+    <aside className="hidden h-full w-[17rem] shrink-0 bg-[linear-gradient(180deg,#24151d_0%,#2d1a24_32%,#3a2230_68%,#2a1821_100%)] text-sidebar-foreground lg:flex">
+      <div className="flex h-full w-full flex-col gap-6 overflow-y-auto p-5">
         <div className="px-2 pt-1">
           <div className="flex items-center justify-center">
             <FizZionLogo className="h-14 w-[11.25rem] drop-shadow-[0_6px_22px_rgba(255,255,255,0.18)]" />

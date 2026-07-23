@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import type { OohAreaItem, OohAssetDetail, OohBrandItem } from "@/lib/ooh/ooh-data";
@@ -141,23 +141,14 @@ export function OohAssetForm({ mode, areas, brands, initialAsset, initialMediaTy
 
     return form.dailyCost * campaignDays;
   }, [campaignDays, form.dailyCost]);
-
-  useEffect(() => {
-    setForm((current) => {
-      const nextWeekly = current.dailyCost === null || current.dailyCost === undefined ? null : current.dailyCost * 7;
-      const nextMonthly = current.dailyCost === null || current.dailyCost === undefined ? null : current.dailyCost * 30;
-
-      if (current.weeklyCost === nextWeekly && current.monthlyCost === nextMonthly) {
-        return current;
-      }
-
-      return {
-        ...current,
-        weeklyCost: nextWeekly,
-        monthlyCost: nextMonthly,
-      };
-    });
-  }, [form.dailyCost]);
+  const derivedWeeklyCost = useMemo(
+    () => (form.dailyCost === null || form.dailyCost === undefined ? null : form.dailyCost * 7),
+    [form.dailyCost],
+  );
+  const derivedMonthlyCost = useMemo(
+    () => (form.dailyCost === null || form.dailyCost === undefined ? null : form.dailyCost * 30),
+    [form.dailyCost],
+  );
 
   function updateField<Key extends keyof OohAssetCreateInput>(key: Key, value: OohAssetCreateInput[Key]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -225,7 +216,11 @@ export function OohAssetForm({ mode, areas, brands, initialAsset, initialMediaTy
       const response = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          weeklyCost: derivedWeeklyCost,
+          monthlyCost: derivedMonthlyCost,
+        }),
       });
       const payload = await response.json();
       if (!response.ok) {
@@ -383,8 +378,8 @@ export function OohAssetForm({ mode, areas, brands, initialAsset, initialMediaTy
           <FormSection title="Commercial and availability">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <NumberField label="Daily cost" value={form.dailyCost} onChange={(value) => updateField("dailyCost", value)} />
-              <NumberField label="Weekly cost" value={form.weeklyCost} onChange={(value) => updateField("weeklyCost", value)} readOnly />
-              <NumberField label="Monthly cost" value={form.monthlyCost} onChange={(value) => updateField("monthlyCost", value)} readOnly />
+              <NumberField label="Weekly cost" value={derivedWeeklyCost} onChange={(value) => updateField("weeklyCost", value)} readOnly />
+              <NumberField label="Monthly cost" value={derivedMonthlyCost} onChange={(value) => updateField("monthlyCost", value)} readOnly />
               <TextField label="Currency" value={form.currency ?? ""} onChange={(value) => updateField("currency", value || null)} />
               <SelectField
                 label="Placement status"
@@ -408,8 +403,8 @@ export function OohAssetForm({ mode, areas, brands, initialAsset, initialMediaTy
               <TextField label="Availability end" value={form.availabilityEndDate ?? ""} onChange={(value) => updateField("availabilityEndDate", value || null)} placeholder="YYYY-MM-DD" />
             </div>
             <div className="mt-4 grid gap-4 md:grid-cols-3">
-              <SummaryCard label="7-day commercial value" value={formatMoney(form.weeklyCost, form.currency)} note="Auto-calculated from per-day cost × 7" />
-              <SummaryCard label="30-day commercial value" value={formatMoney(form.monthlyCost, form.currency)} note="Auto-calculated from per-day cost × 30" />
+              <SummaryCard label="7-day commercial value" value={formatMoney(derivedWeeklyCost, form.currency)} note="Auto-calculated from per-day cost × 7" />
+              <SummaryCard label="30-day commercial value" value={formatMoney(derivedMonthlyCost, form.currency)} note="Auto-calculated from per-day cost × 30" />
               <SummaryCard
                 label="Campaign budget"
                 value={formatMoney(campaignBudget, form.currency)}

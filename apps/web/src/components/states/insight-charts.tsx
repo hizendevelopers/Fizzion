@@ -83,17 +83,20 @@ function BottleIllustration({
   const colaLiquidId = `${idPrefix}-cola-liquid`;
   const metalId = `${idPrefix}-metal-shine`;
   const capId = `${idPrefix}-cap-red`;
-  let currentTop = 327;
-  const renderedSegments = normalizedSegments.map((segment, index) => {
-    const segmentHeight = 257 * segment.share;
-    currentTop -= segmentHeight;
-    return {
-      key: `${idPrefix}-segment-${index}`,
-      y: currentTop,
-      height: Math.max(segmentHeight, 0),
-      color: segment.color,
-    };
-  });
+  const renderedSegments = normalizedSegments.reduce<Array<{ key: string; y: number; height: number; color: string }>>(
+    (segmentsSoFar, segment, index) => {
+      const segmentHeight = 257 * segment.share;
+      const nextTop = (segmentsSoFar.at(-1)?.y ?? 327) - segmentHeight;
+      segmentsSoFar.push({
+        key: `${idPrefix}-segment-${index}`,
+        y: nextTop,
+        height: Math.max(segmentHeight, 0),
+        color: segment.color,
+      });
+      return segmentsSoFar;
+    },
+    [],
+  );
 
   return (
     <svg className="h-[340px] w-full" fill="none" viewBox="0 0 220 350">
@@ -473,7 +476,7 @@ export function ShareOfVoiceCard({
             </div>
 
             <div className="space-y-4">
-              {normalized.map((item, index) => {
+              {normalized.map((item) => {
                 const width = `${Math.max(item.share * 100, 4)}%`;
                 const color = item.resolvedColor;
                 return (

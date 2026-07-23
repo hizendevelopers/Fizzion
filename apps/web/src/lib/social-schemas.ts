@@ -42,12 +42,12 @@ export const socialReportSchema = z.object({
   ]),
   connectionId: z.string().uuid().optional(),
   format: z.enum(["csv", "pdf"]).default("csv"),
-  dateRange: z.enum(["today", "last7", "last30", "last90", "custom"]).default("last30"),
+  dateRange: z.enum(["today", "last7", "last14", "last30", "last60", "last90", "custom"]).default("last30"),
 });
 
 export const socialConnectionQuerySchema = z.object({
   provider: socialProviderSchema.optional(),
-  dateRange: z.enum(["today", "last7", "last30", "last90", "custom"]).default("last30"),
+  dateRange: z.enum(["today", "last7", "last14", "last30", "last60", "last90", "custom"]).default("last30"),
 });
 
 export const socialContentQuerySchema = z.object({

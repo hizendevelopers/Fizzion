@@ -6,12 +6,16 @@ type SocialExportButtonProps = {
   connectionId?: string;
   reportType?: "portfolio" | "account";
   label?: string;
+  format?: "csv" | "pdf";
+  dateRange?: "today" | "last7" | "last14" | "last30" | "last60" | "last90" | "custom";
 };
 
 export function SocialExportButton({
   connectionId,
   reportType = connectionId ? "account" : "portfolio",
   label = "Export CSV Report",
+  format = "csv",
+  dateRange = "last30",
 }: SocialExportButtonProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,8 +31,8 @@ export function SocialExportButton({
         body: JSON.stringify({
           reportType,
           connectionId,
-          format: "csv",
-          dateRange: "last30",
+          format,
+          dateRange,
         }),
       });
 
@@ -41,7 +45,8 @@ export function SocialExportButton({
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = connectionId ? `social-account-${connectionId}.csv` : "social-portfolio.csv";
+      const extension = format === "pdf" ? "pdf" : "csv";
+      anchor.download = connectionId ? `social-account-${connectionId}.${extension}` : `social-portfolio.${extension}`;
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (err) {

@@ -1,5 +1,6 @@
 import { getOptionalSupabaseAdminClient, getSupabaseAdminClient } from "@/lib/supabase/server";
 import { getOptionalSupabaseSecretKey } from "@/lib/env";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 import { getSocialFixture } from "./social-fixtures";
 import { getSocialProvider } from "./social-providers";
@@ -2112,7 +2113,288 @@ export async function buildSocialAccountCsv(connectionId: string) {
     .join("\n");
 }
 
+async function buildSocialPortfolioPdf() {
+  const accounts = await listSocialConnections();
+  const summary = await getSocialPortfolioSummary();
+  const pdf = await PDFDocument.create();
+  const page = pdf.addPage([842, 595]);
+  const regular = await pdf.embedFont(StandardFonts.Helvetica);
+  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+
+  page.drawRectangle({
+    x: 0,
+    y: 540,
+    width: 842,
+    height: 55,
+    color: rgb(0.95, 0.08, 0.11),
+  });
+  page.drawText("Social Intelligence Report", {
+    x: 36,
+    y: 562,
+    size: 22,
+    font: bold,
+    color: rgb(1, 1, 1),
+  });
+  page.drawText("Generated on July 23, 2026", {
+    x: 622,
+    y: 564,
+    size: 10,
+    font: regular,
+    color: rgb(1, 1, 1),
+  });
+
+  const kpis = [
+    ["Connected accounts", String(summary.connectedAccounts)],
+    ["Total followers", summary.totalFollowers.toLocaleString()],
+    ["Total reach", summary.totalReach.toLocaleString()],
+    ["Total engagements", summary.totalEngagements.toLocaleString()],
+    [
+      "Avg engagement rate",
+      summary.averageEngagementRate != null ? `${summary.averageEngagementRate.toFixed(2)}%` : "Not available",
+    ],
+  ];
+
+  let x = 36;
+  for (const [label, value] of kpis) {
+    page.drawRectangle({
+      x,
+      y: 460,
+      width: 148,
+      height: 64,
+      borderColor: rgb(0.89, 0.83, 0.8),
+      borderWidth: 1,
+      color: rgb(0.99, 0.97, 0.96),
+    });
+    page.drawText(label, {
+      x: x + 14,
+      y: 503,
+      size: 9,
+      font: regular,
+      color: rgb(0.45, 0.37, 0.34),
+    });
+    page.drawText(value, {
+      x: x + 14,
+      y: 478,
+      size: 18,
+      font: bold,
+      color: rgb(0.12, 0.11, 0.11),
+    });
+    x += 156;
+  }
+
+  page.drawText("Connected account leaderboard", {
+    x: 36,
+    y: 430,
+    size: 15,
+    font: bold,
+    color: rgb(0.12, 0.11, 0.11),
+  });
+
+  const topAccounts = [...accounts]
+    .sort((left, right) => (right.followers ?? 0) - (left.followers ?? 0))
+    .slice(0, 6);
+
+  let rowY = 400;
+  for (const account of topAccounts) {
+    page.drawRectangle({
+      x: 36,
+      y: rowY - 6,
+      width: 770,
+      height: 42,
+      borderColor: rgb(0.9, 0.86, 0.82),
+      borderWidth: 1,
+      color: rgb(1, 1, 1),
+    });
+    page.drawText(account.accountName, {
+      x: 50,
+      y: rowY + 12,
+      size: 11,
+      font: bold,
+      color: rgb(0.12, 0.11, 0.11),
+    });
+    page.drawText(account.platformLabel, {
+      x: 50,
+      y: rowY - 1,
+      size: 9,
+      font: regular,
+      color: rgb(0.45, 0.37, 0.34),
+    });
+    page.drawText(`Followers: ${account.followers?.toLocaleString() ?? "Not available"}`, {
+      x: 255,
+      y: rowY + 6,
+      size: 10,
+      font: regular,
+      color: rgb(0.18, 0.18, 0.18),
+    });
+    page.drawText(`Engagements: ${account.engagements?.toLocaleString() ?? "Not available"}`, {
+      x: 430,
+      y: rowY + 6,
+      size: 10,
+      font: regular,
+      color: rgb(0.18, 0.18, 0.18),
+    });
+    page.drawText(`Views: ${account.views?.toLocaleString() ?? "Not available"}`, {
+      x: 625,
+      y: rowY + 6,
+      size: 10,
+      font: regular,
+      color: rgb(0.18, 0.18, 0.18),
+    });
+    rowY -= 52;
+  }
+
+  return Buffer.from(await pdf.save());
+}
+
+async function buildSocialAccountPdf(connectionId: string) {
+  const detail = await getSocialAccountDetail(connectionId);
+  if (!detail) {
+    throw new Error("Social account was not found.");
+  }
+
+  const pdf = await PDFDocument.create();
+  const page = pdf.addPage([842, 595]);
+  const regular = await pdf.embedFont(StandardFonts.Helvetica);
+  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+
+  page.drawRectangle({
+    x: 0,
+    y: 540,
+    width: 842,
+    height: 55,
+    color: rgb(0.18, 0.08, 0.1),
+  });
+  page.drawText(`${detail.accountName} Social Report`, {
+    x: 36,
+    y: 562,
+    size: 22,
+    font: bold,
+    color: rgb(1, 1, 1),
+  });
+  page.drawText("Generated on July 23, 2026", {
+    x: 622,
+    y: 564,
+    size: 10,
+    font: regular,
+    color: rgb(1, 1, 1),
+  });
+
+  page.drawText(`${detail.platformLabel} | @${detail.username}`, {
+    x: 36,
+    y: 514,
+    size: 13,
+    font: regular,
+    color: rgb(0.22, 0.2, 0.2),
+  });
+
+  const accountKpis = [
+    ["Followers", detail.followers?.toLocaleString() ?? "Not available"],
+    ["Reach", detail.reach?.toLocaleString() ?? "Not available"],
+    ["Views", detail.views?.toLocaleString() ?? "Not available"],
+    ["Engagements", detail.engagements?.toLocaleString() ?? "Not available"],
+    [
+      "Engagement rate",
+      detail.engagementRateByFollowers != null ? `${detail.engagementRateByFollowers.toFixed(2)}%` : "Not available",
+    ],
+  ];
+
+  let x = 36;
+  for (const [label, value] of accountKpis) {
+    page.drawRectangle({
+      x,
+      y: 438,
+      width: 148,
+      height: 62,
+      borderColor: rgb(0.89, 0.83, 0.8),
+      borderWidth: 1,
+      color: rgb(0.99, 0.97, 0.96),
+    });
+    page.drawText(label, {
+      x: x + 14,
+      y: 480,
+      size: 9,
+      font: regular,
+      color: rgb(0.45, 0.37, 0.34),
+    });
+    page.drawText(value, {
+      x: x + 14,
+      y: 456,
+      size: 16,
+      font: bold,
+      color: rgb(0.12, 0.11, 0.11),
+    });
+    x += 156;
+  }
+
+  page.drawText("Key observations", {
+    x: 36,
+    y: 400,
+    size: 15,
+    font: bold,
+    color: rgb(0.12, 0.11, 0.11),
+  });
+  const observations = [
+    `Average 30-day engagement rate: ${detail.insights.averageEngagementRateLast30Days != null ? `${detail.insights.averageEngagementRateLast30Days.toFixed(2)}%` : "Not available"}`,
+    `Posts in last 30 days: ${detail.insights.postsLast30Days}`,
+    `Posts in last 60 days: ${detail.insights.postsLast60Days}`,
+    `Average likes in last 30 days: ${detail.insights.averageLikesLast30Days != null ? Math.round(detail.insights.averageLikesLast30Days).toLocaleString() : "Not available"}`,
+    `Average comments in last 30 days: ${detail.insights.averageCommentsLast30Days != null ? Math.round(detail.insights.averageCommentsLast30Days).toLocaleString() : "Not available"}`,
+  ];
+
+  let observationY = 372;
+  for (const observation of observations) {
+    page.drawText(`• ${observation}`, {
+      x: 46,
+      y: observationY,
+      size: 11,
+      font: regular,
+      color: rgb(0.22, 0.2, 0.2),
+    });
+    observationY -= 24;
+  }
+
+  page.drawText("Top hashtags", {
+    x: 36,
+    y: 238,
+    size: 15,
+    font: bold,
+    color: rgb(0.12, 0.11, 0.11),
+  });
+  let hashtagY = 208;
+  for (const hashtag of detail.topHashtags.slice(0, 6)) {
+    page.drawText(
+      `${hashtag.hashtag} — ${hashtag.postCount} posts — ${hashtag.engagements.toLocaleString()} engagements`,
+      {
+        x: 46,
+        y: hashtagY,
+        size: 10,
+        font: regular,
+        color: rgb(0.22, 0.2, 0.2),
+      },
+    );
+    hashtagY -= 20;
+  }
+
+  return Buffer.from(await pdf.save());
+}
+
 export async function buildSocialReport(input: SocialReportInput) {
+  if (input.format === "pdf") {
+    if (input.reportType === "portfolio" || !input.connectionId) {
+      return {
+        fileName: `social-portfolio-${input.dateRange}.pdf`,
+        contentType: "application/pdf",
+        body: await buildSocialPortfolioPdf(),
+      };
+    }
+
+    return {
+      fileName: `social-account-${input.connectionId}-${input.dateRange}.pdf`,
+      contentType: "application/pdf",
+      body: await buildSocialAccountPdf(input.connectionId),
+    };
+  }
+
   if (input.reportType === "portfolio" || !input.connectionId) {
     return {
       fileName: `social-portfolio-${input.dateRange}.csv`,

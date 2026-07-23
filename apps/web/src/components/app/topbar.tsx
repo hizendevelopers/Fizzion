@@ -31,7 +31,7 @@ type TopbarProps = {
 
 export function Topbar({ locale, timezone, copy }: TopbarProps) {
   return (
-    <header className="sticky top-0 z-30 border-b border-white/10 bg-[linear-gradient(180deg,rgba(56,34,47,0.96),rgba(69,39,56,0.94))] backdrop-blur-xl">
+    <header className="border-b border-white/10 bg-[linear-gradient(180deg,rgba(56,34,47,0.96),rgba(69,39,56,0.94))] backdrop-blur-xl">
       <div className="flex flex-col gap-4 px-4 py-4 lg:px-8">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-1 flex-col gap-3 xl:flex-row xl:items-center">
