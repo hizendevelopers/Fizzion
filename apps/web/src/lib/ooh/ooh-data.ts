@@ -90,6 +90,68 @@ function buildAudienceConfidenceLabel(score: number | null) {
   return "Estimated, directional confidence";
 }
 
+function deriveOohRegion(city: string, areaName: string | null) {
+  const normalized = `${city} ${areaName ?? ""}`.toLowerCase();
+  if (/(erbil|hawler|duhok|sulaymaniyah|sulaimani|halabja|zakho)/i.test(normalized)) {
+    return "Kurdish" as const;
+  }
+  return "Arabic" as const;
+}
+
+function deriveOohAssetType(mediaType: string, dimensionUnit: string | null) {
+  if (mediaType === "DIGITAL_SCREEN" && dimensionUnit === "THREE_D") {
+    return "3D Digital";
+  }
+  if (mediaType === "DIGITAL_SCREEN") {
+    return "Digital";
+  }
+  return "Billboard";
+}
+
+function matchesOohAssetTypeFilter(item: OohAssetListItem, assetType: OohAssetListQuery["assetType"]) {
+  if (!assetType) {
+    return true;
+  }
+
+  switch (assetType) {
+    case "BILLBOARD":
+      return item.mediaType === "BILLBOARD";
+    case "DIGITAL":
+      return item.mediaType === "DIGITAL_SCREEN" && item.dimensionUnit !== "THREE_D";
+    case "THREE_D":
+      return item.mediaType === "DIGITAL_SCREEN" && item.dimensionUnit === "THREE_D";
+    case "POLL":
+      return /\bpoll\b/i.test(item.locationName) || /\bpoll\b/i.test(item.assetCode);
+    case "WALL":
+      return /\bwall\b/i.test(item.locationName) || /\bwall\b/i.test(item.assetCode);
+    default:
+      return true;
+  }
+}
+
+function isWithinInstalledDateRange(
+  item: OohAssetListItem,
+  availableFrom: string | undefined,
+  availableTo: string | undefined,
+) {
+  if (!availableFrom && !availableTo) {
+    return true;
+  }
+
+  if (!item.installedAt) {
+    return false;
+  }
+
+  const installedDate = item.installedAt.slice(0, 10);
+  if (availableFrom && installedDate < availableFrom) {
+    return false;
+  }
+  if (availableTo && installedDate > availableTo) {
+    return false;
+  }
+  return true;
+}
+
 async function shouldUseOohFallback() {
   if (shouldUseFallbackCache !== null) {
     return shouldUseFallbackCache;
@@ -134,10 +196,21 @@ export type OohBrandItem = {
   isDummyBrand: boolean;
 };
 
+export type OohShareOfVoiceDatum = {
+  label: string;
+  share: number;
+  note?: string;
+  valueLabel?: string;
+  color?: string;
+};
+
 export type OohAssetListItem = {
   id: string;
   assetCode: string;
   mediaType: string;
+  dimensionUnit: string | null;
+  region: "Arabic" | "Kurdish" | null;
+  assetTypeLabel: string;
   status: string;
   city: string;
   country: string;
@@ -240,7 +313,10 @@ export type OohAssetDetail = OohAssetListItem & {
 };
 
 export type OohAnalyticsSummary = {
+  activeBrands: number;
   totalAssets: number;
+  totalSpend: number | null;
+  spendCurrency: string | null;
   totalBillboards: number;
   totalDigitalScreens: number;
   activeCampaigns: number;
@@ -251,6 +327,10 @@ export type OohAnalyticsSummary = {
   inventoryUtilizationPercentage: number | null;
   assetsByCity: Record<string, number>;
   assetsByArea: Record<string, number>;
+  assetsByType: Record<string, number>;
+  assetsByRegion: Record<string, number>;
+  spendByCity: Record<string, number>;
+  brandShare: OohShareOfVoiceDatum[];
 };
 
 async function ensureOrganizationId() {
@@ -696,6 +776,7 @@ function mapAssetListItem(
   const assetId = rowString(row, "id");
   const areaId = rowNullableString(row, "area_id");
   const area = areaId ? lookups.areas.get(areaId) ?? null : null;
+  const dimensionUnit = rowNullableString(row, "dimension_unit");
   const metric = lookups.metricLookup.get(assetId) ?? {};
   const images = lookups.imageLookup.get(assetId) ?? [];
   const { placement, campaign, brand } = mapPrimaryPlacement(
@@ -711,13 +792,19 @@ function mapAssetListItem(
     null;
   const placementCreativeImageUrl = placement ? rowNullableString(placement, "creative_image_url") : null;
   const placementProofImageUrl = placement ? rowNullableString(placement, "proof_of_play_url") : null;
+  const city = rowString(row, "city");
+  const region = deriveOohRegion(city, area?.name ?? null);
+  const assetTypeLabel = deriveOohAssetType(rowString(row, "media_type"), dimensionUnit);
 
   return {
     id: assetId,
     assetCode: rowString(row, "asset_code"),
     mediaType: rowString(row, "media_type"),
+    dimensionUnit,
+    region,
+    assetTypeLabel,
     status: rowString(row, "status"),
-    city: rowString(row, "city"),
+    city,
     country: rowString(row, "country"),
     areaId,
     areaName: area?.name ?? null,
@@ -895,6 +982,8 @@ export async function listOohAssets(query: OohAssetListQuery) {
         const brandRow = lookups.brandLookup.get(item.brandId);
         return !Boolean(brandRow?.["is_dummy_brand"]);
       })
+      .filter((item) => (query.region ? item.region === query.region : true))
+      .filter((item) => matchesOohAssetTypeFilter(item, query.assetType))
       .filter((item) => (query.brandId ? item.brandId === query.brandId : true))
       .filter((item) => (query.minCost !== undefined ? (item.dailyCost ?? Number.NEGATIVE_INFINITY) >= query.minCost : true))
       .filter((item) => (query.maxCost !== undefined ? (item.dailyCost ?? Number.POSITIVE_INFINITY) <= query.maxCost : true))
@@ -908,6 +997,7 @@ export async function listOohAssets(query: OohAssetListQuery) {
           ? (item.expectedDailyAudience ?? Number.POSITIVE_INFINITY) <= query.maxAudience
           : true,
       )
+      .filter((item) => isWithinInstalledDateRange(item, query.availableFrom, query.availableTo))
       .filter((item) => withinBounds(item, query.bbox))
       .sort((left, right) => compareAssets(left, right, query.sort));
 
@@ -1236,7 +1326,10 @@ export async function getOohAnalytics(query: OohAssetListQuery) {
   try {
     if (await shouldUseOohFallback()) {
       return {
+        activeBrands: 0,
         totalAssets: 0,
+        totalSpend: null,
+        spendCurrency: null,
         totalBillboards: 0,
         totalDigitalScreens: 0,
         activeCampaigns: 0,
@@ -1247,12 +1340,17 @@ export async function getOohAnalytics(query: OohAssetListQuery) {
         inventoryUtilizationPercentage: null,
         assetsByCity: {},
         assetsByArea: {},
+        assetsByType: {},
+        assetsByRegion: {},
+        spendByCity: {},
+        brandShare: [],
       } satisfies OohAnalyticsSummary;
     }
     const { items } = await listOohAssets({ ...query, page: 1, limit: 500 });
     const totalAssets = items.length;
     const billboards = items.filter((item) => item.mediaType === "BILLBOARD");
     const screens = items.filter((item) => item.mediaType === "DIGITAL_SCREEN");
+    const activeBrands = new Set(items.map((item) => item.brandName).filter(Boolean)).size;
     const availableInventory = items.filter((item) => item.status === "AVAILABLE").length;
     const assetsByCity = items.reduce<Record<string, number>>((accumulator, item) => {
       accumulator[item.city] = (accumulator[item.city] ?? 0) + 1;
@@ -1263,15 +1361,48 @@ export async function getOohAnalytics(query: OohAssetListQuery) {
       accumulator[key] = (accumulator[key] ?? 0) + 1;
       return accumulator;
     }, {});
+    const assetsByType = items.reduce<Record<string, number>>((accumulator, item) => {
+      accumulator[item.assetTypeLabel] = (accumulator[item.assetTypeLabel] ?? 0) + 1;
+      return accumulator;
+    }, {});
+    const assetsByRegion = items.reduce<Record<string, number>>((accumulator, item) => {
+      const key = item.region ?? "Unknown";
+      accumulator[key] = (accumulator[key] ?? 0) + 1;
+      return accumulator;
+    }, {});
     const pricedItems = items.filter((item) => item.dailyCost !== null);
+    const spendByCity = pricedItems.reduce<Record<string, number>>((accumulator, item) => {
+      accumulator[item.city] = (accumulator[item.city] ?? 0) + (item.dailyCost ?? 0);
+      return accumulator;
+    }, {});
+    const totalSpend = pricedItems.length > 0 ? pricedItems.reduce((sum, item) => sum + (item.dailyCost ?? 0), 0) : null;
+    const spendCurrency = pricedItems.find((item) => item.currency)?.currency ?? null;
     const activeCampaignKeys = new Set(
       items
         .filter((item) => item.placementStatus === "CURRENT" && item.campaignId)
         .map((item) => item.campaignId as string),
     );
+    const brandTotals = items.reduce<Record<string, number>>((accumulator, item) => {
+      if (!item.brandName) {
+        return accumulator;
+      }
+      accumulator[item.brandName] = (accumulator[item.brandName] ?? 0) + 1;
+      return accumulator;
+    }, {});
+    const brandShare = Object.entries(brandTotals)
+      .sort((left, right) => right[1] - left[1])
+      .map(([label, value]) => ({
+        label,
+        share: totalAssets > 0 ? value / totalAssets : 0,
+        note: `${value} mapped OOH assets`,
+        valueLabel: totalAssets > 0 ? `${((value / totalAssets) * 100).toFixed(1)}%` : "0.0%",
+      }));
 
     return {
+      activeBrands,
       totalAssets,
+      totalSpend,
+      spendCurrency,
       totalBillboards: billboards.length,
       totalDigitalScreens: screens.length,
       activeCampaigns: activeCampaignKeys.size,
@@ -1288,12 +1419,19 @@ export async function getOohAnalytics(query: OohAssetListQuery) {
           : null,
       assetsByCity,
       assetsByArea,
+      assetsByType,
+      assetsByRegion,
+      spendByCity,
+      brandShare,
     } satisfies OohAnalyticsSummary;
   } catch (error) {
     if (isMissingOohTableError(error)) {
       shouldUseFallbackCache = true;
       return {
+        activeBrands: 0,
         totalAssets: 0,
+        totalSpend: null,
+        spendCurrency: null,
         totalBillboards: 0,
         totalDigitalScreens: 0,
         activeCampaigns: 0,
@@ -1304,6 +1442,10 @@ export async function getOohAnalytics(query: OohAssetListQuery) {
         inventoryUtilizationPercentage: null,
         assetsByCity: {},
         assetsByArea: {},
+        assetsByType: {},
+        assetsByRegion: {},
+        spendByCity: {},
+        brandShare: [],
       } satisfies OohAnalyticsSummary;
     }
     throw error;

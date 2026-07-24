@@ -27,6 +27,23 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
+function deriveFallbackRegion(city: string) {
+  if (/(erbil|hawler|duhok|sulaymaniyah|sulaimani|halabja|zakho)/i.test(city)) {
+    return "Kurdish" as const;
+  }
+  return "Arabic" as const;
+}
+
+function deriveFallbackAssetType(mediaType: string, dimensionUnit: string) {
+  if (mediaType === "DIGITAL_SCREEN" && dimensionUnit === "THREE_D") {
+    return "3D Digital";
+  }
+  if (mediaType === "DIGITAL_SCREEN") {
+    return "Digital";
+  }
+  return "Billboard";
+}
+
 function buildInitialStore(): FallbackStore {
   const areas = getOohDemoAreas().map((area) => ({
     id: `area-${area.slug}`,
@@ -58,6 +75,9 @@ function buildInitialStore(): FallbackStore {
       id: assetId,
       assetCode: asset.assetCode,
       mediaType: asset.mediaType,
+      dimensionUnit: asset.dimensionUnit,
+      region: deriveFallbackRegion(asset.city),
+      assetTypeLabel: deriveFallbackAssetType(asset.mediaType, asset.dimensionUnit),
       status: asset.status,
       city: asset.city,
       country: asset.country,
@@ -84,7 +104,6 @@ function buildInitialStore(): FallbackStore {
       width: asset.width,
       height: asset.height,
       totalSqm: asset.totalSqm,
-      dimensionUnit: asset.dimensionUnit,
       facingDirection: asset.facingDirection,
       roadType: asset.roadType,
       illumination: asset.illumination,
@@ -203,6 +222,9 @@ function toListItem(asset: OohAssetDetail): OohAssetListItem {
     id: asset.id,
     assetCode: asset.assetCode,
     mediaType: asset.mediaType,
+    dimensionUnit: asset.dimensionUnit,
+    region: asset.region,
+    assetTypeLabel: asset.assetTypeLabel,
     status: asset.status,
     city: asset.city,
     country: asset.country,
@@ -295,8 +317,13 @@ export async function getOohAnalyticsFallback(query: OohAssetListQuery) {
   const { items } = await listOohAssetsFallback({ ...query, page: 1, limit: 500 });
   const totalAssets = items.length;
   const availableInventory = items.filter((item) => item.status === "AVAILABLE").length;
+  const pricedItems = items.filter((item) => item.dailyCost !== null);
+  const totalSpend = pricedItems.length > 0 ? pricedItems.reduce((sum, item) => sum + (item.dailyCost ?? 0), 0) : null;
   return {
+    activeBrands: new Set(items.map((item) => item.brandName).filter(Boolean)).size,
     totalAssets,
+    totalSpend,
+    spendCurrency: pricedItems.find((item) => item.currency)?.currency ?? null,
     totalBillboards: items.filter((item) => item.mediaType === "BILLBOARD").length,
     totalDigitalScreens: items.filter((item) => item.mediaType === "DIGITAL_SCREEN").length,
     activeCampaigns: new Set(items.filter((item) => item.placementStatus === "CURRENT" && item.campaignId).map((item) => item.campaignId as string)).size,
@@ -322,6 +349,33 @@ export async function getOohAnalyticsFallback(query: OohAssetListQuery) {
       acc[key] = (acc[key] ?? 0) + 1;
       return acc;
     }, {}),
+    assetsByType: items.reduce<Record<string, number>>((acc, item) => {
+      acc[item.assetTypeLabel] = (acc[item.assetTypeLabel] ?? 0) + 1;
+      return acc;
+    }, {}),
+    assetsByRegion: items.reduce<Record<string, number>>((acc, item) => {
+      const key = item.region ?? "Unknown";
+      acc[key] = (acc[key] ?? 0) + 1;
+      return acc;
+    }, {}),
+    spendByCity: pricedItems.reduce<Record<string, number>>((acc, item) => {
+      acc[item.city] = (acc[item.city] ?? 0) + (item.dailyCost ?? 0);
+      return acc;
+    }, {}),
+    brandShare: Object.entries(
+      items.reduce<Record<string, number>>((acc, item) => {
+        if (!item.brandName) {
+          return acc;
+        }
+        acc[item.brandName] = (acc[item.brandName] ?? 0) + 1;
+        return acc;
+      }, {}),
+    ).map(([label, value]) => ({
+      label,
+      share: totalAssets > 0 ? value / totalAssets : 0,
+      note: `${value} mapped assets`,
+      valueLabel: totalAssets > 0 ? `${((value / totalAssets) * 100).toFixed(1)}%` : "0.0%",
+    })),
   } satisfies OohAnalyticsSummary;
 }
 
@@ -365,6 +419,8 @@ export async function createOohAssetFallback(input: OohAssetCreateInput) {
     id,
     assetCode: input.assetCode,
     mediaType: input.mediaType,
+    region: deriveFallbackRegion(input.city),
+    assetTypeLabel: deriveFallbackAssetType(input.mediaType, input.dimensionUnit),
     status: input.status,
     city: input.city,
     country: input.country,

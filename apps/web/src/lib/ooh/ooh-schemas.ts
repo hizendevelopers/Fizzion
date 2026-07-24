@@ -1,6 +1,8 @@
 import { z } from "zod";
 
 export const oohMediaTypeSchema = z.enum(["BILLBOARD", "DIGITAL_SCREEN"]);
+export const oohRegionSchema = z.enum(["Arabic", "Kurdish"]);
+export const oohAssetTypeFilterSchema = z.enum(["BILLBOARD", "DIGITAL", "THREE_D", "POLL", "WALL"]);
 export const oohAssetStatusSchema = z.enum([
   "ACTIVE",
   "AVAILABLE",
@@ -18,6 +20,8 @@ export const oohAssetListQuerySchema = z.object({
   city: z.string().trim().optional(),
   area: z.string().trim().optional(),
   mediaType: oohMediaTypeSchema.optional(),
+  region: oohRegionSchema.optional(),
+  assetType: oohAssetTypeFilterSchema.optional(),
   status: oohAssetStatusSchema.optional(),
   brandId: z.string().uuid().optional(),
   minCost: z.coerce.number().optional(),
