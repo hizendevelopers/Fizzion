@@ -8,7 +8,7 @@ type TopbarProps = {
 
 export function Topbar(_props: TopbarProps) {
   return (
-    <header className="border-b border-white/8 bg-[#12151C]/96 backdrop-blur-xl">
+    <header className="bg-[#12151C]/96 backdrop-blur-xl">
       <div className="flex items-center justify-between px-4 py-4 lg:px-8">
         {/* Left: Title */}
         <h2
