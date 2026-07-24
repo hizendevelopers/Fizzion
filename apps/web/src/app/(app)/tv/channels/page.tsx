@@ -45,6 +45,10 @@ function toTimeSlot(value: string | null | undefined) {
   return "Evening";
 }
 
+function plusDuration(value: string, durationMs: number) {
+  return new Date(new Date(value).getTime() + durationMs).toISOString();
+}
+
 export default async function TvChannelsPage() {
   noStore();
 
@@ -80,59 +84,104 @@ export default async function TvChannelsPage() {
     source: "real",
   }));
 
-  const sampleHumAd: TvDashboardAd = {
-    id: "hum-news-sample-coke-1",
-    brand: "Coca-Cola",
-    productOrCampaign: "Coca-Cola Matchday Refresh",
-    campaign: "Matchday Refresh",
-    channel: "Hum News",
-    category: "commercial",
-    detectedAt: "2026-07-22T18:42:00.000Z",
-    startTimeLabel: "Jul 22, 2026, 11:42 PM",
-    endTimeLabel: "Jul 22, 2026, 11:43 PM",
-    durationMs: 30000,
-    durationLabel: "30s",
-    estimatedMediaValue: 145000,
-    occurrenceCount: 3,
-    confidence: 0.96,
-    detectionConfidenceLabel: "96%",
-    programName: "Evening Headlines",
-    transcript: "Coca-Cola Matchday Refresh celebrates togetherness, cold servings, and post-match celebrations.",
-    thumbnailUrl: "https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=900&q=80",
-    videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
-    timeSlot: "Prime Time",
-    dateKey: "2026-07-22",
-    reportUrl: "/tv/channels",
-    source: "preview",
-  };
+  const uploadedClipAds: TvDashboardAd[] = [
+    {
+      id: "hum-news-upload-bonus-02",
+      brand: "Bonus",
+      productOrCampaign: "Bonus Chocolate Reward",
+      campaign: "Bonus Chocolate Reward",
+      channel: "Hum News",
+      category: "commercial",
+      detectedAt: "2026-07-24T10:33:00.000Z",
+      startTimeLabel: toDateLabel("2026-07-24T10:33:00.000Z"),
+      endTimeLabel: toDateLabel(plusDuration("2026-07-24T10:33:00.000Z", 12395)),
+      durationMs: 12395,
+      durationLabel: formatDurationLabel(12395),
+      estimatedMediaValue: estimatedMediaValue(12395, 3700),
+      occurrenceCount: 1,
+      confidence: 0.99,
+      detectionConfidenceLabel: "User verified",
+      programName: "Manual uploaded recording",
+      transcript: null,
+      thumbnailUrl: "/demo/tv/manual-detections/bonus-02.jpg",
+      videoUrl: "/demo/tv/manual-detections/bonus-02.mp4",
+      timeSlot: toTimeSlot("2026-07-24T10:33:00.000Z"),
+      dateKey: "2026-07-24",
+      reportUrl: "/tv/channels",
+      source: "uploaded",
+      fileSizeLabel: "13.6 MB",
+      resolutionLabel: "1916×1060 source",
+      ingestionLabel: "Manual clip ingestion",
+      analysisSummary:
+        "Imported from a user-supplied TV ad recording on Friday, July 24, 2026. Duration and source resolution were verified from the file metadata, and a web preview plus poster frame were generated for in-platform review.",
+    },
+    {
+      id: "geo-news-upload-lifebuoy-01",
+      brand: "Lifebuoy",
+      productOrCampaign: "Lifebuoy Germ Protection",
+      campaign: "Lifebuoy Germ Protection",
+      channel: "Geo News",
+      category: "commercial",
+      detectedAt: "2026-07-24T10:30:35.000Z",
+      startTimeLabel: toDateLabel("2026-07-24T10:30:35.000Z"),
+      endTimeLabel: toDateLabel(plusDuration("2026-07-24T10:30:35.000Z", 23464)),
+      durationMs: 23464,
+      durationLabel: formatDurationLabel(23464),
+      estimatedMediaValue: estimatedMediaValue(23464, 3650),
+      occurrenceCount: 1,
+      confidence: 0.99,
+      detectionConfidenceLabel: "User verified",
+      programName: "Manual uploaded recording",
+      transcript: null,
+      thumbnailUrl: "/demo/tv/manual-detections/lifebuoy-01.jpg",
+      videoUrl: "/demo/tv/manual-detections/lifebuoy-01.mp4",
+      timeSlot: toTimeSlot("2026-07-24T10:30:35.000Z"),
+      dateKey: "2026-07-24",
+      reportUrl: "/tv/channels",
+      source: "uploaded",
+      fileSizeLabel: "25.3 MB",
+      resolutionLabel: "1916×1060 source",
+      ingestionLabel: "Manual clip ingestion",
+      analysisSummary:
+        "Imported from a user-supplied monitoring clip and assigned to the Geo News watchlist. The platform generated a playable preview, a thumbnail frame, and a structured commercial report using verified file metadata.",
+    },
+    {
+      id: "ary-news-upload-tapal-danedar-03",
+      brand: "Tapal",
+      productOrCampaign: "Tapal Danedar Strong Taste",
+      campaign: "Tapal Danedar Strong Taste",
+      channel: "ARY News",
+      category: "commercial",
+      detectedAt: "2026-07-24T10:34:10.000Z",
+      startTimeLabel: toDateLabel("2026-07-24T10:34:10.000Z"),
+      endTimeLabel: toDateLabel(plusDuration("2026-07-24T10:34:10.000Z", 17705)),
+      durationMs: 17705,
+      durationLabel: formatDurationLabel(17705),
+      estimatedMediaValue: estimatedMediaValue(17705, 3600),
+      occurrenceCount: 1,
+      confidence: 0.99,
+      detectionConfidenceLabel: "User verified",
+      programName: "Manual uploaded recording",
+      transcript: null,
+      thumbnailUrl: "/demo/tv/manual-detections/tapal-danedar-03.jpg",
+      videoUrl: "/demo/tv/manual-detections/tapal-danedar-03.mp4",
+      timeSlot: toTimeSlot("2026-07-24T10:34:10.000Z"),
+      dateKey: "2026-07-24",
+      reportUrl: "/tv/channels",
+      source: "uploaded",
+      fileSizeLabel: "19.2 MB",
+      resolutionLabel: "1916×1060 source",
+      ingestionLabel: "Manual clip ingestion",
+      analysisSummary:
+        "Imported from a user-supplied Tapal Danedar TV spot. The TV Intelligence dashboard now serves this clip directly inside the detected-ad workflow with verified duration, poster frame, and commercial metadata for reporting.",
+    },
+  ];
 
-  const sampleGeoAd: TvDashboardAd = {
-    id: "geo-news-sample-sprite-1",
-    brand: "Sprite",
-    productOrCampaign: "Sprite Summer Splash",
-    campaign: "Summer Splash",
-    channel: "Geo News",
-    category: "commercial",
-    detectedAt: "2026-07-23T08:14:00.000Z",
-    startTimeLabel: "Jul 23, 2026, 1:14 PM",
-    endTimeLabel: "Jul 23, 2026, 1:14 PM",
-    durationMs: 20000,
-    durationLabel: "20s",
-    estimatedMediaValue: 92000,
-    occurrenceCount: 2,
-    confidence: 0.92,
-    detectionConfidenceLabel: "92%",
-    programName: "Geo Pakistan",
-    transcript: "Sprite Summer Splash highlights instant cooling and citrus-led refreshment moments.",
-    thumbnailUrl: "https://images.unsplash.com/photo-1629203851122-3726ecdf080e?auto=format&fit=crop&w=900&q=80",
-    videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-    timeSlot: "Afternoon",
-    dateKey: "2026-07-23",
-    reportUrl: "/tv/channels",
-    source: "preview",
-  };
-
-  const allAds = [sampleHumAd, sampleGeoAd, ...realAds];
+  const allAds = [...uploadedClipAds, ...realAds].sort((left, right) => {
+    const leftTime = left.detectedAt ? new Date(left.detectedAt).getTime() : 0;
+    const rightTime = right.detectedAt ? new Date(right.detectedAt).getTime() : 0;
+    return rightTime - leftTime;
+  });
 
   const channelCards: TvDashboardChannel[] = [
     {
@@ -159,9 +208,9 @@ export default async function TvChannelsPage() {
       totalDetectedAds: allAds.filter((ad) => ad.channel === "Geo News").length,
       totalAdDurationMs: allAds.filter((ad) => ad.channel === "Geo News").reduce((sum, ad) => sum + ad.durationMs, 0),
       estimatedAdvertisingValue: allAds.filter((ad) => ad.channel === "Geo News").reduce((sum, ad) => sum + ad.estimatedMediaValue, 0),
-      lastDetectedAdTime: sampleGeoAd.startTimeLabel,
+      lastDetectedAdTime: allAds.find((ad) => ad.channel === "Geo News")?.startTimeLabel ?? "Not available",
       detailsHref: "/tv/channels",
-      notes: "Connected as a newsroom watchlist channel for competitive ad spotting.",
+      notes: "Connected as a newsroom watchlist channel with uploaded and tracked competitor commercial clips.",
     },
     {
       id: "hum-news",
@@ -173,9 +222,9 @@ export default async function TvChannelsPage() {
       totalDetectedAds: allAds.filter((ad) => ad.channel === "Hum News").length,
       totalAdDurationMs: allAds.filter((ad) => ad.channel === "Hum News").reduce((sum, ad) => sum + ad.durationMs, 0),
       estimatedAdvertisingValue: allAds.filter((ad) => ad.channel === "Hum News").reduce((sum, ad) => sum + ad.estimatedMediaValue, 0),
-      lastDetectedAdTime: sampleHumAd.startTimeLabel,
+      lastDetectedAdTime: allAds.find((ad) => ad.channel === "Hum News")?.startTimeLabel ?? "Not available",
       detailsHref: "/tv/channels",
-      notes: "Includes a fully visible detected advertisement with in-platform playback and report summary.",
+      notes: "Includes a fully visible uploaded advertisement with in-platform playback and a complete monitoring report summary.",
     },
   ];
 

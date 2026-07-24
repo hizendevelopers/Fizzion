@@ -41,7 +41,11 @@ export type TvDashboardAd = {
   timeSlot: string;
   dateKey: string | null;
   reportUrl: string;
-  source: "real" | "preview";
+  source: "real" | "preview" | "uploaded";
+  fileSizeLabel?: string | null;
+  resolutionLabel?: string | null;
+  analysisSummary?: string | null;
+  ingestionLabel?: string | null;
 };
 
 export type TvDashboardChannel = {
@@ -170,6 +174,12 @@ function getChannelToneClass(tone: TvDashboardChannel["logoTone"]) {
   if (tone === "amber") return "from-[#ffbf58] to-[#ff8a00] text-[#4d2100]";
   if (tone === "cyan") return "from-[#9ce7e8] to-[#33c7c9] text-[#083d40]";
   return "from-[#ff6d63] to-[#f40009] text-white";
+}
+
+function getSourceLabel(source: TvDashboardAd["source"]) {
+  if (source === "real") return "Database-backed occurrence";
+  if (source === "uploaded") return "User-supplied monitoring clip";
+  return "Monitored preview ad";
 }
 
 function buildYouTubeTrend(channels: ConnectedYouTubeTvChannel[]) {
@@ -562,8 +572,17 @@ export function TvIntelligenceDashboard({
                               <MetricMini label="Channel" value={ad.channel} />
                               <MetricMini label="Time slot" value={ad.timeSlot} />
                               <MetricMini label="Program" value={ad.programName ?? "Not available"} />
-                              <MetricMini label="Report action" value={ad.source === "real" ? "Database-backed occurrence" : "Monitored preview ad"} />
+                              <MetricMini label="Report action" value={getSourceLabel(ad.source)} />
+                              {ad.resolutionLabel ? <MetricMini label="Resolution" value={ad.resolutionLabel} /> : null}
+                              {ad.fileSizeLabel ? <MetricMini label="File size" value={ad.fileSizeLabel} /> : null}
+                              {ad.ingestionLabel ? <MetricMini label="Ingested as" value={ad.ingestionLabel} /> : null}
                             </div>
+                            {ad.analysisSummary ? (
+                              <div className="mt-4 rounded-[1rem] bg-panel-soft px-4 py-3 text-sm leading-7 text-muted-foreground">
+                                <span className="block text-xs font-semibold uppercase tracking-[0.14em] text-foreground">Analysis summary</span>
+                                <p className="mt-2">{ad.analysisSummary}</p>
+                              </div>
+                            ) : null}
                             {ad.transcript ? (
                               <div className="mt-4 rounded-[1rem] bg-panel-soft px-4 py-3 text-sm leading-7 text-muted-foreground">
                                 <span className="block text-xs font-semibold uppercase tracking-[0.14em] text-foreground">Transcript</span>
@@ -829,7 +848,16 @@ export function TvIntelligenceDashboard({
                       <MetricMini label="Media value" value={`${formatCurrency(selectedAd.estimatedMediaValue)} PKR`} />
                       <MetricMini label="Occurrences" value={String(selectedAd.occurrenceCount)} />
                       <MetricMini label="Confidence" value={selectedAd.detectionConfidenceLabel} />
+                      {selectedAd.resolutionLabel ? <MetricMini label="Resolution" value={selectedAd.resolutionLabel} /> : null}
+                      {selectedAd.fileSizeLabel ? <MetricMini label="File size" value={selectedAd.fileSizeLabel} /> : null}
+                      {selectedAd.ingestionLabel ? <MetricMini label="Ingested as" value={selectedAd.ingestionLabel} /> : null}
                     </div>
+                    {selectedAd.analysisSummary ? (
+                      <div className="rounded-[1.3rem] border border-border bg-white px-4 py-3">
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Analysis summary</p>
+                        <p className="mt-2 text-sm leading-7 text-muted-foreground">{selectedAd.analysisSummary}</p>
+                      </div>
+                    ) : null}
                     {selectedAd.transcript ? (
                       <div className="rounded-[1.3rem] border border-border bg-white px-4 py-3">
                         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Ad transcript</p>
