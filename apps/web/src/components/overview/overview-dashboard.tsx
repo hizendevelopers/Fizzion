@@ -168,7 +168,7 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
         </div>
       </section>
 
-      <section className="sticky top-0 z-20 rounded-[1.8rem] border border-white/8 bg-[#12151C]/95 p-4 shadow-[0_16px_34px_rgba(5,8,16,0.26)] backdrop-blur">
+      <section className="rounded-[1.8rem] border border-white/8 bg-[#12151C]/95 p-4 shadow-[0_16px_34px_rgba(5,8,16,0.26)]">
         <div className="grid gap-3 xl:grid-cols-[1.1fr_1fr_1fr_1fr_auto]">
           <DateRangeFilter
             endDate={pendingFilters.endDate}
@@ -334,7 +334,7 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
 
       <section className="grid gap-6 xl:grid-cols-[1.55fr_1fr]">
         <div className="space-y-6">
-          <SpendingShareVoiceCard data={state.data.shareOfVoice} currency={state.data.summary.currency} />
+          <SpendingSovCard data={state.data.shareOfVoice} currency={state.data.summary.currency} loading={state.loading} error={state.error} onRetry={() => void loadData(pendingFilters)} />
           <PlatformSplitCard data={state.data.platformSplit} currency={state.data.summary.currency} />
         </div>
         <div className="space-y-6">
@@ -618,44 +618,324 @@ function StackedSpendChart({
   );
 }
 
-function SpendingShareVoiceCard({
+function formatSovPercent(value: number) {
+  if (!Number.isFinite(value) || value < 0) return "0%";
+  if (value >= 10) return `${Math.round(value)}%`;
+  if (value >= 1) return `${value.toFixed(1)}%`;
+  return `${value.toFixed(1)}%`;
+}
+
+function SpendingSovCard({
   data,
   currency,
+  loading,
+  error,
+  onRetry,
 }: {
   data: OverviewResponse["shareOfVoice"];
   currency: string;
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void;
 }) {
+  const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
+  const [tooltip, setTooltip] = useState<{
+    brandName: string;
+    color: string;
+    spend: number;
+    percentage: number;
+    currency: string;
+    activeCampaignCount: number;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  const sorted = [...data].sort((a, b) => b.percentage - a.percentage);
+  const totalSov = sorted.reduce((sum, item) => sum + (Number.isFinite(item.percentage) ? item.percentage : 0), 0);
+  const hasData = sorted.length > 0 && totalSov > 0;
+
+  // Can dimensions (responsive)
+  const canWidth = 200;
+  const canHeight = 380;
+  const canTop = 50;
+  const rimHeight = 12;
+  const tabTop = 14;
+  const bodyTop = canTop + rimHeight + 6;
+  const bodyHeight = canHeight - rimHeight - 16;
+  const canRadius = 28;
+
+  function handleSegmentInteraction(index: number, entry: (typeof sorted)[number], event: React.MouseEvent | React.FocusEvent | React.TouchEvent) {
+    const rect = (event.target as HTMLElement).getBoundingClientRect();
+    setFocusedIndex(index);
+    setTooltip({
+      brandName: entry.brandName,
+      color: entry.color,
+      spend: entry.spend,
+      percentage: entry.percentage,
+      currency,
+      activeCampaignCount: entry.activeCampaignCount,
+      x: rect.left + rect.width / 2,
+      y: rect.top,
+    });
+  }
+
+  function clearInteraction() {
+    setFocusedIndex(null);
+    setTooltip(null);
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <article className="rounded-[1.9rem] border border-[#FECACA] bg-white p-5 shadow-[0_18px_48px_rgba(10,18,28,0.08)]">
+        <div>
+          <h2 className="text-xl font-semibold text-[#111827]">Spending SOV</h2>
+          <p className="mt-1 text-sm text-[#64748B]">Share of total spend by brand across the selected platforms.</p>
+        </div>
+        <div className="mt-5 rounded-[1.4rem] border border-[#FECACA] bg-[#FEF2F2] px-4 py-6 text-center">
+          <p className="font-semibold text-[#991B1B]">Failed to load SOV data</p>
+          <p className="mt-2 text-sm text-[#991B1B]">{error}</p>
+          <button
+            className="mt-3 inline-flex h-10 items-center justify-center rounded-xl bg-[#991B1B] px-4 text-sm font-semibold text-white"
+            onClick={onRetry}
+            type="button"
+          >
+            Retry
+          </button>
+        </div>
+      </article>
+    );
+  }
+
+  // Loading state
+  if (loading && !hasData) {
+    return (
+      <article className="rounded-[1.9rem] border border-[#D9DEE8] bg-white p-5 shadow-[0_18px_48px_rgba(10,18,28,0.08)]">
+        <div>
+          <h2 className="text-xl font-semibold text-[#111827]">Spending SOV</h2>
+          <p className="mt-1 text-sm text-[#64748B]">Share of total spend by brand across the selected platforms.</p>
+        </div>
+        <div className="mt-5 flex animate-pulse justify-center">
+          <svg aria-label="Loading SOV chart" className="opacity-30" height={canHeight + 20} role="img" width={canWidth + 20}>
+            <rect fill="#E5E7EB" height={canHeight} rx={canRadius} width={canWidth} x={10} y={canTop} />
+            <rect fill="#D1D5DB" height={rimHeight} rx={6} width={canWidth * 0.7} x={10 + canWidth * 0.15} y={canTop - 4} />
+          </svg>
+        </div>
+      </article>
+    );
+  }
+
   return (
     <article className="rounded-[1.9rem] border border-[#D9DEE8] bg-white p-5 shadow-[0_18px_48px_rgba(10,18,28,0.08)]">
       <div>
-        <h2 className="text-xl font-semibold text-[#111827]">Spending Share of Voice</h2>
+        <h2 className="text-xl font-semibold text-[#111827]">Spending SOV</h2>
         <p className="mt-1 text-sm text-[#64748B]">Share of total spend by brand across the selected platforms.</p>
       </div>
-      <div className="mt-5 space-y-4">
-        {data.length === 0 ? (
-          <EmptyState description="There is no spend data to calculate share of voice for the selected filters." title="No SOV data" />
-        ) : (
-          data.map((entry) => (
-            <div key={entry.brandId}>
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <span className="h-3.5 w-3.5 rounded-full" style={{ backgroundColor: entry.color }} />
-                  <div>
-                    <p className="font-semibold text-[#111827]">{entry.brandName}</p>
-                    <p className="text-sm text-[#64748B]">{formatCurrency(entry.spend, currency)}</p>
+
+      {!hasData ? (
+        <div className="mt-5">
+          <div className="flex justify-center">
+            <svg aria-label="No data available" height={canHeight + 20} role="img" width={canWidth + 20}>
+              {/* Empty can outline */}
+              <defs>
+                <clipPath id="sovCanOutline">
+                  <rect height={bodyHeight} rx={canRadius} ry={canRadius} width={canWidth} x={10} y={bodyTop} />
+                </clipPath>
+              </defs>
+              <rect fill="none" height={canHeight} rx={canRadius} stroke="#D1D5DB" strokeWidth={2} width={canWidth} x={10} y={canTop} />
+              <rect fill="#F9FAFB" height={bodyHeight} rx={canRadius} width={canWidth} x={10} y={bodyTop} />
+            </svg>
+          </div>
+          <EmptyState description="No spending data is available for the selected filters." title="No SOV data" />
+        </div>
+      ) : (
+        <div className="mt-5 flex flex-col items-center gap-6 lg:flex-row lg:items-start lg:justify-center">
+          {/* Beverage Can SVG */}
+          <div className="relative shrink-0">
+            <svg
+              aria-label="Spending Share of Voice beverage can chart"
+              height={canHeight + 20}
+              role="img"
+              viewBox={`0 0 ${canWidth + 20} ${canHeight + 20}`}
+              width={canWidth + 20}
+            >
+              <defs>
+                <clipPath id="sovCanBody">
+                  <rect height={bodyHeight} rx={canRadius} ry={canRadius} width={canWidth} x={10} y={bodyTop} />
+                </clipPath>
+                {/* Subtle gradient for metallic top */}
+                <linearGradient id="canTopGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#D4D4D8" />
+                  <stop offset="40%" stopColor="#E4E4E7" />
+                  <stop offset="100%" stopColor="#A1A1AA" />
+                </linearGradient>
+                <linearGradient id="canBodyShine" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor="rgba(255,255,255,0.12)" />
+                  <stop offset="30%" stopColor="rgba(255,255,255,0)" />
+                  <stop offset="70%" stopColor="rgba(255,255,255,0)" />
+                  <stop offset="100%" stopColor="rgba(0,0,0,0.06)" />
+                </linearGradient>
+              </defs>
+
+              {/* Can shadow */}
+              <ellipse cx={canWidth / 2 + 10} cy={canHeight + canTop + 6} fill="rgba(0,0,0,0.08)" rx={canWidth / 2 + 4} ry={6} />
+
+              {/* Metallic top section */}
+              <rect fill="url(#canTopGrad)" height={rimHeight} rx={6} ry={6} width={canWidth * 0.72} x={10 + canWidth * 0.14} y={canTop} />
+
+              {/* Pull tab */}
+              <ellipse cx={canWidth / 2 + 10} cy={tabTop + 4} fill="#A1A1AA" rx={12} ry={4} />
+              <ellipse cx={canWidth / 2 + 10} cy={tabTop + 2} fill="#D4D4D8" rx={8} ry={3} />
+
+              {/* Can body background */}
+              <rect fill="#F8FAFC" height={bodyHeight} rx={canRadius} width={canWidth} x={10} y={bodyTop} />
+
+              {/* Stacked segments clipped to can shape */}
+              <g clipPath="url(#sovCanBody)">
+                {sorted.map((entry, index) => {
+                  const segHeight = totalSov > 0 ? (entry.percentage / totalSov) * bodyHeight : 0;
+                  const segTop = bodyTop + bodyHeight - sorted.slice(0, index + 1).reduce((sum, e) => sum + (totalSov > 0 ? (e.percentage / totalSov) * bodyHeight : 0), 0);
+                  const isFocused = focusedIndex === index;
+                  const shouldDim = focusedIndex !== null && !isFocused;
+                  const canFitLabel = segHeight > 24;
+                  const label = formatSovPercent(entry.percentage);
+
+                  return (
+                    <g
+                      key={entry.brandId}
+                      aria-label={`${entry.brandName}: ${entry.percentage.toFixed(1)}% of spending SOV, total spend ${formatCurrency(entry.spend, currency)}`}
+                      role="button"
+                      style={{ cursor: "pointer" }}
+                      tabIndex={0}
+                      onBlur={clearInteraction}
+                      onClick={(e) => handleSegmentInteraction(index, entry, e)}
+                      onFocus={(e) => handleSegmentInteraction(index, entry, e)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          handleSegmentInteraction(index, entry, e as unknown as React.MouseEvent);
+                        }
+                      }}
+                      onMouseEnter={(e) => handleSegmentInteraction(index, entry, e)}
+                      onMouseLeave={clearInteraction}
+                      onTouchStart={(e) => handleSegmentInteraction(index, entry, e)}
+                      onTouchEnd={(e) => {
+                        // Keep tooltip visible on tap
+                      }}
+                    >
+                      <rect
+                        fill={entry.color}
+                        height={Math.max(segHeight, 2)}
+                        opacity={shouldDim ? 0.35 : isFocused ? 0.92 : 0.82}
+                        rx={segHeight > 4 ? 4 : 0}
+                        width={canWidth - 4}
+                        x={12}
+                        y={segTop}
+                      />
+                      {canFitLabel && (
+                        <text
+                          dominantBaseline="central"
+                          fill={getTextColorForBg(entry.color)}
+                          fontSize="13"
+                          fontWeight="700"
+                          textAnchor="middle"
+                          x={canWidth / 2 + 10}
+                          y={segTop + segHeight / 2}
+                        >
+                          {label}
+                        </text>
+                      )}
+                    </g>
+                  );
+                })}
+
+                {/* Shine overlay */}
+                <rect fill="url(#canBodyShine)" height={bodyHeight} pointerEvents="none" width={canWidth} x={10} y={bodyTop} />
+              </g>
+
+              {/* Bottom rim */}
+              <rect fill="#E5E7EB" height={4} rx={2} width={canWidth + 4} x={8} y={bodyTop + bodyHeight - 2} />
+            </svg>
+          </div>
+
+          {/* Legend */}
+          <div className="w-full lg:w-auto lg:min-w-[200px]">
+            <div className="space-y-2">
+              {sorted.map((entry, index) => {
+                const isFocused = focusedIndex === index;
+                return (
+                  <div
+                    key={entry.brandId}
+                    aria-label={`${entry.brandName}: ${formatSovPercent(entry.percentage)}`}
+                    className={`flex items-center justify-between gap-3 rounded-xl px-3 py-2 transition ${isFocused ? "bg-[#F3F4F6]" : "hover:bg-[#F9FAFB]"}`}
+                    onMouseEnter={() => setFocusedIndex(index)}
+                    onMouseLeave={() => setFocusedIndex(null)}
+                    role="listitem"
+                    tabIndex={0}
+                    onFocus={() => setFocusedIndex(index)}
+                    onBlur={() => setFocusedIndex(null)}
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: entry.color }} />
+                      <span className="truncate text-sm font-medium text-[#111827]">{entry.brandName}</span>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <span className="text-sm font-semibold text-[#111827]">{formatSovPercent(entry.percentage)}</span>
+                      <span className="ml-2 text-xs text-[#64748B]">{formatCurrency(entry.spend, currency)}</span>
+                    </div>
                   </div>
-                </div>
-                <p className="font-semibold text-[#111827]">{entry.percentage.toFixed(1)}%</p>
-              </div>
-              <div className="mt-2 h-3 overflow-hidden rounded-full bg-[#E5E7EB]">
-                <div className="h-full rounded-full" style={{ width: `${entry.percentage}%`, backgroundColor: entry.color }} />
-              </div>
+                );
+              })}
             </div>
-          ))
-        )}
-      </div>
+            {sorted.length > 0 && (
+              <div className="mt-3 rounded-xl border border-dashed border-[#E5E7EB] bg-[#F8FAFC] px-3 py-2 text-center text-xs text-[#64748B]">
+                Total: {formatSovPercent(totalSov)}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Tooltip portal */}
+      {tooltip && (
+        <div
+          className="pointer-events-none fixed z-50 min-w-[180px] rounded-xl border border-[#E5E7EB] bg-white px-4 py-3 shadow-[0_12px_28px_rgba(0,0,0,0.12)]"
+          style={{
+            left: Math.min(tooltip.x, window.innerWidth - 200),
+            top: Math.max(tooltip.y - 12, 8),
+            transform: "translate(-50%, -100%)",
+          }}
+        >
+          <div className="flex items-center gap-2">
+            <span className="h-3 w-3 rounded-full" style={{ backgroundColor: tooltip.color }} />
+            <p className="font-semibold text-[#111827]">{tooltip.brandName}</p>
+          </div>
+          <div className="mt-2 space-y-1 text-sm">
+            <p className="text-[#64748B]">
+              Total Spend: <span className="font-semibold text-[#111827]">{formatCurrency(tooltip.spend, tooltip.currency)}</span>
+            </p>
+            <p className="text-[#64748B]">
+              Spending SOV: <span className="font-semibold text-[#111827]">{tooltip.percentage.toFixed(1)}%</span>
+            </p>
+            <p className="text-[#64748B]">
+              Active Campaigns: <span className="font-semibold text-[#111827]">{tooltip.activeCampaignCount}</span>
+            </p>
+          </div>
+        </div>
+      )}
     </article>
   );
+}
+
+function getTextColorForBg(bgColor: string) {
+  // Simple luminance check for accessible text contrast
+  const hex = bgColor.replace("#", "");
+  if (hex.length < 6) return "#FFFFFF";
+  const r = Number.parseInt(hex.slice(0, 2), 16);
+  const g = Number.parseInt(hex.slice(2, 4), 16);
+  const b = Number.parseInt(hex.slice(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.55 ? "#111827" : "#FFFFFF";
 }
 
 function PlatformSplitCard({

@@ -156,6 +156,7 @@ export type OverviewResponse = {
     color: string;
     spend: number;
     percentage: number;
+    activeCampaignCount: number;
   }>;
   platformSplit: Array<{
     platformId: string;
@@ -683,13 +684,17 @@ export function computeOverviewAnalytics(input: AnalyticsComputationInput): Over
     .filter(Boolean)
     .sort((left, right) => (right?.totalSpend ?? 0) - (left?.totalSpend ?? 0)) as OverviewResponse["spending"]["totalsByBrand"];
 
-  const shareOfVoice = brandTotals.map((brand) => ({
-    brandId: brand.brandId,
-    brandName: brand.brandName,
-    color: brand.color,
-    spend: brand.totalSpend,
-    percentage: brand.percentage,
-  }));
+  const shareOfVoice = brandTotals.map((brand) => {
+    const brandActiveCampaigns = activeCampaigns.filter((c) => c.brandId === brand.brandId);
+    return {
+      brandId: brand.brandId,
+      brandName: brand.brandName,
+      color: brand.color,
+      spend: brand.totalSpend,
+      percentage: brand.percentage,
+      activeCampaignCount: brandActiveCampaigns.length,
+    };
+  });
 
   const platformSplit = [...currentSpendByPlatform.entries()]
     .map(([platformId, spend]) => {
