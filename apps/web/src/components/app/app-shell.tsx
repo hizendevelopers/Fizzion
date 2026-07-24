@@ -44,7 +44,7 @@ export function AppShell({
           </div>
 
           {/* Controls row: Language + Timezone + Freshness badge */}
-          <div className="flex shrink-0 items-center justify-end gap-2 bg-[#1A1F29]/90 px-4 py-2 lg:px-8">
+          <div className="flex shrink-0 items-center justify-end gap-2 border-b border-white bg-[#1A1F29]/90 px-4 py-2 lg:px-8">
             <PreferenceSwitchers
               copy={{
                 languageLabel: copy.languageLabel,
