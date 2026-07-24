@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { primaryNavigation } from "@fizzion/config";
 
 import { cn } from "@/lib/utils";
-import { FizZionLogo } from "@/components/brand/fizzion-logo";
+import { SidebarBranding } from "@/components/brand/sidebar-branding";
 
 import {
   AlertIcon,
@@ -63,10 +63,8 @@ export function Sidebar({ labels }: SidebarProps) {
   return (
     <aside className="hidden h-full w-[17rem] shrink-0 bg-[#12151C] text-sidebar-foreground lg:flex">
       <div className="flex h-full w-full flex-col gap-5 overflow-y-auto p-5">
-        <div className="px-2 pt-1">
-          <div className="flex items-center justify-center">
-            <FizZionLogo className="h-14 w-[11.25rem] drop-shadow-[0_6px_22px_rgba(255,255,255,0.12)]" />
-          </div>
+<div className="px-2 pt-1">
+          <SidebarBranding />
         </div>
 
         {primaryNavigation.map((item) => {

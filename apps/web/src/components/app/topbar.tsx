@@ -1,4 +1,4 @@
-import { ClockIcon, SparkleIcon } from "./ui-icons";
+import { ClockIcon } from "./ui-icons";
 import { PreferenceSwitchers } from "./preference-switchers";
 
 type TopbarProps = {
@@ -16,13 +16,9 @@ export function Topbar({ locale, timezone, copy }: TopbarProps) {
     <header className="border-b border-white/8 bg-[#12151C]/96 backdrop-blur-xl">
       <div className="flex flex-col gap-3 px-4 py-4 lg:flex-row lg:items-center lg:justify-between lg:px-8">
         <div className="flex items-center gap-4">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-[#1A1F29] text-brand-red">
-            <SparkleIcon className="h-5 w-5" />
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#AEB5C2]">Workspace</p>
-            <h2 className="text-xl font-semibold tracking-tight text-[#F7F8FA]">Media Monitoring</h2>
-          </div>
+          <h2 className="text-[22px] font-semibold tracking-tight text-[#F7F8FA]" style={{ fontWeight: 650 }}>
+            Media Monitoring
+          </h2>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <PreferenceSwitchers
