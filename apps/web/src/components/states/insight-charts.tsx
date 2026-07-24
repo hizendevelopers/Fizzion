@@ -76,17 +76,20 @@ function BottleIllustration({
   const normalizedTotal = clampShare(totalShare);
   const clipId = `${idPrefix}-sov-can-clip`;
   const bodyId = `${idPrefix}-sov-can-body`;
-  const lidId = `${idPrefix}-sov-can-lid`;
+  const topId = `${idPrefix}-sov-can-top`;
+  const bottomId = `${idPrefix}-sov-can-bottom`;
+  const tabId = `${idPrefix}-sov-can-tab`;
   const shadowId = `${idPrefix}-sov-can-shadow`;
-  const renderedSegments = normalizedSegments.reduce<Array<{ key: string; y: number; height: number; color: string }>>(
+  const renderedSegments = normalizedSegments.reduce<Array<{ key: string; y: number; height: number; color: string; share: number }>>(
     (segmentsSoFar, segment, index) => {
-      const segmentHeight = 226 * segment.share;
-      const nextTop = (segmentsSoFar.at(-1)?.y ?? 283) - segmentHeight;
+      const segmentHeight = 216 * segment.share;
+      const nextTop = (segmentsSoFar.at(-1)?.y ?? 279) - segmentHeight;
       segmentsSoFar.push({
         key: `${idPrefix}-segment-${index}`,
         y: nextTop,
         height: Math.max(segmentHeight, 0),
         color: segment.color,
+        share: segment.share,
       });
       return segmentsSoFar;
     },
@@ -96,53 +99,70 @@ function BottleIllustration({
   return (
     <svg className="h-[340px] w-full" fill="none" viewBox="0 0 220 350">
       <defs>
-        <linearGradient id={bodyId} x1="56" x2="164" y1="40" y2="304">
-          <stop offset="0%" stopColor="#f6f4f2" />
-          <stop offset="14%" stopColor="#ffffff" />
-          <stop offset="34%" stopColor="#dbd6d3" />
-          <stop offset="52%" stopColor="#ffffff" />
-          <stop offset="74%" stopColor="#d6d0cc" />
-          <stop offset="100%" stopColor="#f4efec" />
+        <linearGradient id={bodyId} x1="58" x2="162" y1="36" y2="300">
+          <stop offset="0%" stopColor="#faf7f5" />
+          <stop offset="10%" stopColor="#ffffff" />
+          <stop offset="22%" stopColor="#ded7d1" />
+          <stop offset="48%" stopColor="#ffffff" />
+          <stop offset="78%" stopColor="#d8d0cb" />
+          <stop offset="100%" stopColor="#f5efea" />
         </linearGradient>
-        <linearGradient id={lidId} x1="60" x2="160" y1="14" y2="40">
-          <stop offset="0%" stopColor="#7d7d7d" />
-          <stop offset="50%" stopColor="#d6d6d6" />
-          <stop offset="100%" stopColor="#727272" />
+        <linearGradient id={topId} x1="60" x2="160" y1="26" y2="58">
+          <stop offset="0%" stopColor="#d9452b" />
+          <stop offset="55%" stopColor="#cf2f16" />
+          <stop offset="100%" stopColor="#a9180f" />
+        </linearGradient>
+        <linearGradient id={bottomId} x1="60" x2="160" y1="296" y2="318">
+          <stop offset="0%" stopColor="#496baf" />
+          <stop offset="100%" stopColor="#234f96" />
+        </linearGradient>
+        <linearGradient id={tabId} x1="88" x2="132" y1="4" y2="31">
+          <stop offset="0%" stopColor="#dedede" />
+          <stop offset="100%" stopColor="#a8a8a8" />
         </linearGradient>
         <radialGradient id={shadowId} cx="0" cy="0" gradientTransform="translate(110 325) rotate(90) scale(16 66)" gradientUnits="userSpaceOnUse">
           <stop stopColor="rgba(96,78,78,0.18)" />
           <stop offset="1" stopColor="rgba(96,78,78,0)" />
         </radialGradient>
         <clipPath id={clipId}>
-          <rect x="56" y="38" width="108" height="248" rx="28" />
+          <rect x="58" y="38" width="104" height="244" rx="24" />
         </clipPath>
       </defs>
 
       <ellipse cx="110" cy="325" fill={`url(#${shadowId})`} rx="66" ry="16" />
-      <rect x="56" y="38" width="108" height="248" rx="28" fill={`url(#${bodyId})`} stroke="#d7cfca" strokeWidth="4" />
-      <rect x="64" y="18" width="92" height="16" rx="8" fill={`url(#${lidId})`} />
-      <rect x="82" y="10" width="56" height="12" rx="6" fill="#7b7b7b" />
-      <path d="M100 12 C100 20 104 26 110 29 C116 26 120 20 120 12" stroke="#ededed" strokeWidth="3" strokeLinecap="round" />
+      <path d="M92 7 H128 C132 7 135 10 135 14 V30 H85 V14 C85 10 88 7 92 7 Z" fill={`url(#${tabId})`} />
+      <ellipse cx="110" cy="14" rx="12" ry="7" fill="#ececec" />
+      <ellipse cx="110" cy="14" rx="5" ry="3" fill="#c9c9c9" />
+      <rect x="60" y="30" width="100" height="8" rx="4" fill="#666666" />
+      <rect x="58" y="38" width="104" height="244" rx="24" fill={`url(#${bodyId})`} stroke="#d7cfca" strokeWidth="4" />
       <g clipPath={`url(#${clipId})`}>
-        <rect x="56" y="38" width="108" height="248" fill="rgba(255,255,255,0.3)" />
+        <rect x="58" y="38" width="104" height="244" fill="rgba(255,255,255,0.12)" />
+        <rect x="58" y="38" width="104" height="42" fill={`url(#${topId})`} />
         {renderedSegments.map((segment) => (
-          <rect
-            key={segment.key}
-            x="56"
-            y={segment.y}
-            width="108"
-            height={segment.height}
-            fill={segment.color}
-          />
+          <g key={segment.key}>
+            <rect x="58" y={segment.y} width="104" height={segment.height} fill={segment.color} />
+            {segment.height >= 26 ? (
+              <text
+                x="110"
+                y={segment.y + segment.height / 2 + 4}
+                fill={segment.color.toLowerCase() === "#f40009" ? "#ffffff" : "#1f2937"}
+                fontFamily="Arial, sans-serif"
+                fontSize="11"
+                fontWeight="700"
+                textAnchor="middle"
+              >
+                {Math.round(segment.share * 100)}
+              </text>
+            ) : null}
+          </g>
         ))}
-        <path d="M80 44 C72 92 72 230 81 286" stroke="rgba(255,255,255,0.44)" strokeLinecap="round" strokeWidth="6" />
-        <path d="M142 46 C149 94 149 228 140 286" stroke="rgba(255,255,255,0.22)" strokeLinecap="round" strokeWidth="5" />
-        <path d="M110 44 L110 284" stroke="rgba(255,255,255,0.18)" strokeLinecap="round" strokeWidth="3" />
+        <rect x="58" y="258" width="104" height="24" fill={`url(#${bottomId})`} />
+        <path d="M82 44 C75 92 75 226 82 280" stroke="rgba(255,255,255,0.24)" strokeLinecap="round" strokeWidth="5" />
+        <path d="M141 46 C147 95 147 224 140 280" stroke="rgba(255,255,255,0.18)" strokeLinecap="round" strokeWidth="4" />
       </g>
-      <rect x="56" y="38" width="108" height="248" rx="28" stroke="rgba(255,255,255,0.72)" strokeWidth="1.6" />
-      <rect x="74" y="146" width="72" height="34" rx="17" fill="rgba(29,35,71,0.86)" />
-      <text x="110" y="167" fill="#ffffff" fontFamily="Arial, sans-serif" fontSize="11" fontWeight="700" textAnchor="middle">
-        {(normalizedTotal * 100).toFixed(1)}%
+      <rect x="58" y="38" width="104" height="244" rx="24" stroke="rgba(255,255,255,0.72)" strokeWidth="1.4" />
+      <text x="110" y="62" fill="#ffffff" fontFamily="Arial, sans-serif" fontSize="12" fontWeight="700" textAnchor="middle">
+        {Math.round(normalizedTotal * 100)}
       </text>
     </svg>
   );
