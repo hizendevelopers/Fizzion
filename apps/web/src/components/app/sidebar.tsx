@@ -63,7 +63,7 @@ export function Sidebar({ labels }: SidebarProps) {
   return (
     <aside className="hidden h-full w-[17rem] shrink-0 bg-[#12151C] text-sidebar-foreground lg:flex">
       <div className="flex h-full w-full flex-col gap-5 overflow-y-auto p-5">
-<div className="px-2 pt-1">
+        <div className="px-2 pt-1">
           <SidebarBranding />
         </div>
 
