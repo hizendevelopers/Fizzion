@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
+import { ZodError } from "zod";
 
-import { getExecutiveOverview } from "@/lib/executive-data";
+import { getOverviewAnalytics, parseOverviewFiltersFromSearchParams } from "@/lib/overview-analytics";
 import { makeRequestId, tvApiError } from "@/lib/tv-api";
 
 export async function GET(request: Request) {
@@ -8,30 +9,27 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
 
   try {
-    const payload = await getExecutiveOverview({
-      range: (searchParams.get("range") as
-        | "today"
-        | "yesterday"
-        | "last7"
-        | "last30"
-        | "thisMonth"
-        | "lastMonth"
-        | "thisQuarter"
-        | "custom"
-        | null) ?? "last30",
-      startDate: searchParams.get("startDate") ?? undefined,
-      endDate: searchParams.get("endDate") ?? undefined,
-    });
+    const filters = parseOverviewFiltersFromSearchParams(searchParams);
+    const payload = await getOverviewAnalytics(filters);
 
     return NextResponse.json({
       ok: true,
       requestId,
-      ...payload,
+      data: payload,
     });
   } catch (error) {
+    if (error instanceof ZodError) {
+      return tvApiError(
+        "EXECUTIVE_OVERVIEW_VALIDATION_FAILED",
+        error.issues[0]?.message ?? "Overview filters are invalid.",
+        400,
+        requestId,
+      );
+    }
+
     return tvApiError(
       "EXECUTIVE_OVERVIEW_FAILED",
-      error instanceof Error ? error.message : "Executive overview could not be loaded.",
+      error instanceof Error ? error.message : "Overview could not be loaded.",
       500,
       requestId,
     );

@@ -38,7 +38,7 @@ type CopyTree = {
 
 const en: CopyTree = {
   appName: "FizZion",
-  partnership: "Built by Hizen for Coca-Cola Iraq",
+  partnership: "Media Monitoring",
   languageLabel: "Language",
   timezoneLabel: "Time zone",
   searchPlaceholder: "Search brands, creatives, channels, URLs, captions, and notes",
@@ -53,7 +53,7 @@ const en: CopyTree = {
     campaign: "All campaigns",
   },
   nav: {
-    overview: "Executive Overview",
+    overview: "Overview",
     tv: "TV Intelligence",
     tvChannels: "TV Channels",
     tvOccurrences: "TV Occurrences",
@@ -105,7 +105,7 @@ const en: CopyTree = {
 
 const ar: CopyTree = {
   appName: "فِزيون",
-  partnership: "تم تطويره بواسطة Hizen لصالح كوكاكولا العراق",
+  partnership: "Media Monitoring",
   languageLabel: "اللغة",
   timezoneLabel: "المنطقة الزمنية",
   searchPlaceholder: "ابحث في العلامات والإعلانات والقنوات والروابط والتعليقات والملاحظات",
@@ -120,7 +120,7 @@ const ar: CopyTree = {
     campaign: "جميع الحملات",
   },
   nav: {
-    overview: "النظرة التنفيذية",
+    overview: "Overview",
     tv: "ذكاء التلفزيون",
     tvChannels: "قنوات التلفزيون",
     tvOccurrences: "مرات الظهور التلفزيوني",

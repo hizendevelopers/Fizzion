@@ -8,7 +8,7 @@ export type ModuleDefinition = {
 
 export const moduleDefinitions: Record<string, ModuleDefinition> = {
   overview: {
-    title: "Executive Overview",
+    title: "Overview",
     description:
       "Cross-media command center for Iraqi advertising activity, source health, competitor movement, and creative discovery.",
     status: "Executive command center",
@@ -212,4 +212,3 @@ export const moduleDefinitions: Record<string, ModuleDefinition> = {
     ],
   },
 };
-

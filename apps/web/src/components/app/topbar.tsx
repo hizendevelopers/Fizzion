@@ -1,29 +1,11 @@
-import {
-  BellIcon,
-  CalendarIcon,
-  ClockIcon,
-  FilterIcon,
-  GlobeIcon,
-  SearchIcon,
-  SparkleIcon,
-  UserIcon,
-} from "./ui-icons";
+import { ClockIcon, SparkleIcon } from "./ui-icons";
 import { PreferenceSwitchers } from "./preference-switchers";
 
 type TopbarProps = {
   locale: "en" | "ar";
   timezone: string;
   copy: {
-    searchPlaceholder: string;
     dataFreshness: string;
-    notifications: string;
-    profile: string;
-    filters: {
-      dateRange: string;
-      market: string;
-      brand: string;
-      campaign: string;
-    };
     languageLabel: string;
     timezoneLabel: string;
   };
@@ -31,76 +13,32 @@ type TopbarProps = {
 
 export function Topbar({ locale, timezone, copy }: TopbarProps) {
   return (
-    <header className="border-b border-white/10 bg-[linear-gradient(180deg,rgba(56,34,47,0.96),rgba(69,39,56,0.94))] backdrop-blur-xl">
-      <div className="flex flex-col gap-4 px-4 py-4 lg:px-8">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex flex-1 flex-col gap-3 xl:flex-row xl:items-center">
-            <div className="elevated-chip flex h-12 w-full items-center gap-3 rounded-full px-4 xl:max-w-xl">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-red/16 text-brand-red-soft">
-                <SearchIcon className="h-4 w-4" />
-              </span>
-              <input
-                aria-label="Global search"
-                className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/46"
-                placeholder={copy.searchPlaceholder}
-                type="search"
-              />
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <FilterPill icon={<CalendarIcon />} label={copy.filters.dateRange} />
-              <FilterPill icon={<GlobeIcon />} label={copy.filters.market} />
-              <FilterPill icon={<SparkleIcon />} label={copy.filters.brand} />
-              <FilterPill icon={<FilterIcon />} label={copy.filters.campaign} />
-            </div>
+    <header className="border-b border-white/8 bg-[#12151C]/96 backdrop-blur-xl">
+      <div className="flex flex-col gap-3 px-4 py-4 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+        <div className="flex items-center gap-4">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-[#1A1F29] text-brand-red">
+            <SparkleIcon className="h-5 w-5" />
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <PreferenceSwitchers
-              copy={{
-                languageLabel: copy.languageLabel,
-                timezoneLabel: copy.timezoneLabel,
-              }}
-              locale={locale}
-              timezone={timezone}
-            />
-            <StatusPill icon={<ClockIcon />} label={`${copy.dataFreshness}: Live shell`} tone="success" />
-            <StatusPill icon={<BellIcon />} label={copy.notifications} tone="info" />
-            <StatusPill icon={<UserIcon />} label={copy.profile} tone="neutral" />
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#AEB5C2]">Workspace</p>
+            <h2 className="text-xl font-semibold tracking-tight text-[#F7F8FA]">Media Monitoring</h2>
           </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <PreferenceSwitchers
+            copy={{
+              languageLabel: copy.languageLabel,
+              timezoneLabel: copy.timezoneLabel,
+            }}
+            locale={locale}
+            timezone={timezone}
+          />
+          <span className="inline-flex h-10 items-center gap-2 rounded-full border border-[#35C76F]/18 bg-[#E8F8EE] px-4 text-sm font-medium text-[#14532D]">
+            <ClockIcon className="h-4 w-4" />
+            {copy.dataFreshness}: Live
+          </span>
         </div>
       </div>
     </header>
-  );
-}
-
-function FilterPill({ icon, label }: { icon: React.ReactNode; label: string }) {
-  return (
-    <span className="inline-flex h-10 items-center gap-2 rounded-full border border-white/12 bg-white/8 px-4 text-sm text-white/78 shadow-[0_14px_24px_rgba(10,5,10,0.18)] transition duration-300 hover:-translate-y-0.5 hover:bg-white/10">
-      <span className="text-brand-red">{icon}</span>
-      {label}
-    </span>
-  );
-}
-
-function StatusPill({
-  icon,
-  label,
-  tone,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  tone: "success" | "info" | "neutral";
-}) {
-  const className =
-    tone === "success"
-      ? "border border-brand-green/18 bg-brand-green-soft/95 text-brand-green-deep shadow-[var(--shadow-soft)]"
-    : tone === "info"
-        ? "border border-white/12 bg-white/10 text-white shadow-[0_14px_24px_rgba(10,5,10,0.18)]"
-        : "border border-white/12 bg-white/8 text-white shadow-[0_14px_24px_rgba(10,5,10,0.18)]";
-
-  return (
-    <span className={`inline-flex h-10 items-center gap-2 rounded-full px-4 text-sm font-medium transition duration-300 hover:-translate-y-0.5 ${className}`}>
-      {icon}
-      {label}
-    </span>
   );
 }

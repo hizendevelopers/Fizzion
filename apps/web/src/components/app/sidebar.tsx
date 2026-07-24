@@ -61,11 +61,11 @@ export function Sidebar({ labels }: SidebarProps) {
   }
 
   return (
-    <aside className="hidden h-full w-[17rem] shrink-0 bg-[linear-gradient(180deg,#24151d_0%,#2d1a24_32%,#3a2230_68%,#2a1821_100%)] text-sidebar-foreground lg:flex">
-      <div className="flex h-full w-full flex-col gap-6 overflow-y-auto p-5">
+    <aside className="hidden h-full w-[17rem] shrink-0 bg-[#12151C] text-sidebar-foreground lg:flex">
+      <div className="flex h-full w-full flex-col gap-5 overflow-y-auto p-5">
         <div className="px-2 pt-1">
           <div className="flex items-center justify-center">
-            <FizZionLogo className="h-14 w-[11.25rem] drop-shadow-[0_6px_22px_rgba(255,255,255,0.18)]" />
+            <FizZionLogo className="h-14 w-[11.25rem] drop-shadow-[0_6px_22px_rgba(255,255,255,0.12)]" />
           </div>
         </div>
 
@@ -84,14 +84,14 @@ export function Sidebar({ labels }: SidebarProps) {
                   className={cn(
                     "flex w-full items-center justify-between rounded-[1.2rem] px-4 py-3 text-left text-sm font-semibold transition duration-300",
                     active || isOpen
-                      ? "bg-[linear-gradient(135deg,#ff5249_0%,#f40009_46%,#b30009_100%)] text-white shadow-[0_18px_38px_rgba(244,0,9,0.34)] ring-1 ring-white/18"
-                      : "text-white/72 hover:bg-white/10 hover:text-white hover:shadow-[0_14px_28px_rgba(7,5,5,0.28)]",
+                      ? "bg-[#F40009] text-white shadow-[0_14px_32px_rgba(244,0,9,0.22)] ring-1 ring-white/8"
+                      : "text-[#AEB5C2] hover:bg-[#242A35] hover:text-[#F7F8FA]",
                   )}
                   onClick={() => toggleSection(item.key)}
                   type="button"
                 >
                   <span className="flex items-center gap-3">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10">
+                    <span className={cn("flex h-9 w-9 items-center justify-center rounded-xl", active || isOpen ? "bg-white/14" : "bg-white/6")}>
                       {icon}
                     </span>
                     <span>{labels[item.key] ?? item.key}</span>
@@ -106,11 +106,11 @@ export function Sidebar({ labels }: SidebarProps) {
                   className={cn(
                     "flex items-center gap-3 rounded-[1.2rem] px-4 py-3 text-sm font-semibold transition duration-300",
                     active
-                      ? "bg-[linear-gradient(135deg,#ff5249_0%,#f40009_46%,#b30009_100%)] text-white shadow-[0_18px_38px_rgba(244,0,9,0.34)] ring-1 ring-white/18"
-                      : "text-white/72 hover:bg-white/10 hover:text-white hover:shadow-[0_14px_28px_rgba(7,5,5,0.28)]",
+                      ? "bg-[#F40009] text-white shadow-[0_14px_32px_rgba(244,0,9,0.22)] ring-1 ring-white/8"
+                      : "text-[#AEB5C2] hover:bg-[#242A35] hover:text-[#F7F8FA]",
                   )}
                 >
-                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10">
+                  <span className={cn("flex h-9 w-9 items-center justify-center rounded-xl", active ? "bg-white/14" : "bg-white/6")}>
                     {icon}
                   </span>
                   {labels[item.key] ?? item.key}
@@ -129,11 +129,11 @@ export function Sidebar({ labels }: SidebarProps) {
                         className={cn(
                           "flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition duration-300",
                           childActive
-                            ? "bg-brand-red/18 text-white ring-1 ring-brand-red/50"
-                            : "text-white/55 hover:bg-white/8 hover:text-white/88",
+                            ? "bg-[#242A35] text-white ring-1 ring-[#F40009]/40"
+                            : "text-[#94A3B8] hover:bg-[#242A35] hover:text-white",
                         )}
                       >
-                        <span className="h-2.5 w-2.5 rounded-full bg-brand-green shadow-[0_0_0_4px_rgba(57,187,31,0.12)]" />
+                        <span className="h-2.5 w-2.5 rounded-full bg-brand-green shadow-[0_0_0_4px_rgba(53,199,111,0.12)]" />
                         {labels[child.key] ?? child.key}
                       </Link>
                     );
@@ -143,30 +143,7 @@ export function Sidebar({ labels }: SidebarProps) {
             </div>
           );
         })}
-
-        <div className="mt-auto rounded-[1.85rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.10),rgba(255,255,255,0.04))] p-4 shadow-[var(--shadow-dark)] backdrop-blur">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">Live health</p>
-            <span className="rounded-full bg-brand-green/18 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-brand-green-soft">
-              Stable
-            </span>
-          </div>
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            <HealthTile label="TV" value="10" />
-            <HealthTile label="Social" value="24" />
-            <HealthTile label="Web" value="15m" />
-          </div>
-        </div>
       </div>
     </aside>
-  );
-}
-
-function HealthTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl bg-white/10 px-3 py-3 text-center shadow-[0_12px_22px_rgba(9,5,6,0.18)]">
-      <p className="text-lg font-semibold text-white">{value}</p>
-      <p className="text-[11px] text-white/55">{label}</p>
-    </div>
   );
 }
