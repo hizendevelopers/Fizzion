@@ -618,11 +618,55 @@ function StackedSpendChart({
   );
 }
 
-function formatSovPercent(value: number) {
-  if (!Number.isFinite(value) || value < 0) return "0%";
-  if (value >= 10) return `${Math.round(value)}%`;
-  if (value >= 1) return `${value.toFixed(1)}%`;
-  return `${value.toFixed(1)}%`;
+/**
+ * Builds an SVG path for the can body with rounded shoulders and bottom.
+ * The can tapers slightly — narrower at top than bottom — for realism.
+ */
+function buildCanBodyPath(
+  cx: number,
+  topY: number,
+  topHalfWidth: number,
+  bottomHalfWidth: number,
+  bodyHeight: number,
+  shoulderR: number,
+  bottomR: number,
+): string {
+  const t = topY;                    // top of body
+  const b = topY + bodyHeight;       // bottom of body
+  const tw = topHalfWidth;           // half-width at top
+  const bw = bottomHalfWidth;        // half-width at bottom
+  const sr = shoulderR;              // shoulder radius
+  const br = bottomR;                // bottom corner radius
+
+  // Draw from top-left, clockwise
+  return [
+    // Start at top-left: left shoulder top edge
+    `M ${cx - tw + sr} ${t}`,
+    // Left shoulder curve
+    `Q ${cx - tw} ${t}, ${cx - tw} ${t + sr}`,
+    // Left side straight down to bottom-left curve
+    `L ${cx - bw} ${b - br}`,
+    // Bottom-left corner
+    `Q ${cx - bw} ${b}, ${cx - bw + br} ${b}`,
+    // Bottom edge
+    `L ${cx + bw - br} ${b}`,
+    // Bottom-right corner
+    `Q ${cx + bw} ${b}, ${cx + bw} ${b - br}`,
+    // Right side straight up to right shoulder
+    `L ${cx + tw} ${t + sr}`,
+    // Right shoulder curve
+    `Q ${cx + tw} ${t}, ${cx + tw - sr} ${t}`,
+    // Close path (top edge)
+    "Z",
+  ].join(" ");
+}
+
+function formatSovLabel(value: number): string {
+  if (!Number.isFinite(value) || value < 0) return "0";
+  if (value === 0) return "0";
+  if (value >= 10) return `${Math.round(value)}`;
+  if (value >= 1) return value % 1 === 0 ? `${Math.round(value)}` : value.toFixed(1);
+  return value.toFixed(1);
 }
 
 function SpendingSovCard({
@@ -650,22 +694,36 @@ function SpendingSovCard({
     y: number;
   } | null>(null);
 
-  const sorted = [...data].sort((a, b) => b.percentage - a.percentage);
-  const totalSov = sorted.reduce((sum, item) => sum + (Number.isFinite(item.percentage) ? item.percentage : 0), 0);
-  const hasData = sorted.length > 0 && totalSov > 0;
+  // Sort: highest SOV at bottom, lowest at top
+  const sorted = [...data].sort((a, b) => a.percentage - b.percentage);
+  const totalSovPct = sorted.reduce((sum, item) => sum + (Number.isFinite(item.percentage) ? item.percentage : 0), 0);
+  const hasData = sorted.length > 0 && totalSovPct > 0;
 
-  // Can dimensions (responsive)
-  const canWidth = 200;
-  const canHeight = 380;
-  const canTop = 50;
-  const rimHeight = 12;
-  const tabTop = 14;
-  const bodyTop = canTop + rimHeight + 6;
-  const bodyHeight = canHeight - rimHeight - 16;
-  const canRadius = 28;
+  // Can geometry (viewBox: 160 x 410)
+  const vbW = 160;
+  const vbH = 410;
+  const canCx = 80;                     // center x
+  const bodyTopY = 74;                  // body starts below cap
+  const bodyH = 268;                    // colored body height
+  const topHalfW = 42;                  // half-width at top
+  const btmHalfW = 46;                  // half-width at bottom (slightly wider)
+  const shoulderR = 28;
+  const bottomR = 24;
+  const bodyPath = buildCanBodyPath(canCx, bodyTopY, topHalfW, btmHalfW, bodyH, shoulderR, bottomR);
+  // Metallic cap sits above body
+  const capLeftX = canCx - topHalfW + 12;
+  const capTopY = 38;
+  const capWidth = (topHalfW - 12) * 2;
+  const capHeight = 36;
+  const capR = 10;
+
+  // Shadow
+  const shadowCY = bodyTopY + bodyH + 10;
+  const shadowRX = btmHalfW + 6;
+  const shadowRY = 5;
 
   function handleSegmentInteraction(index: number, entry: (typeof sorted)[number], event: React.MouseEvent | React.FocusEvent | React.TouchEvent) {
-    const rect = (event.target as HTMLElement).getBoundingClientRect();
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
     setFocusedIndex(index);
     setTooltip({
       brandName: entry.brandName,
@@ -683,6 +741,16 @@ function SpendingSovCard({
     setFocusedIndex(null);
     setTooltip(null);
   }
+
+  // Compute cumulative heights for segments (bottom-up)
+  const segHeights = sorted.map((entry) =>
+    totalSovPct > 0 && Number.isFinite(entry.percentage) ? (entry.percentage / totalSovPct) * bodyH : 0,
+  );
+  // Cumulative from bottom
+  const cumBottom = segHeights.reduce<number[]>((acc, h) => {
+    acc.push((acc.at(-1) ?? 0) + h);
+    return acc;
+  }, []);
 
   // Error state
   if (error) {
@@ -707,7 +775,7 @@ function SpendingSovCard({
     );
   }
 
-  // Loading state
+  // Loading skeleton
   if (loading && !hasData) {
     return (
       <article className="rounded-[1.9rem] border border-[#D9DEE8] bg-white p-5 shadow-[0_18px_48px_rgba(10,18,28,0.08)]">
@@ -716,9 +784,9 @@ function SpendingSovCard({
           <p className="mt-1 text-sm text-[#64748B]">Share of total spend by brand across the selected platforms.</p>
         </div>
         <div className="mt-5 flex animate-pulse justify-center">
-          <svg aria-label="Loading SOV chart" className="opacity-30" height={canHeight + 20} role="img" width={canWidth + 20}>
-            <rect fill="#E5E7EB" height={canHeight} rx={canRadius} width={canWidth} x={10} y={canTop} />
-            <rect fill="#D1D5DB" height={rimHeight} rx={6} width={canWidth * 0.7} x={10 + canWidth * 0.15} y={canTop - 4} />
+          <svg aria-label="Loading SOV chart" className="opacity-25" height={vbH} role="img" viewBox={`0 0 ${vbW} ${vbH}`} width={vbW}>
+            <path d={bodyPath} fill="#E5E7EB" />
+            <rect fill="#D1D5DB" height={capHeight} rx={capR} ry={capR} width={capWidth} x={capLeftX} y={capTopY} />
           </svg>
         </div>
       </article>
@@ -735,15 +803,14 @@ function SpendingSovCard({
       {!hasData ? (
         <div className="mt-5">
           <div className="flex justify-center">
-            <svg aria-label="No data available" height={canHeight + 20} role="img" width={canWidth + 20}>
-              {/* Empty can outline */}
+            <svg aria-label="No SOV data" height={vbH} role="img" viewBox={`0 0 ${vbW} ${vbH}`} width={vbW}>
               <defs>
-                <clipPath id="sovCanOutline">
-                  <rect height={bodyHeight} rx={canRadius} ry={canRadius} width={canWidth} x={10} y={bodyTop} />
+                <clipPath id="sovEmptyClip">
+                  <path d={bodyPath} />
                 </clipPath>
               </defs>
-              <rect fill="none" height={canHeight} rx={canRadius} stroke="#D1D5DB" strokeWidth={2} width={canWidth} x={10} y={canTop} />
-              <rect fill="#F9FAFB" height={bodyHeight} rx={canRadius} width={canWidth} x={10} y={bodyTop} />
+              <path d={bodyPath} fill="#F9FAFB" stroke="#D1D5DB" strokeWidth={1.5} />
+              <rect clipPath="url(#sovEmptyClip)" fill="none" height={bodyH} width={btmHalfW * 2} x={canCx - btmHalfW} y={bodyTopY} />
             </svg>
           </div>
           <EmptyState description="No spending data is available for the selected filters." title="No SOV data" />
@@ -754,51 +821,65 @@ function SpendingSovCard({
           <div className="relative shrink-0">
             <svg
               aria-label="Spending Share of Voice beverage can chart"
-              height={canHeight + 20}
+              height={vbH}
               role="img"
-              viewBox={`0 0 ${canWidth + 20} ${canHeight + 20}`}
-              width={canWidth + 20}
+              viewBox={`0 0 ${vbW} ${vbH}`}
+              width={vbW}
             >
               <defs>
-                <clipPath id="sovCanBody">
-                  <rect height={bodyHeight} rx={canRadius} ry={canRadius} width={canWidth} x={10} y={bodyTop} />
+                {/* Clip path: can body shape */}
+                <clipPath id="sovCanBodyClip">
+                  <path d={bodyPath} />
                 </clipPath>
-                {/* Subtle gradient for metallic top */}
-                <linearGradient id="canTopGrad" x1="0" y1="0" x2="0" y2="1">
+                {/* Metallic cap gradient */}
+                <linearGradient id="canCapGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#D4D4D8" />
-                  <stop offset="40%" stopColor="#E4E4E7" />
+                  <stop offset="35%" stopColor="#ECEDF0" />
                   <stop offset="100%" stopColor="#A1A1AA" />
                 </linearGradient>
-                <linearGradient id="canBodyShine" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor="rgba(255,255,255,0.12)" />
-                  <stop offset="30%" stopColor="rgba(255,255,255,0)" />
-                  <stop offset="70%" stopColor="rgba(255,255,255,0)" />
-                  <stop offset="100%" stopColor="rgba(0,0,0,0.06)" />
+                {/* Rim line gradient */}
+                <linearGradient id="rimGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#8B8B93" />
+                  <stop offset="50%" stopColor="#5C5C66" />
+                  <stop offset="100%" stopColor="#8B8B93" />
+                </linearGradient>
+                {/* Body shine overlay */}
+                <linearGradient id="canShine" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor="rgba(255,255,255,0.15)" />
+                  <stop offset="25%" stopColor="rgba(255,255,255,0.04)" />
+                  <stop offset="65%" stopColor="rgba(0,0,0,0)" />
+                  <stop offset="100%" stopColor="rgba(0,0,0,0.07)" />
                 </linearGradient>
               </defs>
 
               {/* Can shadow */}
-              <ellipse cx={canWidth / 2 + 10} cy={canHeight + canTop + 6} fill="rgba(0,0,0,0.08)" rx={canWidth / 2 + 4} ry={6} />
+              <ellipse cx={canCx} cy={shadowCY} fill="rgba(0,0,0,0.09)" rx={shadowRX} ry={shadowRY} />
 
-              {/* Metallic top section */}
-              <rect fill="url(#canTopGrad)" height={rimHeight} rx={6} ry={6} width={canWidth * 0.72} x={10 + canWidth * 0.14} y={canTop} />
+              {/* Metallic cap (pull-tab section) */}
+              <rect fill="url(#canCapGrad)" height={capHeight} rx={capR} ry={capR} width={capWidth} x={capLeftX} y={capTopY} />
+              {/* Cap top highlight */}
+              <rect fill="rgba(255,255,255,0.25)" height={3} rx={1} width={capWidth - 8} x={capLeftX + 4} y={capTopY + 4} />
 
-              {/* Pull tab */}
-              <ellipse cx={canWidth / 2 + 10} cy={tabTop + 4} fill="#A1A1AA" rx={12} ry={4} />
-              <ellipse cx={canWidth / 2 + 10} cy={tabTop + 2} fill="#D4D4D8" rx={8} ry={3} />
+              {/* Pull tab — small ellipse */}
+              <ellipse cx={canCx} cy={capTopY + capHeight - 6} fill="#71717A" rx={10} ry={3.5} />
+              <ellipse cx={canCx} cy={capTopY + capHeight - 8} fill="#D4D4D8" rx={7} ry={2.5} />
 
-              {/* Can body background */}
-              <rect fill="#F8FAFC" height={bodyHeight} rx={canRadius} width={canWidth} x={10} y={bodyTop} />
+              {/* Horizontal rim separating cap from body */}
+              <rect fill="url(#rimGrad)" height={4} rx={1.5} width={capWidth + 4} x={capLeftX - 2} y={bodyTopY - 4} />
 
-              {/* Stacked segments clipped to can shape */}
-              <g clipPath="url(#sovCanBody)">
+              {/* Can body background (visible if segments don't fill 100%) */}
+              <path d={bodyPath} fill="#F8FAFC" />
+
+              {/* Stacked segments */}
+              <g clipPath="url(#sovCanBodyClip)">
                 {sorted.map((entry, index) => {
-                  const segHeight = totalSov > 0 ? (entry.percentage / totalSov) * bodyHeight : 0;
-                  const segTop = bodyTop + bodyHeight - sorted.slice(0, index + 1).reduce((sum, e) => sum + (totalSov > 0 ? (e.percentage / totalSov) * bodyHeight : 0), 0);
+                  const segH = segHeights[index]!;
+                  const segBase = bodyTopY + bodyH - (cumBottom[index] ?? 0);
+                  const segTop = segBase - segH;
                   const isFocused = focusedIndex === index;
                   const shouldDim = focusedIndex !== null && !isFocused;
-                  const canFitLabel = segHeight > 24;
-                  const label = formatSovPercent(entry.percentage);
+                  const canFitLabel = segH > 22;
+                  const label = formatSovLabel(entry.percentage);
 
                   return (
                     <g
@@ -819,28 +900,24 @@ function SpendingSovCard({
                       onMouseEnter={(e) => handleSegmentInteraction(index, entry, e)}
                       onMouseLeave={clearInteraction}
                       onTouchStart={(e) => handleSegmentInteraction(index, entry, e)}
-                      onTouchEnd={(e) => {
-                        // Keep tooltip visible on tap
-                      }}
                     >
                       <rect
                         fill={entry.color}
-                        height={Math.max(segHeight, 2)}
-                        opacity={shouldDim ? 0.35 : isFocused ? 0.92 : 0.82}
-                        rx={segHeight > 4 ? 4 : 0}
-                        width={canWidth - 4}
-                        x={12}
+                        height={Math.max(segH, 2)}
+                        opacity={shouldDim ? 0.3 : isFocused ? 0.95 : 0.85}
+                        width={btmHalfW * 2}
+                        x={canCx - btmHalfW}
                         y={segTop}
                       />
                       {canFitLabel && (
                         <text
                           dominantBaseline="central"
                           fill={getTextColorForBg(entry.color)}
-                          fontSize="13"
+                          fontSize="12"
                           fontWeight="700"
                           textAnchor="middle"
-                          x={canWidth / 2 + 10}
-                          y={segTop + segHeight / 2}
+                          x={canCx}
+                          y={segTop + segH / 2}
                         >
                           {label}
                         </text>
@@ -849,24 +926,33 @@ function SpendingSovCard({
                   );
                 })}
 
-                {/* Shine overlay */}
-                <rect fill="url(#canBodyShine)" height={bodyHeight} pointerEvents="none" width={canWidth} x={10} y={bodyTop} />
+                {/* Shine highlight overlay */}
+                <path d={bodyPath} fill="url(#canShine)" pointerEvents="none" />
               </g>
 
-              {/* Bottom rim */}
-              <rect fill="#E5E7EB" height={4} rx={2} width={canWidth + 4} x={8} y={bodyTop + bodyHeight - 2} />
+              {/* Bottom base metallic rim */}
+              <rect fill="#C4C4CC" height={4} rx={2} width={btmHalfW * 2 + 6} x={canCx - btmHalfW - 3} y={bodyTopY + bodyH - 2} />
+              {/* Bottom shadow line */}
+              <line
+                stroke="rgba(0,0,0,0.06)"
+                strokeWidth={1}
+                x1={canCx - btmHalfW + 6}
+                x2={canCx + btmHalfW - 6}
+                y1={bodyTopY + bodyH + 2}
+                y2={bodyTopY + bodyH + 2}
+              />
             </svg>
           </div>
 
           {/* Legend */}
-          <div className="w-full lg:w-auto lg:min-w-[200px]">
+          <div className="w-full lg:w-auto lg:min-w-[180px]">
             <div className="space-y-2">
               {sorted.map((entry, index) => {
                 const isFocused = focusedIndex === index;
                 return (
                   <div
                     key={entry.brandId}
-                    aria-label={`${entry.brandName}: ${formatSovPercent(entry.percentage)}`}
+                    aria-label={`${entry.brandName}: ${entry.percentage.toFixed(1)}% SOV, ${formatCurrency(entry.spend, currency)}`}
                     className={`flex items-center justify-between gap-3 rounded-xl px-3 py-2 transition ${isFocused ? "bg-[#F3F4F6]" : "hover:bg-[#F9FAFB]"}`}
                     onMouseEnter={() => setFocusedIndex(index)}
                     onMouseLeave={() => setFocusedIndex(null)}
@@ -880,7 +966,7 @@ function SpendingSovCard({
                       <span className="truncate text-sm font-medium text-[#111827]">{entry.brandName}</span>
                     </div>
                     <div className="shrink-0 text-right">
-                      <span className="text-sm font-semibold text-[#111827]">{formatSovPercent(entry.percentage)}</span>
+                      <span className="text-sm font-semibold text-[#111827]">{entry.percentage.toFixed(1)}%</span>
                       <span className="ml-2 text-xs text-[#64748B]">{formatCurrency(entry.spend, currency)}</span>
                     </div>
                   </div>
@@ -889,7 +975,7 @@ function SpendingSovCard({
             </div>
             {sorted.length > 0 && (
               <div className="mt-3 rounded-xl border border-dashed border-[#E5E7EB] bg-[#F8FAFC] px-3 py-2 text-center text-xs text-[#64748B]">
-                Total: {formatSovPercent(totalSov)}
+                Total: {totalSovPct.toFixed(1)}%
               </div>
             )}
           </div>
