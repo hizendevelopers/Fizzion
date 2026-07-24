@@ -32,6 +32,8 @@ function getFeatureCollection(assets: OohAssetListItem[], highlightedAssetId?: s
           areaName: asset.areaName,
           locationName: asset.locationName,
           mediaType: asset.mediaType,
+          assetTypeLabel: asset.assetTypeLabel,
+          region: asset.region,
           brandName: asset.brandName,
           dailyCost: asset.dailyCost,
           currency: asset.currency,
@@ -60,11 +62,12 @@ export function OohMap({ assets, highlightedAssetId, onSelectAsset }: OohMapProp
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: DEFAULT_MAP_STYLE,
-      center: [55.5, 29.2],
-      zoom: 4.2,
+      center: [44.3661, 33.3152],
+      zoom: 5.2,
+      attributionControl: false,
     });
 
-    map.addControl(new maplibregl.NavigationControl(), "top-right");
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
     map.addControl(new maplibregl.FullscreenControl(), "top-right");
     map.addControl(
       new maplibregl.GeolocateControl({
@@ -73,13 +76,15 @@ export function OohMap({ assets, highlightedAssetId, onSelectAsset }: OohMapProp
       }),
       "top-right",
     );
+    map.dragRotate.disable();
+    map.touchZoomRotate.disableRotation();
 
     map.on("load", () => {
       map.addSource("ooh-assets", {
         type: "geojson",
         data: geojson,
         cluster: true,
-        clusterRadius: 44,
+        clusterRadius: 46,
         clusterMaxZoom: 11,
         clusterProperties: {
           billboardCount: ["+", ["case", ["==", ["get", "mediaType"], "BILLBOARD"], 1, 0]],
@@ -96,15 +101,16 @@ export function OohMap({ assets, highlightedAssetId, onSelectAsset }: OohMapProp
           "circle-color": [
             "case",
             [">", ["get", "billboardCount"], ["get", "digitalCount"]],
-            "#ef4444",
+            "#F40009",
             [">", ["get", "digitalCount"], ["get", "billboardCount"]],
             "#2563eb",
             "#6b7280",
           ],
-          "circle-radius": ["step", ["get", "point_count"], 18, 10, 24, 40, 32],
-          "circle-opacity": 0.92,
-          "circle-stroke-width": 2,
+          "circle-radius": ["step", ["get", "point_count"], 20, 10, 26, 40, 34],
+          "circle-opacity": 0.9,
+          "circle-stroke-width": 3,
           "circle-stroke-color": "#ffffff",
+          "circle-blur": 0.12,
         },
       });
 
@@ -133,13 +139,13 @@ export function OohMap({ assets, highlightedAssetId, onSelectAsset }: OohMapProp
             "match",
             ["get", "mediaType"],
             "BILLBOARD",
-            "#ef4444",
+            "#F40009",
             "DIGITAL_SCREEN",
             "#2563eb",
             "#6b7280",
           ],
-          "circle-radius": 8,
-          "circle-stroke-width": 2,
+          "circle-radius": 9,
+          "circle-stroke-width": 2.5,
           "circle-stroke-color": "#ffffff",
         },
       });
@@ -150,9 +156,9 @@ export function OohMap({ assets, highlightedAssetId, onSelectAsset }: OohMapProp
         source: "ooh-assets",
         filter: ["all", ["!", ["has", "point_count"]], ["==", ["get", "isHighlighted"], 1]],
         paint: {
-          "circle-radius": 14,
-          "circle-color": "rgba(255,255,255,0.1)",
-          "circle-stroke-width": 3,
+          "circle-radius": 16,
+          "circle-color": "rgba(255,255,255,0.15)",
+          "circle-stroke-width": 4,
           "circle-stroke-color": "#f59e0b",
         },
       });
@@ -163,7 +169,7 @@ export function OohMap({ assets, highlightedAssetId, onSelectAsset }: OohMapProp
         const source = map.getSource("ooh-assets") as GeoJSONSource | undefined;
         if (!source || clusterId === undefined || clusterId === null) return;
         void source.getClusterExpansionZoom(clusterId).then((zoom) => {
-          const coordinates = ((feature?.geometry as unknown as { coordinates?: [number, number] } | undefined)?.coordinates);
+          const coordinates = (feature?.geometry as unknown as { coordinates?: [number, number] } | undefined)?.coordinates;
           if (!coordinates) return;
           map.easeTo({ center: coordinates, zoom });
         });
@@ -187,18 +193,30 @@ export function OohMap({ assets, highlightedAssetId, onSelectAsset }: OohMapProp
           closeButton: false,
           closeOnClick: false,
           offset: 18,
+          className: "ooh-map-popup",
         })
           .setLngLat(coordinates)
           .setHTML(`
-            <div class="w-[220px] bg-white">
-              ${properties.primaryImageUrl ? `<img src="${properties.primaryImageUrl}" alt="${properties.assetCode}" style="width:100%;height:112px;object-fit:cover;" />` : ""}
-              <div style="padding:12px 14px;">
-                <div style="font-weight:600;color:#111111;">${properties.assetCode}</div>
-                <div style="font-size:12px;color:#786c68;margin-top:2px;">${properties.locationName}</div>
-                <div style="font-size:12px;color:#786c68;margin-top:6px;">${properties.areaName ?? "Area unavailable"} · ${properties.mediaType === "DIGITAL_SCREEN" ? "Digital Screen" : "Billboard"}</div>
-                <div style="font-size:12px;color:#111111;margin-top:8px;">${properties.brandName ?? "No brand assigned"}</div>
-                <div style="font-size:12px;color:#111111;margin-top:4px;">Daily cost: ${properties.dailyCost ? `${properties.dailyCost} ${properties.currency ?? ""}` : "Not available"}</div>
-                <div style="font-size:12px;color:#111111;margin-top:4px;">Audience: ${formatCompactValue(Number(properties.expectedDailyAudience ?? 0))}</div>
+            <div style="width:248px;overflow:hidden;border-radius:20px;background:linear-gradient(180deg,#fff9f7 0%,#ffffff 100%);box-shadow:0 24px 60px rgba(53,24,24,0.18);">
+              ${properties.primaryImageUrl ? `<img src="${properties.primaryImageUrl}" alt="${properties.assetCode}" style="width:100%;height:120px;object-fit:cover;" />` : `<div style="display:flex;height:120px;align-items:center;justify-content:center;background:#f7efea;color:#8c7d77;font-size:12px;">No uploaded visual</div>`}
+              <div style="padding:14px 15px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                  <div style="font-weight:700;color:#111111;font-size:14px;">${properties.assetCode}</div>
+                  <div style="border-radius:999px;background:${properties.mediaType === "DIGITAL_SCREEN" ? "#e7f0ff" : "#fde9e7"};padding:4px 8px;font-size:11px;font-weight:700;color:${properties.mediaType === "DIGITAL_SCREEN" ? "#2563eb" : "#d12f2f"};">${properties.assetTypeLabel ?? (properties.mediaType === "DIGITAL_SCREEN" ? "Digital" : "Billboard")}</div>
+                </div>
+                <div style="font-size:12px;color:#786c68;margin-top:4px;">${properties.locationName}</div>
+                <div style="font-size:12px;color:#786c68;margin-top:8px;">${properties.areaName ?? "Area unavailable"} · ${properties.region ?? "Unknown region"}</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;">
+                  <div style="border-radius:14px;background:#fff4f2;padding:8px 10px;">
+                    <div style="font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#a08e87;">Brand</div>
+                    <div style="margin-top:4px;font-size:12px;font-weight:600;color:#111111;">${properties.brandName ?? "Unassigned"}</div>
+                  </div>
+                  <div style="border-radius:14px;background:#fff4f2;padding:8px 10px;">
+                    <div style="font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#a08e87;">Spend</div>
+                    <div style="margin-top:4px;font-size:12px;font-weight:600;color:#111111;">${properties.dailyCost ? `${Number(properties.dailyCost).toLocaleString()} ${properties.currency ?? ""}` : "Not available"}</div>
+                  </div>
+                </div>
+                <div style="margin-top:10px;font-size:12px;color:#111111;">Audience: ${formatCompactValue(Number(properties.expectedDailyAudience ?? 0))}</div>
               </div>
             </div>
           `)
@@ -246,23 +264,30 @@ export function OohMap({ assets, highlightedAssetId, onSelectAsset }: OohMapProp
 
   return (
     <div className="relative overflow-hidden rounded-[1.8rem] border border-border bg-white shadow-[var(--shadow-soft)]">
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+      <div className="flex flex-col gap-3 border-b border-border bg-[linear-gradient(135deg,#fff7f4_0%,#fff 40%,#f7fbff_100%)] px-4 py-4 md:flex-row md:items-center md:justify-between">
         <div>
           <p className="text-sm font-semibold text-foreground">Inventory map</p>
-          <p className="text-xs text-muted-foreground">Clustered GeoJSON markers with live filter synchronization</p>
+          <p className="text-xs text-muted-foreground">Interactive OOH coverage map with clustered markers and live directory sync</p>
         </div>
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-[#ef4444]" />
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-3 py-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-[#F40009]" />
             Billboard
           </span>
-          <span className="inline-flex items-center gap-2">
+          <span className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-3 py-1.5">
             <span className="h-2.5 w-2.5 rounded-full bg-[#2563eb]" />
             Digital Screen
           </span>
+          <span className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-3 py-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-[#f59e0b]" />
+            Selected
+          </span>
         </div>
       </div>
-      <div ref={containerRef} className="h-[460px] w-full bg-[#f3efe9]" />
+      <div className="relative">
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-16 bg-gradient-to-b from-white/70 to-transparent" />
+        <div ref={containerRef} className="h-[500px] w-full bg-[#efe7e1]" />
+      </div>
     </div>
   );
 }

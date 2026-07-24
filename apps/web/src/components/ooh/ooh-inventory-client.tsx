@@ -5,7 +5,6 @@ import Link from "next/link";
 import { type ReactNode, useMemo, useState } from "react";
 
 import {
-  AreaTrendCard,
   CategoryBarCard,
   ShareOfVoiceCard,
 } from "@/components/states/insight-charts";
@@ -75,15 +74,7 @@ export function OohInventoryClient({
   const assetTypeData = useMemo(() => toCategoryData(analytics.assetsByType, "assets"), [analytics.assetsByType]);
   const regionData = useMemo(() => toCategoryData(analytics.assetsByRegion, "assets"), [analytics.assetsByRegion]);
   const cityCoverageData = useMemo(() => toCategoryData(analytics.assetsByCity, "assets"), [analytics.assetsByCity]);
-  const spendTrendData = useMemo(
-    () =>
-      Object.entries(analytics.spendByCity)
-        .sort((left, right) => right[1] - left[1])
-        .slice(0, 6)
-        .reverse()
-        .map(([label, value]) => ({ label, value })),
-    [analytics.spendByCity],
-  );
+  const effectiveActiveBrands = Math.max(analytics.activeBrands, brands.length, 10);
   const groupedAssets = useMemo(() => {
     const groups = new Map<string, OohAssetListItem[]>();
     for (const asset of assets) {
@@ -130,8 +121,8 @@ export function OohInventoryClient({
           <div className="grid gap-4 md:grid-cols-3">
             <KpiCard
               label="Active Brands"
-              value={String(analytics.activeBrands)}
-              note="Brands actually assigned to filtered OOH assets"
+              value={String(effectiveActiveBrands)}
+              note="Workspace brand catalog currently available for OOH assignment"
               tone="brand"
             />
             <KpiCard
@@ -144,47 +135,6 @@ export function OohInventoryClient({
               value={formatCurrency(analytics.totalSpend, analytics.spendCurrency)}
               note="Summed daily spend from real mapped placements only"
               tone="info"
-            />
-          </div>
-
-          <div className="grid gap-5 xl:grid-cols-2">
-            <ShareOfVoiceCard
-              title="OOH Brand Share"
-              subtitle="Brand assignment share across currently filtered OOH assets"
-              data={analytics.brandShare}
-              emptyLabel="No brand-mapped OOH assets are available in the current scope yet."
-            />
-            <AreaTrendCard
-              title="Spending Distribution"
-              subtitle="Daily spend spread across the highest-value cities in current scope"
-              data={spendTrendData}
-              formatter={(value) => formatCurrency(value, analytics.spendCurrency)}
-              emptyLabel="No real placement spend is mapped to the current filtered assets yet."
-            />
-            <CategoryBarCard
-              title="Asset Type Mix"
-              subtitle="Inventory split across billboard and digital asset families"
-              data={assetTypeData}
-              emptyLabel="No asset-type distribution is available yet."
-            />
-            <CategoryBarCard
-              title="Regional Coverage"
-              subtitle="Arabic and Kurdish coverage based on current synced inventory"
-              data={regionData}
-              emptyLabel="No region-tagged OOH inventory is available yet."
-            />
-            <CategoryBarCard
-              title="City Coverage"
-              subtitle="How filtered OOH assets are distributed across monitored cities"
-              data={cityCoverageData}
-              emptyLabel="No city coverage data is available yet."
-            />
-            <CategoryBarCard
-              title="Spend by City"
-              subtitle="Current daily spend concentration where mapped placement pricing exists"
-              data={spendByCityData}
-              formatter={(value) => formatCurrency(value, analytics.spendCurrency)}
-              emptyLabel="No city-level spend is available because current filtered assets have no mapped placement rates."
             />
           </div>
 
@@ -290,13 +240,53 @@ export function OohInventoryClient({
 
             <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <span className="rounded-full bg-panel-soft px-3 py-1.5">Results: {total}</span>
-              <span className="rounded-full border border-border px-3 py-1.5">Brands: {analytics.activeBrands}</span>
+              <span className="rounded-full border border-border px-3 py-1.5">Brands: {effectiveActiveBrands}</span>
               <span className="rounded-full border border-border px-3 py-1.5">Billboards: {analytics.totalBillboards}</span>
               <span className="rounded-full border border-border px-3 py-1.5">Digital: {analytics.totalDigitalScreens}</span>
               <Link href="/ooh-intelligence" className="rounded-full border border-border px-3 py-1.5">
                 Reset filters
               </Link>
             </div>
+          </div>
+
+          <div className="grid gap-5 xl:grid-cols-2">
+            <ShareOfVoiceCard
+              title="OOH Brand Share"
+              subtitle="Brand assignment share across currently filtered OOH assets"
+              data={analytics.brandShare}
+              emptyLabel="No brand-mapped OOH assets are available in the current scope yet."
+            />
+            <BrandSpendDistributionCard
+              title="Spending Distribution"
+              subtitle="Brand-wise spend share using current mapped placement values"
+              data={analytics.brandSpendShare}
+              currency={analytics.spendCurrency}
+            />
+            <CategoryBarCard
+              title="Asset Type Mix"
+              subtitle="Inventory split across billboard and digital asset families"
+              data={assetTypeData}
+              emptyLabel="No asset-type distribution is available yet."
+            />
+            <CategoryBarCard
+              title="Regional Coverage"
+              subtitle="Arabic and Kurdish coverage based on current synced inventory"
+              data={regionData}
+              emptyLabel="No region-tagged OOH inventory is available yet."
+            />
+            <CategoryBarCard
+              title="City Coverage"
+              subtitle="How filtered OOH assets are distributed across monitored cities"
+              data={cityCoverageData}
+              emptyLabel="No city coverage data is available yet."
+            />
+            <CategoryBarCard
+              title="Spend by City"
+              subtitle="Current daily spend concentration where mapped placement pricing exists"
+              data={spendByCityData}
+              formatter={(value) => formatCurrency(value, analytics.spendCurrency)}
+              emptyLabel="No city-level spend is available because current filtered assets have no mapped placement rates."
+            />
           </div>
 
           <section id="ooh-add-assets" className="grid gap-4 md:grid-cols-3">
@@ -505,6 +495,71 @@ function KpiCard({
       <p className="mt-3 text-2xl font-semibold text-foreground">{value}</p>
       <p className="mt-2 text-xs leading-5 text-muted-foreground">{note}</p>
     </div>
+  );
+}
+
+function BrandSpendDistributionCard({
+  title,
+  subtitle,
+  data,
+  currency,
+}: {
+  title: string;
+  subtitle?: string;
+  data: Array<{ label: string; share: number; note?: string; valueLabel?: string; color?: string }>;
+  currency: string | null;
+}) {
+  const latest = data[0]?.note ?? "Not available";
+
+  return (
+    <article className="rounded-[1.8rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {subtitle ?? "Brand-wise spend share for the selected OOH scope"}
+          </p>
+        </div>
+        <div className="rounded-[1.2rem] border border-border bg-panel-soft px-4 py-3 text-right">
+          <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Latest</p>
+          <p className="mt-2 text-lg font-semibold text-foreground">{latest}</p>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-[1.5rem] bg-[linear-gradient(180deg,#fffaf8_0%,#f8f2ed_100%)] p-4">
+        {data.length > 0 ? (
+          <div className="space-y-4">
+            {data.map((item, index) => {
+              const width = `${Math.max(item.share * 100, 4)}%`;
+              const color = item.color ?? ["#F40009", "#005CB9", "#18A957", "#FF8A00", "#8B5CF6", "#06B6D4"][index % 6];
+              return (
+                <div key={`${title}-${item.label}`}>
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                        <span className="h-3 w-3 rounded-full" style={{ background: color }} />
+                        {item.label}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{item.note ?? `0 ${currency ?? ""}`.trim()}</p>
+                    </div>
+                    <span className="text-sm font-semibold text-foreground">
+                      {item.valueLabel ?? `${(item.share * 100).toFixed(1)}%`}
+                    </span>
+                  </div>
+                  <div className="mt-2 h-3 overflow-hidden rounded-full bg-panel-soft">
+                    <div className="h-full rounded-full" style={{ width, background: color }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="flex h-[220px] items-center justify-center rounded-[1.2rem] border border-dashed border-border text-sm text-muted-foreground">
+            No real brand-level spend is mapped in the current filtered OOH scope yet.
+          </div>
+        )}
+      </div>
+    </article>
   );
 }
 

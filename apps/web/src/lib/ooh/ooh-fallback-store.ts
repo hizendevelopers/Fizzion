@@ -319,11 +319,17 @@ export async function getOohAnalyticsFallback(query: OohAssetListQuery) {
   const availableInventory = items.filter((item) => item.status === "AVAILABLE").length;
   const pricedItems = items.filter((item) => item.dailyCost !== null);
   const totalSpend = pricedItems.length > 0 ? pricedItems.reduce((sum, item) => sum + (item.dailyCost ?? 0), 0) : null;
+  const spendCurrency = pricedItems.find((item) => item.currency)?.currency ?? null;
+  const spendByBrand = pricedItems.reduce<Record<string, number>>((acc, item) => {
+    const key = item.brandName ?? "Unassigned";
+    acc[key] = (acc[key] ?? 0) + (item.dailyCost ?? 0);
+    return acc;
+  }, {});
   return {
     activeBrands: new Set(items.map((item) => item.brandName).filter(Boolean)).size,
     totalAssets,
     totalSpend,
-    spendCurrency: pricedItems.find((item) => item.currency)?.currency ?? null,
+    spendCurrency,
     totalBillboards: items.filter((item) => item.mediaType === "BILLBOARD").length,
     totalDigitalScreens: items.filter((item) => item.mediaType === "DIGITAL_SCREEN").length,
     activeCampaigns: new Set(items.filter((item) => item.placementStatus === "CURRENT" && item.campaignId).map((item) => item.campaignId as string)).size,
@@ -362,6 +368,7 @@ export async function getOohAnalyticsFallback(query: OohAssetListQuery) {
       acc[item.city] = (acc[item.city] ?? 0) + (item.dailyCost ?? 0);
       return acc;
     }, {}),
+    spendByBrand,
     brandShare: Object.entries(
       items.reduce<Record<string, number>>((acc, item) => {
         if (!item.brandName) {
@@ -375,6 +382,15 @@ export async function getOohAnalyticsFallback(query: OohAssetListQuery) {
       share: totalAssets > 0 ? value / totalAssets : 0,
       note: `${value} mapped assets`,
       valueLabel: totalAssets > 0 ? `${((value / totalAssets) * 100).toFixed(1)}%` : "0.0%",
+    })),
+    brandSpendShare: Object.entries(spendByBrand).map(([label, value]) => ({
+      label,
+      share: totalSpend && totalSpend > 0 ? value / totalSpend : 0,
+      note: `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value)} ${spendCurrency ?? ""}`.trim(),
+      valueLabel:
+        totalSpend && totalSpend > 0
+          ? `${((value / totalSpend) * 100).toFixed(1)}% · ${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value)} ${spendCurrency ?? ""}`.trim()
+          : `0.0% · ${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value)} ${spendCurrency ?? ""}`.trim(),
     })),
   } satisfies OohAnalyticsSummary;
 }

@@ -330,7 +330,9 @@ export type OohAnalyticsSummary = {
   assetsByType: Record<string, number>;
   assetsByRegion: Record<string, number>;
   spendByCity: Record<string, number>;
+  spendByBrand: Record<string, number>;
   brandShare: OohShareOfVoiceDatum[];
+  brandSpendShare: OohShareOfVoiceDatum[];
 };
 
 async function ensureOrganizationId() {
@@ -1343,14 +1345,18 @@ export async function getOohAnalytics(query: OohAssetListQuery) {
         assetsByType: {},
         assetsByRegion: {},
         spendByCity: {},
+        spendByBrand: {},
         brandShare: [],
+        brandSpendShare: [],
       } satisfies OohAnalyticsSummary;
     }
     const { items } = await listOohAssets({ ...query, page: 1, limit: 500 });
     const totalAssets = items.length;
     const billboards = items.filter((item) => item.mediaType === "BILLBOARD");
     const screens = items.filter((item) => item.mediaType === "DIGITAL_SCREEN");
-    const activeBrands = new Set(items.map((item) => item.brandName).filter(Boolean)).size;
+    const activeBrands = new Set(
+      items.flatMap((item) => (item.brandName ? [item.brandName] : item.campaignName ? [item.campaignName] : [])),
+    ).size;
     const availableInventory = items.filter((item) => item.status === "AVAILABLE").length;
     const assetsByCity = items.reduce<Record<string, number>>((accumulator, item) => {
       accumulator[item.city] = (accumulator[item.city] ?? 0) + 1;
@@ -1375,6 +1381,11 @@ export async function getOohAnalytics(query: OohAssetListQuery) {
       accumulator[item.city] = (accumulator[item.city] ?? 0) + (item.dailyCost ?? 0);
       return accumulator;
     }, {});
+    const spendByBrand = pricedItems.reduce<Record<string, number>>((accumulator, item) => {
+      const key = item.brandName ?? "Unassigned";
+      accumulator[key] = (accumulator[key] ?? 0) + (item.dailyCost ?? 0);
+      return accumulator;
+    }, {});
     const totalSpend = pricedItems.length > 0 ? pricedItems.reduce((sum, item) => sum + (item.dailyCost ?? 0), 0) : null;
     const spendCurrency = pricedItems.find((item) => item.currency)?.currency ?? null;
     const activeCampaignKeys = new Set(
@@ -1396,6 +1407,17 @@ export async function getOohAnalytics(query: OohAssetListQuery) {
         share: totalAssets > 0 ? value / totalAssets : 0,
         note: `${value} mapped OOH assets`,
         valueLabel: totalAssets > 0 ? `${((value / totalAssets) * 100).toFixed(1)}%` : "0.0%",
+      }));
+    const brandSpendShare = Object.entries(spendByBrand)
+      .sort((left, right) => right[1] - left[1])
+      .map(([label, value]) => ({
+        label,
+        share: totalSpend && totalSpend > 0 ? value / totalSpend : 0,
+        note: `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value)} ${spendCurrency ?? ""}`.trim(),
+        valueLabel:
+          totalSpend && totalSpend > 0
+            ? `${((value / totalSpend) * 100).toFixed(1)}% · ${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value)} ${spendCurrency ?? ""}`.trim()
+            : `0.0% · ${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value)} ${spendCurrency ?? ""}`.trim(),
       }));
 
     return {
@@ -1422,7 +1444,9 @@ export async function getOohAnalytics(query: OohAssetListQuery) {
       assetsByType,
       assetsByRegion,
       spendByCity,
+      spendByBrand,
       brandShare,
+      brandSpendShare,
     } satisfies OohAnalyticsSummary;
   } catch (error) {
     if (isMissingOohTableError(error)) {
@@ -1445,7 +1469,9 @@ export async function getOohAnalytics(query: OohAssetListQuery) {
         assetsByType: {},
         assetsByRegion: {},
         spendByCity: {},
+        spendByBrand: {},
         brandShare: [],
+        brandSpendShare: [],
       } satisfies OohAnalyticsSummary;
     }
     throw error;
