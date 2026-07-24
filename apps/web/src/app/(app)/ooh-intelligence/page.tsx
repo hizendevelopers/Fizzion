@@ -31,7 +31,7 @@ export default async function OohIntelligencePage({ searchParams }: PageProps) {
       brands={brands}
       query={query}
       total={assetsResponse.total}
-      lastUpdatedLabel="Monday, July 20, 2026"
+      lastUpdatedLabel="Friday, July 24, 2026"
     />
   );
 }
