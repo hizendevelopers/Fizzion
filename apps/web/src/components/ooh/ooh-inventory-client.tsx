@@ -48,6 +48,8 @@ export function OohInventoryClient({
   const [highlightedAssetId, setHighlightedAssetId] = useState<string | null>(assets[0]?.id ?? null);
   const [mobileView, setMobileView] = useState<"map" | "list">("map");
   const areaOptions = useMemo(() => getAreaOptions(areas, query.city), [areas, query.city]);
+  const cityCount = useMemo(() => new Set(assets.map((asset) => asset.city)).size, [assets]);
+  const locationCount = assets.length;
 
   return (
     <div className="space-y-6">
@@ -94,6 +96,33 @@ export function OohInventoryClient({
           </div>
 
           <div className="rounded-[1.8rem] border border-border bg-white p-4 shadow-[var(--shadow-soft)]">
+            <div className="mb-4 flex flex-wrap gap-2">
+              <a
+                href="#ooh-add-assets"
+                className="rounded-full border border-border bg-panel-soft px-3 py-2 text-xs font-semibold text-foreground transition hover:border-brand-red/35"
+              >
+                Add Assets
+              </a>
+              <a
+                href="#ooh-locations-directory"
+                className="rounded-full border border-border bg-panel-soft px-3 py-2 text-xs font-semibold text-foreground transition hover:border-brand-red/35"
+              >
+                Locations Directory
+              </a>
+              <a
+                href="#ooh-map-coverage"
+                className="rounded-full border border-border bg-panel-soft px-3 py-2 text-xs font-semibold text-foreground transition hover:border-brand-red/35"
+              >
+                Map Coverage
+              </a>
+              <a
+                href="#ooh-import-tools"
+                className="rounded-full border border-border bg-panel-soft px-3 py-2 text-xs font-semibold text-foreground transition hover:border-brand-red/35"
+              >
+                Import Tools
+              </a>
+            </div>
+
             <form action="/ooh-intelligence" className="grid gap-3 lg:grid-cols-[1.4fr_repeat(6,minmax(0,1fr))]">
               <input
                 defaultValue={query.search ?? ""}
@@ -151,7 +180,52 @@ export function OohInventoryClient({
             </div>
           </div>
 
-          <OohImportPanel />
+          <section id="ooh-add-assets" className="grid gap-4 md:grid-cols-3">
+            <div className="rounded-[1.6rem] border border-border bg-white p-4 shadow-[var(--shadow-soft)]">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Add assets</p>
+              <h2 className="mt-3 text-lg font-semibold text-foreground">Billboard Intake</h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Create static billboard inventory with size, city, per-day cost, dates, and uploaded site pictures.
+              </p>
+              <Link
+                href="/ooh-intelligence/assets/new?mediaType=BILLBOARD"
+                className="mt-4 inline-flex rounded-full bg-brand-red px-4 py-2 text-sm font-semibold text-white shadow-[var(--shadow-soft)]"
+              >
+                Add Billboard
+              </Link>
+            </div>
+            <div className="rounded-[1.6rem] border border-border bg-white p-4 shadow-[var(--shadow-soft)]">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Add assets</p>
+              <h2 className="mt-3 text-lg font-semibold text-foreground">Digital Screen Intake</h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Add digital screens with resolution, operating window, and commercial setup in the same OOH workflow.
+              </p>
+              <Link
+                href="/ooh-intelligence/assets/new?mediaType=DIGITAL_SCREEN"
+                className="mt-4 inline-flex rounded-full border border-border bg-white px-4 py-2 text-sm font-semibold text-foreground shadow-[var(--shadow-soft)]"
+              >
+                Add Digital Screen
+              </Link>
+            </div>
+            <div className="rounded-[1.6rem] border border-border bg-white p-4 shadow-[var(--shadow-soft)]">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Locations</p>
+              <h2 className="mt-3 text-lg font-semibold text-foreground">Coverage Summary</h2>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl border border-border bg-panel-soft px-4 py-3">
+                  <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Cities</p>
+                  <p className="mt-2 text-xl font-semibold text-foreground">{cityCount}</p>
+                </div>
+                <div className="rounded-2xl border border-border bg-panel-soft px-4 py-3">
+                  <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Locations</p>
+                  <p className="mt-2 text-xl font-semibold text-foreground">{locationCount}</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section id="ooh-import-tools">
+            <OohImportPanel />
+          </section>
 
           <div className="flex gap-2 md:hidden">
             <button
@@ -171,7 +245,7 @@ export function OohInventoryClient({
           </div>
 
           <div className="grid gap-6 xl:grid-cols-[1.7fr_1fr]">
-            <div className={mobileView === "list" ? "hidden md:block" : ""}>
+            <div id="ooh-map-coverage" className={mobileView === "list" ? "hidden md:block" : ""}>
               <OohMap
                 assets={assets}
                 highlightedAssetId={highlightedAssetId}
@@ -183,11 +257,11 @@ export function OohInventoryClient({
               />
             </div>
 
-            <div className={mobileView === "map" ? "hidden md:block" : ""}>
+            <div id="ooh-locations-directory" className={mobileView === "map" ? "hidden md:block" : ""}>
               <div className="rounded-[1.8rem] border border-border bg-white shadow-[var(--shadow-soft)]">
                 <div className="flex items-center justify-between border-b border-border px-4 py-3">
                   <div>
-                    <p className="text-sm font-semibold text-foreground">Filtered inventory</p>
+                    <p className="text-sm font-semibold text-foreground">Locations Directory</p>
                     <p className="text-xs text-muted-foreground">{total} results synchronized with the current map state</p>
                   </div>
                 </div>

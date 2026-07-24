@@ -9,15 +9,7 @@ export const primaryNavigation: NavItem[] = [
   { href: "/tv/channels", key: "tv" },
   { href: "/social-intelligence", key: "social" },
   { href: "/web-advertising", key: "web" },
-  {
-    href: "/ooh-intelligence",
-    key: "ooh",
-    children: [
-      { href: "/ooh-intelligence", key: "oohMap" },
-      { href: "/ooh-intelligence", key: "oohLocations" },
-      { href: "/ooh-intelligence/assets/new", key: "oohAddLocation" },
-    ],
-  },
+  { href: "/ooh-intelligence", key: "ooh" },
   { href: "/creatives", key: "creatives" },
   { href: "/campaigns", key: "campaigns" },
   {
