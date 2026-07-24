@@ -1138,6 +1138,51 @@ function CampaignListCard({
   );
 }
 
+function getBrandInitials(name: string) {
+  const parts = name.split(/[\s-]+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return parts.slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join("");
+  }
+  return name.slice(0, 2).toUpperCase();
+}
+
+function BrandLogo({
+  logoUrl,
+  brandName,
+  brandColor,
+}: {
+  logoUrl: string | null;
+  brandName: string;
+  brandColor: string;
+}) {
+  const [imgError, setImgError] = useState(false);
+
+  if (logoUrl && !imgError) {
+    return (
+      <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#E5E7EB] bg-white p-1">
+        <Image
+          alt={`${brandName} logo`}
+          className="h-full w-full object-contain"
+          height={48}
+          src={logoUrl}
+          width={48}
+          onError={() => setImgError(true)}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <span
+      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+      style={{ backgroundColor: brandColor }}
+      aria-label={`${brandName} logo (fallback initials)`}
+    >
+      {getBrandInitials(brandName)}
+    </span>
+  );
+}
+
 function ActiveBrandsCard({
   brands,
   currency,
@@ -1164,13 +1209,7 @@ function ActiveBrandsCard({
           brands.map((brand) => (
             <article className="flex items-center justify-between gap-4 rounded-[1.3rem] border border-[#E5E7EB] bg-[#FCFDFE] px-4 py-3" key={brand.brandId}>
               <div className="flex min-w-0 items-center gap-3">
-                {brand.logoUrl ? (
-                  <Image alt={brand.brandName} className="h-10 w-10 rounded-full border border-[#E5E7EB] bg-white object-contain p-1" height={40} src={brand.logoUrl} width={40} />
-                ) : (
-                  <span className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white" style={{ backgroundColor: brand.brandColor }}>
-                    {brand.brandName.slice(0, 1)}
-                  </span>
-                )}
+                <BrandLogo brandColor={brand.brandColor} brandName={brand.brandName} logoUrl={brand.logoUrl} />
                 <div className="min-w-0">
                   <p className="truncate font-semibold text-[#111827]">{brand.brandName}</p>
                   <p className="text-sm text-[#64748B]">

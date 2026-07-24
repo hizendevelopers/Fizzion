@@ -1,53 +1,32 @@
-# Social Intelligence Module - Implementation Progress
+# Overview Page — Implementation Todo
 
-## Phase 1: Foundation ✅
-- [x] Create Apify client singleton (`src/lib/apify/client.ts`)
-- [x] Create Actor ID constants (`src/lib/apify/actors.ts`)
-- [x] Create Apify service (`src/lib/apify/apify-service.ts`)
-- [x] Create platform input builders (tiktok, instagram, youtube, facebook)
-- [x] Create normalization utilities (common + per-platform)
-- [x] Create metric calculation helpers (`src/lib/apify/metrics.ts`)
-- [x] Create unified provider interface (`src/lib/apify/unified-provider.ts`)
+## Phase 1: Data Layer Updates
+- [x] Add `activeCampaignCount` to `shareOfVoice` type in `OverviewResponse`
+- [x] Update `shareOfVoice` computation in `computeOverviewAnalytics` to include campaign count
 
-## Phase 2: Database Migration
-- [ ] Create migration: social_profiles, social_content_metrics, indexes
-- [ ] Add RLS policies for new tables
-- [ ] Create seed data for new tables
+## Phase 2: Filter Bar Fix
+- [x] Remove `sticky`, `top-0`, `z-20`, `backdrop-blur` from filter section in `overview-dashboard.tsx`
 
-## Phase 3: Backend Integration
-- [ ] Update `social-utils.ts` - enhanced normalization with SSRF protection
-- [ ] Update `social-schemas.ts` - new schemas for Apify workflow
-- [ ] Create social-sync-utils.ts - sync workflow
-- [ ] Update API routes for full Apify sync workflow
-- [ ] Add sync-status API route
-- [ ] Add profile/metrics API routes
+## Phase 3: Rename SOV
+- [x] Change "Spending Share of Voice" → "Spending SOV" in card heading and description
 
-## Phase 4: Frontend Components
-- [ ] Create import-progress component
-- [ ] Create content-grid component
-- [ ] Create content-table component
-- [ ] Create social-profile-header component
-- [ ] Create hashtag-report-view component
-- [ ] Update connect-account-wizard with Apify workflow
-- [ ] Update dashboard page with real data
-- [ ] Update account analytics page
-- [ ] Update content detail page
+## Phase 4: Beverage Can Chart
+- [x] Build responsive SVG beverage-can `SpendingSovChart` component
+- [x] Can shape with clipPath, metallic top, pull-tab detail, bottom rim
+- [x] Stacked segments proportional to SOV percentage, sorted highest at bottom
+- [x] Percentage labels inside segments when space permits
+- [x] Hover/focus/tap tooltip with brand name, color, spend, SOV%, currency, active campaigns
+- [x] ARIA labels on every segment
+- [x] Brand legend sorted by SOV descending
+- [x] Desktop/tablet/mobile responsive layout
+- [x] Loading state (skeleton can)
+- [x] No-data state (empty can + message)
+- [x] Error state (message + retry button)
+- [x] Zero-spend safety (no NaN/Infinity)
 
-## Phase 5: Reports & Export
-- [ ] Create PDF report generation
-- [ ] Enhanced CSV export
-- [ ] Hashtag reports
-- [ ] Portfolio reports
-
-## Phase 6: Testing
-- [ ] Unit tests for normalization
-- [ ] Unit tests for input builders
-- [ ] Unit tests for metric calculations
-- [ ] Integration tests with mocked Apify
-
-## Phase 7: Final Verification
-- [ ] Run lint
-- [ ] Run typecheck
-- [ ] Run tests
-- [ ] Run build
+## Phase 5: Test & Verify
+- [x] Run analytics tests
+- [x] Run type check
+- [x] Run lint
+- [x] Run build
 
