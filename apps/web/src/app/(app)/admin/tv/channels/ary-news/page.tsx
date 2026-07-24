@@ -11,7 +11,7 @@ export default async function AdminAryNewsChannelPage() {
   const channel = await getTvChannelOverview("ary-news");
 
   if (!channel) {
-    return <div className="rounded-[2rem] border border-border bg-white p-6 shadow-[var(--shadow-card)] text-sm text-muted-foreground">ARY News channel seed is missing.</div>;
+    return <div className="rounded-[2rem] border border-border bg-white p-6 shadow-[var(--shadow-card)] text-sm text-muted-foreground">ARY News channel configuration is missing.</div>;
   }
 
   const gate = getAuthorizationGateSummary(channel.source, channel.authorization);
@@ -23,8 +23,8 @@ export default async function AdminAryNewsChannelPage() {
           <div>
             <h1 className="text-3xl font-semibold text-foreground">ARY News Source Configuration</h1>
             <p className="mt-3 text-sm leading-7 text-muted-foreground">
-              Recording is hard-blocked until the source authorization is approved. Sandbox and manual
-              upload remain enabled for deterministic test coverage.
+              Recording remains blocked until source authorization is approved. Manual upload remains
+              available for controlled ingestion and review.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -49,7 +49,7 @@ export default async function AdminAryNewsChannelPage() {
         initialExpectedSchedule={channel.source?.expectedSchedule ?? channel.expectedSchedule ?? "24/7 expected after authorization"}
         initialSecretReference={channel.source?.secretReference ?? ""}
         initialSourceTimezone={channel.source?.sourceTimezone ?? channel.sourceTimezone}
-        initialSourceType={channel.source?.sourceType ?? "sandbox_fixture"}
+        initialSourceType={channel.source?.sourceType ?? "manual_upload"}
         initialVerificationStatus={channel.source?.verificationStatus ?? "pending_authorization"}
         sourceId={channel.source?.id ?? null}
       />

@@ -15,6 +15,7 @@ export default async function ReportsPage() {
     note: item.note,
     valueLabel: `${item.value} touchpoints`,
   }));
+  const hasReports = dashboard.reports.length > 0;
 
   return (
     <div className="space-y-6">
@@ -36,7 +37,7 @@ export default async function ReportsPage() {
           <div className="grid gap-3 sm:grid-cols-2 xl:w-[28rem]">
             <SummaryBadge label="Reports in queue" value={`${dashboard.reports.length}`} />
             <SummaryBadge label="Campaigns covered" value={`${dashboard.summary.campaignCount}`} />
-            <SummaryBadge label="Latest generated" value={formatDateTime(dashboard.reports[0]?.lastGeneratedAt ?? dashboard.summary.lastRefreshLabel)} />
+            <SummaryBadge label="Latest generated" value={hasReports ? formatDateTime(dashboard.reports[0]!.lastGeneratedAt) : "No report generated"} />
             <SummaryBadge label="Competitor packs" value={`${dashboard.summary.competitorCount} watchlists`} />
           </div>
         </div>
@@ -98,6 +99,11 @@ export default async function ReportsPage() {
                 </div>
               </div>
             ))}
+            {dashboard.campaigns.length === 0 ? (
+              <div className="rounded-[1.3rem] border border-dashed border-border bg-panel-soft px-4 py-6 text-sm text-muted-foreground">
+                No real campaign snapshots are available yet.
+              </div>
+            ) : null}
           </div>
         </article>
       </section>
@@ -115,6 +121,7 @@ export default async function ReportsPage() {
           </div>
         </div>
 
+        {hasReports ? (
         <div className="mt-5 overflow-hidden rounded-[1.5rem] border border-border">
           <table className="min-w-full divide-y divide-border text-left">
             <thead className="bg-panel-soft">
@@ -167,6 +174,11 @@ export default async function ReportsPage() {
             </tbody>
           </table>
         </div>
+        ) : (
+          <div className="mt-5 rounded-[1.5rem] border border-dashed border-border bg-panel-soft px-5 py-8 text-sm text-muted-foreground">
+            No workspace-backed reports are available yet.
+          </div>
+        )}
       </section>
     </div>
   );

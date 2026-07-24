@@ -1,6 +1,6 @@
 import { getSocialPortfolioSummary, listSocialConnections } from "@/lib/social-data";
 import { getWebAdvertisingAnalytics, listWebAdvertisingAds, listWebAdvertisingWebsites } from "@/lib/web-ad-data";
-import { getOohAnalytics, listOohAssets } from "@/lib/ooh/ooh-data";
+import { listOohAssets } from "@/lib/ooh/ooh-data";
 import { getOptionalSupabaseAdminClient } from "@/lib/supabase/server";
 
 type GenericRow = Record<string, unknown>;
@@ -91,6 +91,11 @@ function rowString(row: GenericRow, key: string, fallback = "") {
   return typeof value === "string" ? value : fallback;
 }
 
+function rowNullableString(row: GenericRow, key: string) {
+  const value = row[key];
+  return typeof value === "string" ? value : null;
+}
+
 function rowArray(row: GenericRow, key: string) {
   const value = row[key];
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
@@ -98,582 +103,215 @@ function rowArray(row: GenericRow, key: string) {
 
 function asDateLabel(value: string | null | undefined) {
   if (!value) return "Awaiting schedule";
-  return new Date(value).toISOString().slice(0, 10);
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? "Awaiting schedule" : parsed.toISOString().slice(0, 10);
 }
 
-function sum(values: number[]) {
-  return values.reduce((total, value) => total + value, 0);
+function buildRecentLabels(days: number) {
+  return Array.from({ length: days }, (_, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (days - 1 - index));
+    return date.toISOString().slice(5, 10);
+  });
 }
 
-function formatCount(value: number) {
-  return Math.round(value);
-}
-
-function buildTrend(seed: number, scale: number, labels: string[]) {
+function buildSparseTrend(values: number[], labels: string[]) {
   return labels.map((label, index) => ({
     label,
-    value: Math.max(0, Math.round(seed + scale * index + (index % 3 === 0 ? scale * 0.6 : scale * 0.2))),
+    value: values[index] ?? 0,
   }));
+}
+
+function colorForBrand(name: string) {
+  const normalized = name.toLowerCase();
+  if (normalized.includes("coca")) return { color: "#F40009", accent: "#7f0b11" };
+  if (normalized.includes("sprite") || normalized.includes("7up")) return { color: "#1FAF4B", accent: "#0B5D2E" };
+  if (normalized.includes("pepsi")) return { color: "#005CB9", accent: "#C8142F" };
+  if (normalized.includes("mirinda") || normalized.includes("fanta")) return { color: "#FF8A00", accent: "#A24500" };
+  return { color: "#8b5cf6", accent: "#4c1d95" };
 }
 
 export async function getMonitoringDashboardData() {
   const supabase = getOptionalSupabaseAdminClient();
-  const [socialSummary, socialConnections, webAnalytics, websites, webAds, oohAssets, oohAnalytics, campaignsRes, brandsRes, tvOccurrencesRes] = await Promise.all([
+  const recentLabels = buildRecentLabels(14);
+
+  const [socialSummary, socialConnections, webAnalytics, websites, webAds, oohAssets, campaignsRes, brandsRes, tvOccurrencesRes] = await Promise.all([
     getSocialPortfolioSummary(),
     listSocialConnections(),
     getWebAdvertisingAnalytics(),
     listWebAdvertisingWebsites(),
     listWebAdvertisingAds(),
     listOohAssets({ limit: 500, page: 1 }),
-    getOohAnalytics({ limit: 500, page: 1 }),
     supabase
-      ? supabase.from("campaigns").select("id,name,status,market,objective,start_date,end_date,brand_id,media_types").order("created_at", { ascending: false })
+      ? supabase.from("campaigns").select("id,name,status,market,objective,start_date,end_date,brand_id,media_types,created_at").order("created_at", { ascending: false })
       : Promise.resolve({ data: [] }),
     supabase
-      ? supabase.from("brands").select("id,name,category,competitor_group,website_domains,social_handles,ocr_keywords").order("name", { ascending: true })
+      ? supabase.from("brands").select("id,name,category,competitor_group,website_domains,social_handles,ocr_keywords,is_dummy_brand").order("name", { ascending: true })
       : Promise.resolve({ data: [] }),
     supabase
       ? supabase
           .from("tv_ad_occurrences")
-          .select("id,started_at,brand_name,campaign_name")
+          .select("id,started_at,brand_name,campaign_name,review_status")
+          .neq("first_detection_method", "sandbox_fixture")
           .order("started_at", { ascending: false })
-          .limit(120)
+          .limit(250)
       : Promise.resolve({ data: [] }),
   ]);
 
   const campaignRows = ((campaignsRes.data ?? []) as GenericRow[]);
-  const brandRows = ((brandsRes.data ?? []) as GenericRow[]);
+  const brandRows = ((brandsRes.data ?? []) as GenericRow[]).filter((row) => !Boolean(row["is_dummy_brand"]));
   const tvRows = ((tvOccurrencesRes.data ?? []) as GenericRow[]);
 
-  const totalTouchpoints = socialSummary.totalPublishedContent + webAnalytics.adsDetected + oohAssets.items.length + tvRows.length;
-  const cokeTouchpoints = Math.max(
-    tvRows.filter((row) => rowString(row, "brand_name").toLowerCase().includes("coca")).length
-      + webAds.filter((row) => (row.brandName ?? "").toLowerCase().includes("coca")).length
-      + Math.round(socialSummary.totalPublishedContent * 0.32),
-    1,
-  );
+  const validBrands = brandRows.map((row) => rowString(row, "name")).filter(Boolean);
+  const validBrandSet = new Set(validBrands.map((name) => name.toLowerCase()));
 
-  const brandSeed: BrandProfile[] = [
-    {
-      id: "brand-coca-cola",
-      name: "Coca-Cola",
-      category: "Sparkling Beverage",
-      group: "portfolio",
-      domains: ["coca-cola.com", "coca-cola.com/iq"],
-      handles: ["@cocacola", "@cocacolaiq"],
-      keywordCount: 12,
-      touchpoints: Math.max(cokeTouchpoints, 36),
-      shareOfVoice: 0.42,
-      momentum: 18,
-      notes: "Core master brand across TV, social, web, and OOH monitoring.",
-      isPreview: true,
-    },
-    {
-      id: "brand-sprite",
-      name: "Sprite",
-      category: "Lemon-Lime Soda",
-      group: "portfolio",
-      domains: ["sprite.com"],
-      handles: ["@sprite"],
-      keywordCount: 8,
-      touchpoints: 22,
-      shareOfVoice: 0.11,
-      momentum: 7,
-      notes: "Portfolio watch for summer demand, youth creators, and retail placement bursts.",
-      isPreview: true,
-    },
-    {
-      id: "brand-pepsi",
-      name: "Pepsi",
-      category: "Cola",
-      group: "competitor",
-      domains: ["pepsi.com", "pepsiarabia.com"],
-      handles: ["@pepsi", "@pepsipakistan"],
-      keywordCount: 14,
-      touchpoints: 29,
-      shareOfVoice: 0.25,
-      momentum: 12,
-      notes: "Primary cola competitor with strong cross-channel music and sports activation.",
-      isPreview: true,
-    },
-    {
-      id: "brand-7up",
-      name: "7UP",
-      category: "Lemon-Lime Soda",
-      group: "competitor",
-      domains: ["7up.com"],
-      handles: ["@7up"],
-      keywordCount: 9,
-      touchpoints: 17,
-      shareOfVoice: 0.12,
-      momentum: 5,
-      notes: "Heat-relief and Ramadan messaging competitor in refreshment occasions.",
-      isPreview: true,
-    },
-    {
-      id: "brand-mirinda",
-      name: "Mirinda",
-      category: "Orange Soda",
-      group: "competitor",
-      domains: ["mirinda.com"],
-      handles: ["@mirinda"],
-      keywordCount: 7,
-      touchpoints: 14,
-      shareOfVoice: 0.1,
-      momentum: 4,
-      notes: "Flavor-led competitor showing periodic burst activity across TV and creator posts.",
-      isPreview: true,
-    },
-  ];
+  const touchpointsByBrand = new Map<string, number>();
 
-  const brandProfiles = brandSeed.map((seed) => {
-    const existing = brandRows.find((row) => rowString(row, "name").toLowerCase() === seed.name.toLowerCase());
-    const domains = existing ? rowArray(existing, "website_domains") : seed.domains;
-    const handlesObject = existing?.social_handles;
-    const handles = handlesObject && typeof handlesObject === "object"
-      ? Object.values(handlesObject as Record<string, unknown>).filter((value): value is string => typeof value === "string")
-      : seed.handles;
-    const keywords = existing ? rowArray(existing, "ocr_keywords") : [];
+  for (const row of tvRows) {
+    const brand = rowString(row, "brand_name");
+    if (!brand) continue;
+    touchpointsByBrand.set(brand, (touchpointsByBrand.get(brand) ?? 0) + 1);
+  }
+
+  for (const ad of webAds) {
+    if (!ad.brandName) continue;
+    touchpointsByBrand.set(ad.brandName, (touchpointsByBrand.get(ad.brandName) ?? 0) + 1);
+  }
+
+  for (const asset of oohAssets.items) {
+    if (!asset.brandName) continue;
+    touchpointsByBrand.set(asset.brandName, (touchpointsByBrand.get(asset.brandName) ?? 0) + 1);
+  }
+
+  for (const connection of socialConnections) {
+    const matchedBrand = validBrands.find((brand) => connection.accountName.toLowerCase().includes(brand.toLowerCase()));
+    if (!matchedBrand) continue;
+    touchpointsByBrand.set(matchedBrand, (touchpointsByBrand.get(matchedBrand) ?? 0) + Math.max(connection.contentCount ?? 0, 1));
+  }
+
+  const totalBrandTouchpoints = Math.max([...touchpointsByBrand.values()].reduce((sum, value) => sum + value, 0), 1);
+
+  const brandProfiles: BrandProfile[] = brandRows.map((row) => {
+    const name = rowString(row, "name");
+    const competitorGroup = rowString(row, "competitor_group").toLowerCase();
+    const handlesObject = row["social_handles"];
+    const handles =
+      handlesObject && typeof handlesObject === "object"
+        ? Object.values(handlesObject as Record<string, unknown>).filter((value): value is string => typeof value === "string")
+        : [];
+    const touchpoints = touchpointsByBrand.get(name) ?? 0;
+
+    const group: BrandProfile["group"] = competitorGroup.includes("competitor") ? "competitor" : "portfolio";
 
     return {
-      ...seed,
-      id: existing ? rowString(existing, "id", seed.id) : seed.id,
-      category: existing ? rowString(existing, "category", seed.category) : seed.category,
-      domains: domains.length > 0 ? domains : seed.domains,
-      handles: handles.length > 0 ? handles : seed.handles,
-      keywordCount: keywords.length > 0 ? keywords.length : seed.keywordCount,
-      isPreview: !existing,
-    };
-  });
-
-  const previewCampaigns: CampaignProfile[] = [
-    {
-      id: "campaign-coke-matchday",
-      name: "Coca-Cola Matchday Moments",
-      brand: "Coca-Cola",
-      status: "active",
-      market: "Iraq",
-      objective: "Defend cola share during live sports and social conversation spikes.",
-      channels: ["TV", "Social", "Web", "OOH"],
-      startDate: "2026-06-10",
-      endDate: "2026-08-31",
-      shareOfVoice: 0.41,
-      touchpoints: 86,
-      estimatedReach: Math.max(Math.round((socialSummary.totalReach || 180000) * 0.46), 92000),
-      monitoringScore: 91,
-      notes: "Balanced cross-channel campaign with strong TV burst support and creator amplification.",
-      isPreview: true,
-    },
-    {
-      id: "campaign-coke-refresh",
-      name: "Coca-Cola Summer Refresh",
-      brand: "Coca-Cola",
-      status: "active",
-      market: "Iraq",
-      objective: "Drive warm-season refreshment demand across urban retail and digital touchpoints.",
-      channels: ["Social", "Web", "OOH"],
-      startDate: "2026-05-28",
-      endDate: "2026-09-15",
-      shareOfVoice: 0.36,
-      touchpoints: 72,
-      estimatedReach: Math.max(Math.round((socialSummary.totalReach || 180000) * 0.4), 76000),
-      monitoringScore: 88,
-      notes: "Creative rotation leans on static web assets, creator reels, and OOH heat maps.",
-      isPreview: true,
-    },
-    {
-      id: "campaign-pepsi-beats",
-      name: "Pepsi Summer Beats",
-      brand: "Pepsi",
-      status: "active",
-      market: "Iraq",
-      objective: "Capture youth attention through music-led creator content and TV bursts.",
-      channels: ["TV", "Social", "Web"],
-      startDate: "2026-06-18",
-      endDate: "2026-08-20",
-      shareOfVoice: 0.25,
-      touchpoints: 54,
-      estimatedReach: Math.max(Math.round((socialSummary.totalReach || 180000) * 0.28), 53000),
-      monitoringScore: 79,
-      notes: "Competitor watchlist priority due to elevated creator collaboration cadence.",
-      isPreview: true,
-    },
-    {
-      id: "campaign-7up-relief",
-      name: "7UP Heat Relief",
-      brand: "7UP",
-      status: "active",
-      market: "Iraq",
-      objective: "Hold lemon-lime share during summer refreshment occasions.",
-      channels: ["TV", "Web"],
-      startDate: "2026-06-22",
-      endDate: "2026-08-09",
-      shareOfVoice: 0.12,
-      touchpoints: 29,
-      estimatedReach: Math.max(Math.round((socialSummary.totalReach || 180000) * 0.14), 27000),
-      monitoringScore: 68,
-      notes: "Lower volume than cola campaigns but still relevant in weather-led messaging windows.",
-      isPreview: true,
-    },
-    {
-      id: "campaign-mirinda-flavor",
-      name: "Mirinda Flavor Burst",
-      brand: "Mirinda",
-      status: "scheduled",
-      market: "Iraq",
-      objective: "Build awareness ahead of late-summer flavor activation bursts.",
-      channels: ["Social", "Web"],
-      startDate: "2026-07-28",
-      endDate: "2026-09-05",
-      shareOfVoice: 0.08,
-      touchpoints: 17,
-      estimatedReach: Math.max(Math.round((socialSummary.totalReach || 180000) * 0.09), 16000),
-      monitoringScore: 57,
-      notes: "Scheduled competitor launch sequence awaiting first confirmed wave of monitored assets.",
-      isPreview: true,
-    },
-  ];
-
-  const actualCampaigns = campaignRows.slice(0, 8).map((row, index): CampaignProfile => {
-    const fallback = previewCampaigns[index % previewCampaigns.length];
-    return {
-      ...fallback,
-      id: rowString(row, "id", fallback.id),
-      name: rowString(row, "name", fallback.name),
-      status: rowString(row, "status", fallback.status),
-      market: rowString(row, "market", fallback.market),
-      objective: rowString(row, "objective", fallback.objective),
-      startDate: asDateLabel(rowString(row, "start_date", fallback.startDate)),
-      endDate: asDateLabel(rowString(row, "end_date", fallback.endDate)),
-      channels: rowArray(row, "media_types").length > 0 ? rowArray(row, "media_types") : fallback.channels,
+      id: rowString(row, "id"),
+      name,
+      category: rowString(row, "category", "Uncategorized"),
+      group,
+      domains: rowArray(row, "website_domains"),
+      handles,
+      keywordCount: rowArray(row, "ocr_keywords").length,
+      touchpoints,
+      shareOfVoice: touchpoints / totalBrandTouchpoints,
+      momentum: 0,
+      notes: "Workspace-backed profile",
       isPreview: false,
     };
-  });
+  }).filter((brand) => brand.touchpoints > 0 || brand.domains.length > 0 || brand.handles.length > 0 || brand.keywordCount > 0);
 
-  const campaigns = actualCampaigns.length > 0
-    ? [...actualCampaigns, ...previewCampaigns.filter((candidate) => !actualCampaigns.some((row) => row.name.toLowerCase() === candidate.name.toLowerCase()))]
-    : previewCampaigns;
+  const brandLookup = new Map(brandProfiles.map((brand) => [brand.id, brand]));
+  const brandNameLookup = new Map(brandProfiles.map((brand) => [brand.name.toLowerCase(), brand]));
 
-  const reportDeck: ReportProfile[] = campaigns.slice(0, 6).map((campaign, index) => ({
+  const campaignTouchpoints = new Map<string, number>();
+  for (const row of tvRows) {
+    const campaign = rowString(row, "campaign_name");
+    if (!campaign) continue;
+    campaignTouchpoints.set(campaign.toLowerCase(), (campaignTouchpoints.get(campaign.toLowerCase()) ?? 0) + 1);
+  }
+  for (const ad of webAds) {
+    if (!ad.campaignName) continue;
+    campaignTouchpoints.set(ad.campaignName.toLowerCase(), (campaignTouchpoints.get(ad.campaignName.toLowerCase()) ?? 0) + 1);
+  }
+  for (const asset of oohAssets.items) {
+    if (!asset.campaignName) continue;
+    campaignTouchpoints.set(asset.campaignName.toLowerCase(), (campaignTouchpoints.get(asset.campaignName.toLowerCase()) ?? 0) + 1);
+  }
+
+  const campaigns: CampaignProfile[] = campaignRows.map((row) => {
+    const name = rowString(row, "name");
+    const brand = brandLookup.get(rowString(row, "brand_id"))?.name ?? "Unassigned";
+    const touchpoints = campaignTouchpoints.get(name.toLowerCase()) ?? 0;
+    const channels = rowArray(row, "media_types");
+    const estimatedReach = brand !== "Unassigned"
+      ? Math.round((brandNameLookup.get(brand.toLowerCase())?.shareOfVoice ?? 0) * socialSummary.totalReach)
+      : 0;
+
+    return {
+      id: rowString(row, "id"),
+      name,
+      brand,
+      status: rowString(row, "status", "unknown"),
+      market: rowString(row, "market", "Unspecified"),
+      objective: rowString(row, "objective", "No objective provided."),
+      channels,
+      startDate: asDateLabel(rowNullableString(row, "start_date")),
+      endDate: asDateLabel(rowNullableString(row, "end_date")),
+      shareOfVoice: touchpoints / totalBrandTouchpoints,
+      touchpoints,
+      estimatedReach,
+      monitoringScore: Math.min(100, touchpoints > 0 ? 60 + Math.round(touchpoints * 2) : 0),
+      notes: "Workspace-backed campaign record",
+      isPreview: false,
+    };
+  }).filter((campaign) => campaign.brand !== "Unassigned" || campaign.touchpoints > 0);
+
+  const reports: ReportProfile[] = campaigns.map((campaign) => ({
     id: `report-${campaign.id}`,
-    title: `${campaign.name} ${index % 2 === 0 ? "Performance" : "Competitor Watch"} Report`,
+    title: `${campaign.name} Report`,
     campaign: campaign.name,
     status: campaign.status === "active" ? "ready" : "scheduled",
-    cadence: index % 3 === 0 ? "Weekly" : index % 3 === 1 ? "Bi-weekly" : "Monthly",
-    lastGeneratedAt: new Date(Date.now() - index * 1000 * 60 * 60 * 18).toISOString(),
-    coverageLabel: `${campaign.channels.join(" + ")} coverage`,
-    formats: ["PDF", "CSV", "XLSX"].slice(0, index % 3 === 0 ? 3 : 2),
+    cadence: "On demand",
+    lastGeneratedAt: new Date().toISOString(),
+    coverageLabel: campaign.channels.length > 0 ? `${campaign.channels.join(" + ")} coverage` : "Coverage not configured",
+    formats: ["PDF", "CSV"],
     highlights: [
       `${campaign.touchpoints} monitored touchpoints`,
       `${campaign.estimatedReach.toLocaleString()} reported reach`,
-      `${Math.round(campaign.shareOfVoice * 100)}% SOV watch`,
+      `${Math.round(campaign.shareOfVoice * 100)}% SOV`,
     ],
   }));
 
-  const competitorBrands = brandProfiles.filter((brand) => brand.group === "competitor");
   const portfolioBrands = brandProfiles.filter((brand) => brand.group === "portfolio");
-  const totalBrandTouchpoints = Math.max(sum(brandProfiles.map((brand) => brand.touchpoints)), 1);
-  const productCatalog: ProductProfile[] = [
-    {
-      id: "product-coke-original",
-      brand: "Coca-Cola",
-      name: "Coca-Cola Original Taste",
-      category: "Cola",
-      format: "bottle",
-      color: "#F40009",
-      accent: "#4C070B",
-      volumeLabel: "500 ml",
-      channels: ["TV", "Social", "Web", "OOH"],
-      touchpoints: 28,
-      shareOfVoice: 0.16,
-      notes: "Flagship cola SKU with the highest media monitoring pressure.",
-      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/c/ce/Coca-Cola_logo.svg",
-      isPreview: true,
-    },
-    {
-      id: "product-coke-zero",
-      brand: "Coca-Cola",
-      name: "Coca-Cola Zero Sugar",
-      category: "Cola",
-      format: "can",
-      color: "#161616",
-      accent: "#F40009",
-      volumeLabel: "330 ml",
-      channels: ["Social", "Web", "OOH"],
-      touchpoints: 18,
-      shareOfVoice: 0.11,
-      notes: "Zero-sugar messaging monitored heavily in digital and urban OOH environments.",
-      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/c/ce/Coca-Cola_logo.svg",
-      isPreview: true,
-    },
-    {
-      id: "product-sprite-original",
-      brand: "Sprite",
-      name: "Sprite Lemon-Lime",
-      category: "Lemon-Lime",
-      format: "bottle",
-      color: "#18A957",
-      accent: "#0B5D2E",
-      volumeLabel: "500 ml",
-      channels: ["TV", "Social", "Web"],
-      touchpoints: 14,
-      shareOfVoice: 0.08,
-      notes: "Seasonal refreshment SKU tracked against lemon-lime competitors.",
-      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/b/b9/Sprite_Logo.svg",
-      isPreview: true,
-    },
-    {
-      id: "product-sprite-zero",
-      brand: "Sprite",
-      name: "Sprite Zero Sugar",
-      category: "Lemon-Lime",
-      format: "can",
-      color: "#11A54B",
-      accent: "#D8FFE6",
-      volumeLabel: "330 ml",
-      channels: ["Social", "Web"],
-      touchpoints: 8,
-      shareOfVoice: 0.04,
-      notes: "Lightweight digital-only monitoring for zero-sugar lemon-lime demand.",
-      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/b/b9/Sprite_Logo.svg",
-      isPreview: true,
-    },
-    {
-      id: "product-pepsi-original",
-      brand: "Pepsi",
-      name: "Pepsi Cola",
-      category: "Cola",
-      format: "bottle",
-      color: "#005CB9",
-      accent: "#C8142F",
-      volumeLabel: "500 ml",
-      channels: ["TV", "Social", "Web"],
-      touchpoints: 22,
-      shareOfVoice: 0.13,
-      notes: "Primary cola competitor SKU with strong music and sports association.",
-      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/5/58/Pepsi_2023_%28with_2014_wordmark%29.svg",
-      isPreview: true,
-    },
-    {
-      id: "product-pepsi-black",
-      brand: "Pepsi",
-      name: "Pepsi Black",
-      category: "Cola",
-      format: "can",
-      color: "#101820",
-      accent: "#005CB9",
-      volumeLabel: "330 ml",
-      channels: ["Social", "Web"],
-      touchpoints: 11,
-      shareOfVoice: 0.06,
-      notes: "Sugar-free competitor variant monitored in creator and digital-heavy flights.",
-      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/8/84/Pepsi_Zero_Sugar_2023.svg",
-      isPreview: true,
-    },
-    {
-      id: "product-7up-original",
-      brand: "7UP",
-      name: "7UP Regular",
-      category: "Lemon-Lime",
-      format: "bottle",
-      color: "#1DB954",
-      accent: "#ED1C24",
-      volumeLabel: "500 ml",
-      channels: ["TV", "Web"],
-      touchpoints: 12,
-      shareOfVoice: 0.07,
-      notes: "Competitor heat-relief proposition monitored in TV and web banners.",
-      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/4/43/7Up_logo_%282024%29.svg",
-      isPreview: true,
-    },
-    {
-      id: "product-7up-free",
-      brand: "7UP",
-      name: "7UP Free",
-      category: "Lemon-Lime",
-      format: "can",
-      color: "#1FAF4B",
-      accent: "#FFFFFF",
-      volumeLabel: "330 ml",
-      channels: ["Web", "Social"],
-      touchpoints: 6,
-      shareOfVoice: 0.03,
-      notes: "Low-volume but strategically important sugar-free competitor SKU.",
-      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/4/43/7Up_logo_%282024%29.svg",
-      isPreview: true,
-    },
-    {
-      id: "product-mirinda-orange",
-      brand: "Mirinda",
-      name: "Mirinda Orange",
-      category: "Orange Soda",
-      format: "bottle",
-      color: "#FF8A00",
-      accent: "#A24500",
-      volumeLabel: "500 ml",
-      channels: ["TV", "Social"],
-      touchpoints: 10,
-      shareOfVoice: 0.06,
-      notes: "Flavor-led competitor SKU with occasional burst creativity.",
-      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/2/28/Mirinda_brand_logo.png",
-      isPreview: true,
-    },
-    {
-      id: "product-mirinda-citrus",
-      brand: "Mirinda",
-      name: "Mirinda Citrus",
-      category: "Orange Soda",
-      format: "can",
-      color: "#FFA126",
-      accent: "#0E8B57",
-      volumeLabel: "330 ml",
-      channels: ["Social", "Web"],
-      touchpoints: 5,
-      shareOfVoice: 0.03,
-      notes: "Smaller citrus extension monitored for regional digital bursts.",
-      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/2/28/Mirinda_brand_logo.png",
-      isPreview: true,
-    },
-  ];
-  const labels14 = Array.from({ length: 14 }, (_, index) => {
-    const date = new Date();
-    date.setDate(date.getDate() - (13 - index));
-    return date.toISOString().slice(5, 10);
-  });
-  const creativeLibrary: CreativeProfile[] = [
-    {
-      id: "creative-coke-matchday-film",
-      brand: "Coca-Cola",
-      product: "Coca-Cola Original Taste",
-      campaign: "Coca-Cola Matchday Moments",
-      name: "Matchday Hero Film",
-      mediaType: "Video",
-      aspectRatio: "16:9",
-      durationLabel: "30s",
-      approvalState: "approved",
-      occurrences: 34,
-      firstSeenAt: "2026-06-14T18:00:00.000Z",
-      lastSeenAt: "2026-07-22T08:30:00.000Z",
-      tags: ["Football", "Hero spot", "Broadcast"],
-      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/c/ce/Coca-Cola_logo.svg",
-      notes: "Primary TV creative used in sports adjacency and recap programming.",
-      isPreview: true,
-    },
-    {
-      id: "creative-coke-refresh-static",
-      brand: "Coca-Cola",
-      product: "Coca-Cola Original Taste",
-      campaign: "Coca-Cola Summer Refresh",
-      name: "Summer Chill Static",
-      mediaType: "Display",
-      aspectRatio: "1:1",
-      durationLabel: "Static",
-      approvalState: "active",
-      occurrences: 21,
-      firstSeenAt: "2026-06-02T10:15:00.000Z",
-      lastSeenAt: "2026-07-21T20:05:00.000Z",
-      tags: ["Web", "Outdoor", "Heat relief"],
-      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/c/ce/Coca-Cola_logo.svg",
-      notes: "Static refreshment panel adapted for web ad units and DOOH boards.",
-      isPreview: true,
-    },
-    {
-      id: "creative-coke-zero-digital",
-      brand: "Coca-Cola",
-      product: "Coca-Cola Zero Sugar",
-      campaign: "Coca-Cola Summer Refresh",
-      name: "Zero Sugar Night Drive",
-      mediaType: "Video",
-      aspectRatio: "9:16",
-      durationLabel: "15s",
-      approvalState: "pending",
-      occurrences: 12,
-      firstSeenAt: "2026-07-05T16:00:00.000Z",
-      lastSeenAt: "2026-07-20T22:10:00.000Z",
-      tags: ["Reels", "Zero sugar", "Nightlife"],
-      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/c/ce/Coca-Cola_logo.svg",
-      notes: "Short-form vertical adaptation for creator and social reel placements.",
-      isPreview: true,
-    },
-    {
-      id: "creative-sprite-summer",
-      brand: "Sprite",
-      product: "Sprite Lemon-Lime",
-      campaign: "Coca-Cola Summer Refresh",
-      name: "Sprite Summer Splash",
-      mediaType: "Video",
-      aspectRatio: "16:9",
-      durationLabel: "20s",
-      approvalState: "approved",
-      occurrences: 18,
-      firstSeenAt: "2026-06-20T11:30:00.000Z",
-      lastSeenAt: "2026-07-22T09:20:00.000Z",
-      tags: ["Cooling", "Youth", "TV"],
-      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/b/b9/Sprite_Logo.svg",
-      notes: "Summer cooling spot supporting lemon-lime portfolio visibility.",
-      isPreview: true,
-    },
-    {
-      id: "creative-pepsi-beats",
-      brand: "Pepsi",
-      product: "Pepsi Cola",
-      campaign: "Pepsi Summer Beats",
-      name: "Summer Beats Anthem",
-      mediaType: "Video",
-      aspectRatio: "16:9",
-      durationLabel: "30s",
-      approvalState: "review",
-      occurrences: 27,
-      firstSeenAt: "2026-06-19T19:45:00.000Z",
-      lastSeenAt: "2026-07-21T21:55:00.000Z",
-      tags: ["Music", "Competitor", "TV"],
-      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/5/58/Pepsi_2023_%28with_2014_wordmark%29.svg",
-      notes: "Competitor hero creative tracked for youth/music overlap with Coke flights.",
-      isPreview: true,
-    },
-    {
-      id: "creative-7up-heat",
-      brand: "7UP",
-      product: "7UP Regular",
-      campaign: "7UP Heat Relief",
-      name: "Heat Relief Key Visual",
-      mediaType: "Display",
-      aspectRatio: "4:5",
-      durationLabel: "Static",
-      approvalState: "active",
-      occurrences: 14,
-      firstSeenAt: "2026-06-24T13:05:00.000Z",
-      lastSeenAt: "2026-07-18T18:15:00.000Z",
-      tags: ["Heat relief", "Competitor", "Display"],
-      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/4/43/7Up_logo_%282024%29.svg",
-      notes: "Competitor display creative showing seasonal relevance in hot weather windows.",
-      isPreview: true,
-    },
-    {
-      id: "creative-mirinda-orange",
-      brand: "Mirinda",
-      product: "Mirinda Orange",
-      campaign: "Mirinda Flavor Burst",
-      name: "Flavor Burst Burst",
-      mediaType: "Display",
-      aspectRatio: "1:1",
-      durationLabel: "Static",
-      approvalState: "pending",
-      occurrences: 9,
-      firstSeenAt: "2026-07-01T14:00:00.000Z",
-      lastSeenAt: "2026-07-17T17:40:00.000Z",
-      tags: ["Orange", "Competitor", "Flavor"],
-      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/2/28/Mirinda_brand_logo.png",
-      notes: "Flavor-led competitor packshot creative flagged for burst monitoring.",
-      isPreview: true,
-    },
-  ];
+  const competitorBrands = brandProfiles.filter((brand) => brand.group === "competitor");
+
+  const products: ProductProfile[] = [];
+  const creatives: CreativeProfile[] = [];
+
+  const totalTouchpoints =
+    socialSummary.totalPublishedContent +
+    webAnalytics.adsDetected +
+    oohAssets.items.length +
+    tvRows.length;
+
+  const cokeBrand = brandProfiles.find((brand) => brand.name.toLowerCase().includes("coca-cola"));
+  const cokeShareOfVoice = cokeBrand?.shareOfVoice ?? 0;
+
+  const tvByDay = new Map<string, number>();
+  for (const row of tvRows) {
+    const startedAt = rowNullableString(row, "started_at");
+    if (!startedAt) continue;
+    const key = startedAt.slice(5, 10);
+    tvByDay.set(key, (tvByDay.get(key) ?? 0) + 1);
+  }
+
+  const webAverage = webAnalytics.adsDetected > 0 ? Math.max(1, Math.round(webAnalytics.adsDetected / 14)) : 0;
+  const socialAverage = socialSummary.totalPublishedContent > 0 ? Math.max(1, Math.round(socialSummary.totalPublishedContent / 14)) : 0;
 
   return {
     summary: {
       campaignCount: campaigns.length,
       activeCampaigns: campaigns.filter((campaign) => campaign.status === "active").length,
-      reportCount: reportDeck.length,
+      reportCount: reports.length,
       competitorCount: competitorBrands.length,
       totalTouchpoints,
       socialAccounts: socialConnections.length,
@@ -683,45 +321,63 @@ export async function getMonitoringDashboardData() {
       totalReach: socialSummary.totalReach,
       totalEngagements: socialSummary.totalEngagements,
       totalWebAds: webAnalytics.adsDetected,
-      cokeShareOfVoice: brandProfiles.find((brand) => brand.name === "Coca-Cola")?.shareOfVoice ?? 0,
+      cokeShareOfVoice,
       lastRefreshLabel: new Date().toISOString(),
     },
     campaigns,
-    reports: reportDeck,
+    reports,
     brands: brandProfiles,
     trendSeries: {
-      campaignPressure: buildTrend(Math.max(Math.round(totalTouchpoints * 0.22), 8), Math.max(Math.round(totalTouchpoints * 0.018), 2), labels14),
-      competitorWatch: buildTrend(Math.max(Math.round(competitorBrands.length * 8), 12), 2, labels14),
-      reportOutput: buildTrend(Math.max(reportDeck.length * 3, 5), 1, labels14),
-      sovShift: buildTrend(Math.round((brandProfiles.find((brand) => brand.name === "Coca-Cola")?.shareOfVoice ?? 0.3) * 100), 1.4, labels14),
+      campaignPressure: buildSparseTrend(
+        recentLabels.map((label) => (tvByDay.get(label) ?? 0) + webAverage + socialAverage),
+        recentLabels,
+      ),
+      competitorWatch: buildSparseTrend(
+        recentLabels.map((_, index) => (competitorBrands.length > 0 ? competitorBrands.length + (index % 3) : 0)),
+        recentLabels,
+      ),
+      reportOutput: buildSparseTrend(
+        recentLabels.map((_, index) => (reports.length > 0 && index >= recentLabels.length - Math.min(reports.length, 4) ? 1 : 0)),
+        recentLabels,
+      ),
+      sovShift: buildSparseTrend(
+        recentLabels.map(() => Math.round(cokeShareOfVoice * 100)),
+        recentLabels,
+      ),
     },
     distributions: {
       campaignChannels: [
-        { label: "TV", value: tvRows.length || 8, note: "TV occurrence and broadcast monitoring" },
-        { label: "Social", value: socialSummary.totalPublishedContent || 12, note: "Connected social content and creator touchpoints" },
-        { label: "Web", value: webAnalytics.adsDetected || 6, note: "Verified website advertising occurrences" },
-        { label: "OOH", value: oohAssets.items.length || 4, note: "Out-of-home placements and screens" },
-      ],
-      brandTouchpoints: brandProfiles.map((brand) => ({
-        label: brand.name,
-        value: brand.touchpoints,
-        note: `${brand.group === "portfolio" ? "Portfolio" : "Competitor"} · ${brand.category}`,
-      })),
-      reportCoverage: reportDeck.map((report) => ({
+        { label: "TV", value: tvRows.length, note: "TV occurrence monitoring" },
+        { label: "Social", value: socialSummary.totalPublishedContent, note: "Connected social content" },
+        { label: "Web", value: webAnalytics.adsDetected, note: "Verified web ad occurrences" },
+        { label: "OOH", value: oohAssets.items.length, note: "OOH asset records" },
+      ].filter((item) => item.value > 0),
+      brandTouchpoints: brandProfiles
+        .map((brand) => ({
+          label: brand.name,
+          value: brand.touchpoints,
+          note: `${brand.group === "portfolio" ? "Portfolio" : "Competitor"} · ${brand.category}`,
+          color: colorForBrand(brand.name).color,
+        }))
+        .filter((item) => item.value > 0),
+      reportCoverage: reports.map((report) => ({
         label: report.campaign,
         value: report.formats.length,
         note: report.coverageLabel,
       })),
-      competitorSov: competitorBrands.map((brand) => ({
-        label: brand.name,
-        share: brand.touchpoints / totalBrandTouchpoints,
-        note: brand.notes,
-        valueLabel: `${brand.touchpoints} touchpoints`,
-      })),
+      competitorSov: competitorBrands
+        .filter((brand) => brand.touchpoints > 0)
+        .map((brand) => ({
+          label: brand.name,
+          share: brand.touchpoints / totalBrandTouchpoints,
+          note: brand.notes,
+          valueLabel: `${brand.touchpoints} touchpoints`,
+          color: colorForBrand(brand.name).color,
+        })),
     },
     portfolioBrands,
     competitorBrands,
-    products: productCatalog,
-    creatives: creativeLibrary,
+    products,
+    creatives,
   };
 }

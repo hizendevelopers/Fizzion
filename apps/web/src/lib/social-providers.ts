@@ -98,11 +98,6 @@ function getProviderEnv(provider: SocialProviderKey) {
   };
 }
 
-function isSocialSandboxEnabled() {
-  const raw = process.env.SOCIAL_SANDBOX_ENABLED;
-  return raw === "1" || raw === "true";
-}
-
 function hasApifyTokenConfigured() {
   try {
     getApifyApiToken();
@@ -162,18 +157,15 @@ class BaseSocialProvider implements SocialProvider {
         verified: false,
         description: "This is a normalized scrape target. Real profile details will appear after Apify import completes.",
       },
-      mode: hasApifyToken ? "live" : "sandbox",
-      warnings: hasApifyToken
-        ? []
-        : ["APIFY_API_TOKEN is not configured, so only sandbox import is currently available."],
+      mode: "live",
+      warnings: hasApifyToken ? [] : ["APIFY_API_TOKEN is not configured."],
     };
   }
 
   async getAuthorizationUrl(input: { accountInput: string; organizationId?: string | null }) {
     const env = getProviderEnv(this.provider);
     const availability = getSocialProviderAvailability(this.provider);
-    const liveConfigured = availability.configured;
-    const mode: "live" | "sandbox" = liveConfigured ? "live" : "sandbox";
+    const mode: "live" | "sandbox" = "live";
 
     if (!availability.available) {
       throw new Error(
@@ -209,45 +201,15 @@ class BaseSocialProvider implements SocialProvider {
     return { authorizationUrl, mode };
   }
 
-  async handleOAuthCallback(input: { code?: string; state: string }) {
+  async handleOAuthCallback(input: { code?: string; state: string }): Promise<ConnectedAccountSelection[]> {
     const state = await consumeOAuthState(input.state);
-    const fixture = getSocialFixture(this.provider);
-    const sandboxMode = state.mode === "sandbox";
-    const mode: "live" | "sandbox" = sandboxMode ? "sandbox" : "live";
-
-    if (!sandboxMode) {
-      if (!input.code) {
-        throw new Error("OAuth callback code is missing.");
-      }
-
-      throw new Error(
-        "Official OAuth authorization is available, but live provider token exchange and data import still require production provider credentials and app-review approval in this environment.",
-      );
+    if (!input.code) {
+      throw new Error("OAuth callback code is missing.");
     }
 
-    if (!isSocialSandboxEnabled()) {
-      throw new Error(
-        "Sandbox social connections are disabled. Configure a real provider integration before connecting accounts.",
-      );
-    }
-
-    return [
-      {
-        externalAccountId: fixture.externalAccountId,
-        accountName: fixture.accountName,
-        username: fixture.username,
-        accountType: fixture.accountType,
-        profileImageUrl: fixture.profileImageUrl,
-        publicProfileUrl: fixture.publicProfileUrl,
-        grantedScopes:
-          this.provider === "youtube"
-            ? ["youtube.readonly", "yt-analytics.readonly"]
-            : this.provider === "tiktok"
-              ? ["user.info.basic", "video.list"]
-              : ["pages_read_engagement", "pages_show_list", "instagram_manage_insights"],
-        mode,
-      },
-    ];
+    throw new Error(
+      `Live ${PROVIDER_LABELS[state.provider as SocialProviderKey]} OAuth callback handling is not enabled in the current Apify-based connection flow.`,
+    );
   }
 
   async refreshAccessToken() {

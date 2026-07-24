@@ -16,6 +16,7 @@ export default async function ProductsPage() {
     color: product.color,
   }));
   const byBrand = groupByBrand(dashboard.products);
+  const hasProducts = dashboard.products.length > 0;
 
   return (
     <div className="space-y-6">
@@ -78,6 +79,12 @@ export default async function ProductsPage() {
           products={dashboard.products.filter((item) => item.brand !== "Coca-Cola" && item.brand !== "Sprite")}
         />
       </section>
+
+      {!hasProducts ? (
+        <section className="rounded-[1.8rem] border border-dashed border-border bg-white px-5 py-8 text-sm text-muted-foreground shadow-[var(--shadow-soft)]">
+          No real product records are available yet.
+        </section>
+      ) : null}
     </div>
   );
 }
@@ -97,7 +104,7 @@ function ProductGroupSection({
       <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
 
       <div className="mt-5 grid gap-4">
-        {products.map((product) => (
+        {products.length > 0 ? products.map((product) => (
           <article
             className="grid gap-4 rounded-[1.7rem] border border-border bg-[linear-gradient(135deg,#ffffff_0%,#fbf7f4_100%)] p-5 lg:grid-cols-[200px_1fr]"
             key={product.id}
@@ -144,7 +151,11 @@ function ProductGroupSection({
               </div>
             </div>
           </article>
-        ))}
+        )) : (
+          <div className="rounded-[1.4rem] border border-dashed border-border bg-panel-soft px-4 py-6 text-sm text-muted-foreground">
+            No products available in this section yet.
+          </div>
+        )}
       </div>
     </section>
   );

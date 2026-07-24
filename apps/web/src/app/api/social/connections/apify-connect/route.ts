@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { makeSocialRequestId, socialApiError } from "@/lib/social-api";
-import { getDefaultSocialOrganizationId, getSocialPlatformId, syncSocialConnection } from "@/lib/social-data";
+import { getDefaultSocialOrganizationId, getSocialPlatformId } from "@/lib/social-data";
 import { getApifyApiToken } from "@/lib/env";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { startPlatformScrapeBundle, validateAndNormalizeInput } from "@/lib/social-sync-utils";
@@ -32,6 +32,15 @@ export async function POST(request: Request) {
       getApifyApiToken();
     } catch {
       hasApifyToken = false;
+    }
+
+    if (!hasApifyToken) {
+      return socialApiError(
+        "APIFY_TOKEN_MISSING",
+        "APIFY_API_TOKEN is not configured. Real social imports are blocked until a valid token is available.",
+        400,
+        requestId,
+      );
     }
 
     const supabase = getSupabaseAdminClient();
@@ -79,10 +88,10 @@ export async function POST(request: Request) {
         username: normalized.username ?? normalized.handle,
         account_type: "public_scrape",
         apify_actor_id: APIFY_ACTORS[platform],
-        token_status: hasApifyToken ? "not_required" : "sandbox",
-        sandbox_mode: !hasApifyToken,
+        token_status: "not_required",
+        sandbox_mode: false,
         metadata: {
-          source: hasApifyToken ? "apify_scrape" : "sandbox_fixture",
+          source: "apify_scrape",
           normalizedInput: normalized,
         },
         created_at: now,
@@ -98,9 +107,7 @@ export async function POST(request: Request) {
 
     const connectionId = connection.id;
 
-    if (!hasApifyToken) {
-      await syncSocialConnection(connectionId, { mode: "initial" });
-    } else {
+    {
       const { error: jobError } = await supabase.from("social_sync_jobs").insert({
         organization_id: organizationId,
         social_account_id: socialAccount.id,
@@ -152,10 +159,8 @@ export async function POST(request: Request) {
       requestId,
       ok: true,
       connectionId,
-      mode: hasApifyToken ? "apify" : "sandbox",
-      message: hasApifyToken
-        ? "Scraping started. Your account will be connected automatically once data is imported."
-        : "APIFY_API_TOKEN is not configured, so a clearly labeled sandbox fixture was imported for this account.",
+      mode: "apify",
+      message: "Scraping started. Your account will be connected automatically once data is imported.",
     });
   } catch (error) {
     return socialApiError(

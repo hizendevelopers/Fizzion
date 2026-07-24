@@ -129,11 +129,6 @@ export default async function SocialAccountsPage() {
                             Verified
                           </span>
                         ) : null}
-                        {connection.sandboxMode ? (
-                          <span className="rounded-full bg-warning-soft px-3 py-1 text-xs text-foreground">
-                            Sandbox fixture
-                          </span>
-                        ) : null}
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">{`@${connection.username} · ${connection.accountType}`}</p>
                       <p className="mt-3 text-sm leading-6 text-muted-foreground">

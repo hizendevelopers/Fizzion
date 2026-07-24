@@ -24,6 +24,7 @@ export default async function CampaignsPage() {
     note: item.note,
     valueLabel: `${item.value} touchpoints`,
   }));
+  const hasCampaignData = dashboard.campaigns.length > 0;
 
   return (
     <div className="space-y-6">
@@ -96,16 +97,13 @@ export default async function CampaignsPage() {
           <div>
             <h2 className="text-xl font-semibold text-foreground">Campaign Watchboard</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Priority Coke and competitor campaigns prepared for leadership reporting and media monitoring.
+              Workspace-backed campaigns prepared for leadership reporting and media monitoring.
             </p>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Preview campaigns are clearly mixed with live workspace records when live data is still building out.
-          </p>
         </div>
 
         <div className="mt-5 grid gap-4 xl:grid-cols-2">
-          {dashboard.campaigns.map((campaign) => (
+          {hasCampaignData ? dashboard.campaigns.map((campaign) => (
             <article
               className="rounded-[1.7rem] border border-border bg-[linear-gradient(135deg,#ffffff_0%,#fcf7f3_100%)] p-5 shadow-[var(--shadow-soft)]"
               key={campaign.id}
@@ -119,11 +117,6 @@ export default async function CampaignsPage() {
                     <span className="inline-flex items-center rounded-full border border-border bg-panel-soft px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                       {campaign.status}
                     </span>
-                    {campaign.isPreview ? (
-                      <span className="inline-flex items-center rounded-full border border-brand-red/20 bg-brand-red/5 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-brand-red">
-                        Monitoring preview
-                      </span>
-                    ) : null}
                   </div>
                   <h3 className="mt-3 text-xl font-semibold text-foreground">{campaign.name}</h3>
                   <p className="mt-2 text-sm leading-7 text-muted-foreground">{campaign.objective}</p>
@@ -165,7 +158,11 @@ export default async function CampaignsPage() {
                 </Link>
               </div>
             </article>
-          ))}
+          )) : (
+            <div className="xl:col-span-2 rounded-[1.6rem] border border-dashed border-border bg-panel-soft px-5 py-8 text-sm text-muted-foreground">
+              No real campaign monitoring records are available yet.
+            </div>
+          )}
         </div>
       </section>
 

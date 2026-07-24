@@ -17,8 +17,8 @@ export default async function AryNewsChannelPage() {
       <div className="rounded-[2rem] border border-border bg-white p-6 shadow-[var(--shadow-card)]">
         <h1 className="text-2xl font-semibold text-foreground">ARY News</h1>
         <p className="mt-3 text-sm leading-7 text-muted-foreground">
-          The TV workspace is not ready yet. Verify the latest Supabase migrations, TV seed data,
-          and server-side environment variables before opening this page.
+          The TV workspace is not ready yet. Verify the latest Supabase migrations and real TV
+          monitoring environment variables before opening this page.
         </p>
       </div>
     );
@@ -71,13 +71,8 @@ export default async function AryNewsChannelPage() {
           <p className="font-semibold">Authorization gate</p>
           <p className="mt-2 leading-7">{gate.message}</p>
           <p className="mt-2 text-xs text-muted-foreground">
-            Safe fallback remains available through sandbox fixtures and manual upload testing.
+            Only workspace-backed detections and user-uploaded recordings are shown in this environment.
           </p>
-          {gate.sandboxMode ? (
-            <p className="mt-2 text-xs text-muted-foreground">
-              Synthetic or licensed test fixture — not live ARY News production monitoring.
-            </p>
-          ) : null}
         </div>
 
         <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -95,7 +90,7 @@ export default async function AryNewsChannelPage() {
               <div>
                 <h2 className="text-xl font-semibold text-foreground">Live monitoring panel</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Internal preview stays policy-aware and never proxies hidden public streams.
+                  This panel stays policy-aware and never proxies hidden public streams.
                 </p>
               </div>
               <Link
@@ -126,7 +121,7 @@ export default async function AryNewsChannelPage() {
               <div>
                 <h2 className="text-xl font-semibold text-foreground">Current timeline</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Latest recording segments, validation states, and deterministic sandbox activity.
+                  Latest recording segments and validation states from the current workspace.
                 </p>
               </div>
               <StatusBadge value={channel.currentSourceHealth} />
@@ -142,7 +137,7 @@ export default async function AryNewsChannelPage() {
                       <div>
                         <p className="text-sm font-semibold text-foreground">{segment.filename}</p>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          {segment.startTimeUtc ?? "Unknown start"} → {segment.endTimeUtc ?? "Unknown end"}
+                          {segment.startTimeUtc ?? "Unknown start"} to {segment.endTimeUtc ?? "Unknown end"}
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -154,8 +149,7 @@ export default async function AryNewsChannelPage() {
                 ))
               ) : (
                 <div className="rounded-[1.4rem] border border-dashed border-border bg-panel-soft px-4 py-5 text-sm text-muted-foreground">
-                  No completed recording segments yet. Use the sandbox/manual upload flow below or
-                  configure an authorized feed.
+                  No completed recording segments yet. Upload a real recording below or configure an authorized feed.
                 </div>
               )}
             </div>

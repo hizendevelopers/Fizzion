@@ -1,18 +1,4 @@
 import { getSupabaseAdminClient, getOptionalSupabaseAdminClient } from "@/lib/supabase/server";
-
-import { buildOohDemoAssets, getOohDemoAreas, type OohDemoAsset } from "./demo-data";
-import {
-  assignOohAssetCoordinatesFallback,
-  createOohAssetFallback,
-  createOohBrandFallback,
-  deleteOohAssetFallback,
-  getOohAnalyticsFallback,
-  getOohAssetDetailFallback,
-  listOohAreasFallback,
-  listOohAssetsFallback,
-  listOohBrandsFallback,
-  updateOohAssetFallback,
-} from "./ooh-fallback-store";
 import type {
   OohAssetCreateInput,
   OohAssetImageInput,
@@ -29,6 +15,8 @@ const OOH_DEFAULT_COUNTRY = "Iraq";
 const OOH_DEFAULT_TIMEZONE = "Asia/Baghdad";
 const OOH_AUDIENCE_DATE = "2026-07-20";
 let shouldUseFallbackCache: boolean | null = null;
+const OOH_REAL_DATA_REQUIRED_MESSAGE =
+  "OOH demo and fallback records have been removed. Run the required OOH migrations and use real uploaded inventory data instead.";
 
 function rowString(row: GenericRow, key: string, fallback = "") {
   const value = row[key];
@@ -302,7 +290,7 @@ export async function getOohOrganizationId() {
   return ensureOrganizationId();
 }
 
-async function ensureAreaRecord(orgId: string, area: ReturnType<typeof getOohDemoAreas>[number]) {
+async function ensureAreaRecord(orgId: string, area: OohAreaItem) {
   const supabase = getSupabaseAdminClient();
   const existing = await supabase
     .from("ooh_areas")
@@ -426,25 +414,6 @@ async function ensureCampaignRecord(
   }
 
   return inserted.data.id;
-}
-
-async function getBrandAndCampaignIdsForDemoAsset(orgId: string, asset: OohDemoAsset) {
-  const brandId = await ensureBrandRecord(orgId, {
-    name: asset.brandName,
-    category: asset.brandCategory,
-    logoUrl: asset.creativeImagePath,
-    isDummyBrand: true,
-  });
-  const campaignId = await ensureCampaignRecord(orgId, {
-    brandId,
-    name: asset.campaignName,
-    slogan: asset.campaignSlogan,
-    market: asset.city,
-    startDate: asset.campaignStartDate,
-    endDate: asset.campaignEndDate,
-  });
-
-  return { brandId, campaignId };
 }
 
 function buildImageRows(orgId: string, assetId: string, images: OohAssetImageInput[]) {
@@ -810,355 +779,10 @@ function compareAssets(
   }
 }
 
-export async function ensureOohDemoData() {
-  if (await shouldUseOohFallback()) {
-    return false;
-  }
-  const supabase = getOptionalSupabaseAdminClient();
-  if (!supabase) {
-    return false;
-  }
-
-  const countResult = await supabase.from("ooh_assets").select("id", { count: "exact", head: true });
-  if ((countResult.count ?? 0) > 0) {
-    return true;
-  }
-
-  const orgId = await ensureOrganizationId();
-  const areaIds = new Map<string, string>();
-  for (const area of getOohDemoAreas()) {
-    areaIds.set(area.slug, await ensureAreaRecord(orgId, area));
-  }
-
-  for (const asset of buildOohDemoAssets()) {
-    const { brandId, campaignId } = await getBrandAndCampaignIdsForDemoAsset(orgId, asset);
-    const assetInsert = await supabase
-      .from("ooh_assets")
-      .insert({
-        organization_id: orgId,
-        asset_code: asset.assetCode,
-        media_type: asset.mediaType,
-        status: asset.status,
-        country: asset.country,
-        city: asset.city,
-        area_id: areaIds.get(asset.areaSlug) ?? null,
-        location_name: asset.locationName,
-        address: asset.address,
-        landmark: asset.landmark,
-        latitude: asset.latitude,
-        longitude: asset.longitude,
-        width: asset.width,
-        height: asset.height,
-        dimension_unit: asset.dimensionUnit,
-        number_of_faces: asset.numberOfFaces,
-        total_sqm: asset.totalSqm,
-        facing_direction: asset.facingDirection,
-        road_type: asset.roadType,
-        illumination: asset.illumination,
-        media_owner: asset.mediaOwner,
-        contact_name: asset.contactName,
-        contact_phone: asset.contactPhone,
-        notes: "Demo OOH inventory generated from deterministic seeded data.",
-      })
-      .select("id")
-      .single();
-
-    const assetId = assetInsert.data?.id;
-    if (!assetId) {
-      throw new Error(assetInsert.error?.message ?? `Failed to create demo asset ${asset.assetCode}.`);
-    }
-
-    await refreshDigitalSpecification(assetId, {
-      assetCode: asset.assetCode,
-      mediaType: asset.mediaType,
-      status: asset.status,
-      country: asset.country,
-      city: asset.city,
-      areaId: areaIds.get(asset.areaSlug) ?? null,
-      locationName: asset.locationName,
-      address: asset.address,
-      landmark: asset.landmark,
-      latitude: asset.latitude,
-      longitude: asset.longitude,
-      width: asset.width,
-      height: asset.height,
-      dimensionUnit: asset.dimensionUnit,
-      numberOfFaces: asset.numberOfFaces,
-      totalSqm: asset.totalSqm,
-      facingDirection: asset.facingDirection,
-      roadType: asset.roadType,
-      illumination: asset.illumination,
-      mediaOwner: asset.mediaOwner,
-      contactName: asset.contactName,
-      contactPhone: asset.contactPhone,
-      notes: "Demo OOH inventory generated from deterministic seeded data.",
-      campaignId,
-      installedAt: asset.installedAt,
-      removedAt: null,
-      dailyCost: asset.dailyCost,
-      weeklyCost: asset.weeklyCost,
-      monthlyCost: asset.monthlyCost,
-      currency: asset.currency,
-      creativeImageUrl: asset.creativeImagePath,
-      proofOfPlayUrl: asset.siteImagePath,
-      placementStatus: asset.placementStatus,
-      availabilityStartDate: asset.availabilityStartDate,
-      availabilityEndDate: asset.availabilityEndDate,
-      availabilityStatus: asset.availabilityStatus,
-      availabilityNotes: "Demo seeded availability window.",
-      expectedDailyAudience: asset.expectedDailyAudience,
-      dailyVehicleVolume: asset.dailyVehicleVolume,
-      dailyPedestrianVolume: asset.dailyPedestrianVolume,
-      estimatedDailyImpressions: asset.estimatedDailyImpressions,
-      estimatedMonthlyReach: asset.estimatedMonthlyReach,
-      averageFrequency: asset.averageFrequency,
-      dwellTimeSeconds: asset.dwellTimeSeconds,
-      visibilityScore: asset.visibilityScore,
-      audienceConfidence: asset.audienceConfidence,
-      nearbyPoiCount: asset.nearbyPoiCount,
-      resolutionWidth: asset.resolutionWidth,
-      resolutionHeight: asset.resolutionHeight,
-      brightnessNits: asset.brightnessNits,
-      operatingStartTime: asset.operatingStartTime,
-      operatingEndTime: asset.operatingEndTime,
-      loopLengthSeconds: asset.loopLengthSeconds,
-      spotLengthSeconds: asset.spotLengthSeconds,
-      estimatedPlaysPerDay: asset.estimatedPlaysPerDay,
-      images: [],
-      brandId,
-      brandName: asset.brandName,
-      brandCategory: asset.brandCategory,
-      brandLogoUrl: asset.creativeImagePath,
-      campaignName: asset.campaignName,
-      campaignSlogan: asset.campaignSlogan,
-    });
-    await refreshAssetPlacement(
-      orgId,
-      assetId,
-      {
-        assetCode: asset.assetCode,
-        mediaType: asset.mediaType,
-        status: asset.status,
-        country: asset.country,
-        city: asset.city,
-        areaId: areaIds.get(asset.areaSlug) ?? null,
-        locationName: asset.locationName,
-        address: asset.address,
-        landmark: asset.landmark,
-        latitude: asset.latitude,
-        longitude: asset.longitude,
-        width: asset.width,
-        height: asset.height,
-        dimensionUnit: asset.dimensionUnit,
-        numberOfFaces: asset.numberOfFaces,
-        totalSqm: asset.totalSqm,
-        facingDirection: asset.facingDirection,
-        roadType: asset.roadType,
-        illumination: asset.illumination,
-        mediaOwner: asset.mediaOwner,
-        contactName: asset.contactName,
-        contactPhone: asset.contactPhone,
-        notes: "Demo OOH inventory generated from deterministic seeded data.",
-        campaignId,
-        installedAt: asset.installedAt,
-        removedAt: null,
-        dailyCost: asset.dailyCost,
-        weeklyCost: asset.weeklyCost,
-        monthlyCost: asset.monthlyCost,
-        currency: asset.currency,
-        creativeImageUrl: asset.creativeImagePath,
-        proofOfPlayUrl: asset.siteImagePath,
-        placementStatus: asset.placementStatus,
-        availabilityStartDate: asset.availabilityStartDate,
-        availabilityEndDate: asset.availabilityEndDate,
-        availabilityStatus: asset.availabilityStatus,
-        availabilityNotes: "Demo seeded availability window.",
-        expectedDailyAudience: asset.expectedDailyAudience,
-        dailyVehicleVolume: asset.dailyVehicleVolume,
-        dailyPedestrianVolume: asset.dailyPedestrianVolume,
-        estimatedDailyImpressions: asset.estimatedDailyImpressions,
-        estimatedMonthlyReach: asset.estimatedMonthlyReach,
-        averageFrequency: asset.averageFrequency,
-        dwellTimeSeconds: asset.dwellTimeSeconds,
-        visibilityScore: asset.visibilityScore,
-        audienceConfidence: asset.audienceConfidence,
-        nearbyPoiCount: asset.nearbyPoiCount,
-        resolutionWidth: asset.resolutionWidth,
-        resolutionHeight: asset.resolutionHeight,
-        brightnessNits: asset.brightnessNits,
-        operatingStartTime: asset.operatingStartTime,
-        operatingEndTime: asset.operatingEndTime,
-        loopLengthSeconds: asset.loopLengthSeconds,
-        spotLengthSeconds: asset.spotLengthSeconds,
-        estimatedPlaysPerDay: asset.estimatedPlaysPerDay,
-        images: [],
-        brandId,
-        brandName: asset.brandName,
-        brandCategory: asset.brandCategory,
-        brandLogoUrl: asset.creativeImagePath,
-        campaignName: asset.campaignName,
-        campaignSlogan: asset.campaignSlogan,
-      },
-      campaignId,
-    );
-    await refreshAudienceMetric(orgId, assetId, {
-      assetCode: asset.assetCode,
-      mediaType: asset.mediaType,
-      status: asset.status,
-      country: asset.country,
-      city: asset.city,
-      areaId: areaIds.get(asset.areaSlug) ?? null,
-      locationName: asset.locationName,
-      address: asset.address,
-      landmark: asset.landmark,
-      latitude: asset.latitude,
-      longitude: asset.longitude,
-      width: asset.width,
-      height: asset.height,
-      dimensionUnit: asset.dimensionUnit,
-      numberOfFaces: asset.numberOfFaces,
-      totalSqm: asset.totalSqm,
-      facingDirection: asset.facingDirection,
-      roadType: asset.roadType,
-      illumination: asset.illumination,
-      mediaOwner: asset.mediaOwner,
-      contactName: asset.contactName,
-      contactPhone: asset.contactPhone,
-      notes: "Demo OOH inventory generated from deterministic seeded data.",
-      campaignId,
-      installedAt: asset.installedAt,
-      removedAt: null,
-      dailyCost: asset.dailyCost,
-      weeklyCost: asset.weeklyCost,
-      monthlyCost: asset.monthlyCost,
-      currency: asset.currency,
-      creativeImageUrl: asset.creativeImagePath,
-      proofOfPlayUrl: asset.siteImagePath,
-      placementStatus: asset.placementStatus,
-      availabilityStartDate: asset.availabilityStartDate,
-      availabilityEndDate: asset.availabilityEndDate,
-      availabilityStatus: asset.availabilityStatus,
-      availabilityNotes: "Demo seeded availability window.",
-      expectedDailyAudience: asset.expectedDailyAudience,
-      dailyVehicleVolume: asset.dailyVehicleVolume,
-      dailyPedestrianVolume: asset.dailyPedestrianVolume,
-      estimatedDailyImpressions: asset.estimatedDailyImpressions,
-      estimatedMonthlyReach: asset.estimatedMonthlyReach,
-      averageFrequency: asset.averageFrequency,
-      dwellTimeSeconds: asset.dwellTimeSeconds,
-      visibilityScore: asset.visibilityScore,
-      audienceConfidence: asset.audienceConfidence,
-      nearbyPoiCount: asset.nearbyPoiCount,
-      resolutionWidth: asset.resolutionWidth,
-      resolutionHeight: asset.resolutionHeight,
-      brightnessNits: asset.brightnessNits,
-      operatingStartTime: asset.operatingStartTime,
-      operatingEndTime: asset.operatingEndTime,
-      loopLengthSeconds: asset.loopLengthSeconds,
-      spotLengthSeconds: asset.spotLengthSeconds,
-      estimatedPlaysPerDay: asset.estimatedPlaysPerDay,
-      images: [],
-      brandId,
-      brandName: asset.brandName,
-      brandCategory: asset.brandCategory,
-      brandLogoUrl: asset.creativeImagePath,
-      campaignName: asset.campaignName,
-      campaignSlogan: asset.campaignSlogan,
-    });
-    await refreshAvailability(
-      orgId,
-      assetId,
-      {
-        assetCode: asset.assetCode,
-        mediaType: asset.mediaType,
-        status: asset.status,
-        country: asset.country,
-        city: asset.city,
-        areaId: areaIds.get(asset.areaSlug) ?? null,
-        locationName: asset.locationName,
-        address: asset.address,
-        landmark: asset.landmark,
-        latitude: asset.latitude,
-        longitude: asset.longitude,
-        width: asset.width,
-        height: asset.height,
-        dimensionUnit: asset.dimensionUnit,
-        numberOfFaces: asset.numberOfFaces,
-        totalSqm: asset.totalSqm,
-        facingDirection: asset.facingDirection,
-        roadType: asset.roadType,
-        illumination: asset.illumination,
-        mediaOwner: asset.mediaOwner,
-        contactName: asset.contactName,
-        contactPhone: asset.contactPhone,
-        notes: "Demo OOH inventory generated from deterministic seeded data.",
-        campaignId,
-        installedAt: asset.installedAt,
-        removedAt: null,
-        dailyCost: asset.dailyCost,
-        weeklyCost: asset.weeklyCost,
-        monthlyCost: asset.monthlyCost,
-        currency: asset.currency,
-        creativeImageUrl: asset.creativeImagePath,
-        proofOfPlayUrl: asset.siteImagePath,
-        placementStatus: asset.placementStatus,
-        availabilityStartDate: asset.availabilityStartDate,
-        availabilityEndDate: asset.availabilityEndDate,
-        availabilityStatus: asset.availabilityStatus,
-        availabilityNotes: "Demo seeded availability window.",
-        expectedDailyAudience: asset.expectedDailyAudience,
-        dailyVehicleVolume: asset.dailyVehicleVolume,
-        dailyPedestrianVolume: asset.dailyPedestrianVolume,
-        estimatedDailyImpressions: asset.estimatedDailyImpressions,
-        estimatedMonthlyReach: asset.estimatedMonthlyReach,
-        averageFrequency: asset.averageFrequency,
-        dwellTimeSeconds: asset.dwellTimeSeconds,
-        visibilityScore: asset.visibilityScore,
-        audienceConfidence: asset.audienceConfidence,
-        nearbyPoiCount: asset.nearbyPoiCount,
-        resolutionWidth: asset.resolutionWidth,
-        resolutionHeight: asset.resolutionHeight,
-        brightnessNits: asset.brightnessNits,
-        operatingStartTime: asset.operatingStartTime,
-        operatingEndTime: asset.operatingEndTime,
-        loopLengthSeconds: asset.loopLengthSeconds,
-        spotLengthSeconds: asset.spotLengthSeconds,
-        estimatedPlaysPerDay: asset.estimatedPlaysPerDay,
-        images: [],
-        brandId,
-        brandName: asset.brandName,
-        brandCategory: asset.brandCategory,
-        brandLogoUrl: asset.creativeImagePath,
-        campaignName: asset.campaignName,
-        campaignSlogan: asset.campaignSlogan,
-      },
-      campaignId,
-    );
-    await refreshAssetImages(orgId, assetId, [
-      {
-        imageUrl: asset.siteImagePath,
-        imageType: "SITE_PHOTO",
-        altText: `${asset.locationName} site photograph`,
-        sortOrder: 0,
-        isPrimary: true,
-      },
-      {
-        imageUrl: asset.creativeImagePath,
-        imageType: "CREATIVE",
-        altText: `${asset.brandName} creative for ${asset.assetCode}`,
-        sortOrder: 1,
-        isPrimary: false,
-      },
-    ]);
-  }
-
-  return true;
-}
-
 export async function listOohAreas() {
   try {
     if (await shouldUseOohFallback()) {
-      return listOohAreasFallback();
+      return [] as OohAreaItem[];
     }
     const supabase = getOptionalSupabaseAdminClient();
     if (!supabase) {
@@ -1178,7 +802,7 @@ export async function listOohAreas() {
   } catch (error) {
     if (isMissingOohTableError(error)) {
       shouldUseFallbackCache = true;
-      return listOohAreasFallback();
+      return [] as OohAreaItem[];
     }
     throw error;
   }
@@ -1187,7 +811,7 @@ export async function listOohAreas() {
 export async function listOohBrands() {
   try {
     if (await shouldUseOohFallback()) {
-      return listOohBrandsFallback();
+      return [] as OohBrandItem[];
     }
     const supabase = getOptionalSupabaseAdminClient();
     if (!supabase) {
@@ -1212,7 +836,7 @@ export async function listOohBrands() {
   } catch (error) {
     if (isMissingOohTableError(error)) {
       shouldUseFallbackCache = true;
-      return listOohBrandsFallback();
+      return [] as OohBrandItem[];
     }
     throw error;
   }
@@ -1220,7 +844,7 @@ export async function listOohBrands() {
 
 export async function createOohBrand(input: OohBrandCreateInput) {
   if (await shouldUseOohFallback()) {
-    return createOohBrandFallback(input);
+    throw new Error(OOH_REAL_DATA_REQUIRED_MESSAGE);
   }
   const orgId = await ensureOrganizationId();
   const brandId = await ensureBrandRecord(orgId, {
@@ -1236,7 +860,7 @@ export async function createOohBrand(input: OohBrandCreateInput) {
 export async function listOohAssets(query: OohAssetListQuery) {
   try {
     if (await shouldUseOohFallback()) {
-      return listOohAssetsFallback(query);
+      return { items: [] as OohAssetListItem[], total: 0, page: query.page, limit: query.limit };
     }
     const supabase = getOptionalSupabaseAdminClient();
     if (!supabase) {
@@ -1297,7 +921,7 @@ export async function listOohAssets(query: OohAssetListQuery) {
   } catch (error) {
     if (isMissingOohTableError(error)) {
       shouldUseFallbackCache = true;
-      return listOohAssetsFallback(query);
+      return { items: [] as OohAssetListItem[], total: 0, page: query.page, limit: query.limit };
     }
     throw error;
   }
@@ -1306,7 +930,7 @@ export async function listOohAssets(query: OohAssetListQuery) {
 export async function getOohAssetDetail(assetId: string) {
   try {
     if (await shouldUseOohFallback()) {
-      return getOohAssetDetailFallback(assetId);
+      return null;
     }
     const supabase = getOptionalSupabaseAdminClient();
     if (!supabase) {
@@ -1434,7 +1058,7 @@ export async function getOohAssetDetail(assetId: string) {
   } catch (error) {
     if (isMissingOohTableError(error)) {
       shouldUseFallbackCache = true;
-      return getOohAssetDetailFallback(assetId);
+      return null;
     }
     throw error;
   }
@@ -1443,7 +1067,7 @@ export async function getOohAssetDetail(assetId: string) {
 export async function createOohAsset(input: OohAssetCreateInput) {
   try {
     if (await shouldUseOohFallback()) {
-      return createOohAssetFallback(input);
+      throw new Error(OOH_REAL_DATA_REQUIRED_MESSAGE);
     }
     const supabase = getSupabaseAdminClient();
     const orgId = await ensureOrganizationId();
@@ -1494,7 +1118,7 @@ export async function createOohAsset(input: OohAssetCreateInput) {
   } catch (error) {
     if (isMissingOohTableError(error)) {
       shouldUseFallbackCache = true;
-      return createOohAssetFallback(input);
+      throw new Error(OOH_REAL_DATA_REQUIRED_MESSAGE);
     }
     throw error;
   }
@@ -1503,7 +1127,7 @@ export async function createOohAsset(input: OohAssetCreateInput) {
 export async function updateOohAsset(assetId: string, input: OohAssetCreateInput) {
   try {
     if (await shouldUseOohFallback()) {
-      return updateOohAssetFallback(assetId, input);
+      throw new Error(OOH_REAL_DATA_REQUIRED_MESSAGE);
     }
     const supabase = getSupabaseAdminClient();
     const detail = await getOohAssetDetail(assetId);
@@ -1556,7 +1180,7 @@ export async function updateOohAsset(assetId: string, input: OohAssetCreateInput
   } catch (error) {
     if (isMissingOohTableError(error)) {
       shouldUseFallbackCache = true;
-      return updateOohAssetFallback(assetId, input);
+      throw new Error(OOH_REAL_DATA_REQUIRED_MESSAGE);
     }
     throw error;
   }
@@ -1565,7 +1189,7 @@ export async function updateOohAsset(assetId: string, input: OohAssetCreateInput
 export async function deleteOohAsset(assetId: string) {
   try {
     if (await shouldUseOohFallback()) {
-      return deleteOohAssetFallback(assetId);
+      throw new Error(OOH_REAL_DATA_REQUIRED_MESSAGE);
     }
     const supabase = getSupabaseAdminClient();
     const result = await supabase.from("ooh_assets").delete().eq("id", assetId);
@@ -1575,7 +1199,7 @@ export async function deleteOohAsset(assetId: string) {
   } catch (error) {
     if (isMissingOohTableError(error)) {
       shouldUseFallbackCache = true;
-      return deleteOohAssetFallback(assetId);
+      throw new Error(OOH_REAL_DATA_REQUIRED_MESSAGE);
     }
     throw error;
   }
@@ -1584,7 +1208,7 @@ export async function deleteOohAsset(assetId: string) {
 export async function assignOohAssetCoordinates(assetId: string, latitude: number, longitude: number) {
   try {
     if (await shouldUseOohFallback()) {
-      return assignOohAssetCoordinatesFallback(assetId, latitude, longitude);
+      throw new Error(OOH_REAL_DATA_REQUIRED_MESSAGE);
     }
     const supabase = getSupabaseAdminClient();
     const result = await supabase
@@ -1602,7 +1226,7 @@ export async function assignOohAssetCoordinates(assetId: string, latitude: numbe
   } catch (error) {
     if (isMissingOohTableError(error)) {
       shouldUseFallbackCache = true;
-      return assignOohAssetCoordinatesFallback(assetId, latitude, longitude);
+      throw new Error(OOH_REAL_DATA_REQUIRED_MESSAGE);
     }
     throw error;
   }
@@ -1611,7 +1235,19 @@ export async function assignOohAssetCoordinates(assetId: string, latitude: numbe
 export async function getOohAnalytics(query: OohAssetListQuery) {
   try {
     if (await shouldUseOohFallback()) {
-      return getOohAnalyticsFallback(query);
+      return {
+        totalAssets: 0,
+        totalBillboards: 0,
+        totalDigitalScreens: 0,
+        activeCampaigns: 0,
+        availableInventory: 0,
+        estimatedDailyAudience: 0,
+        estimatedDailyImpressions: 0,
+        averageDailyRate: null,
+        inventoryUtilizationPercentage: null,
+        assetsByCity: {},
+        assetsByArea: {},
+      } satisfies OohAnalyticsSummary;
     }
     const { items } = await listOohAssets({ ...query, page: 1, limit: 500 });
     const totalAssets = items.length;
@@ -1656,7 +1292,19 @@ export async function getOohAnalytics(query: OohAssetListQuery) {
   } catch (error) {
     if (isMissingOohTableError(error)) {
       shouldUseFallbackCache = true;
-      return getOohAnalyticsFallback(query);
+      return {
+        totalAssets: 0,
+        totalBillboards: 0,
+        totalDigitalScreens: 0,
+        activeCampaigns: 0,
+        availableInventory: 0,
+        estimatedDailyAudience: 0,
+        estimatedDailyImpressions: 0,
+        averageDailyRate: null,
+        inventoryUtilizationPercentage: null,
+        assetsByCity: {},
+        assetsByArea: {},
+      } satisfies OohAnalyticsSummary;
     }
     throw error;
   }

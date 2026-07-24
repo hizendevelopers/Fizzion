@@ -14,7 +14,7 @@ export default async function AdminTvChannelsPage() {
         <h1 className="text-3xl font-semibold text-foreground">TV Channel Administration</h1>
         <p className="mt-3 text-sm leading-7 text-muted-foreground">
           Manage ARY News source state, authorization, detection settings, workers, queues, and
-          sandbox/manual-upload fallbacks.
+          manual upload operations.
         </p>
       </section>
 
@@ -39,7 +39,7 @@ export default async function AdminTvChannelsPage() {
         </Link>
       ) : (
         <div className="rounded-[1.7rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)] text-sm text-muted-foreground">
-          ARY News has not been seeded yet.
+          ARY News is not configured yet.
         </div>
       )}
     </div>

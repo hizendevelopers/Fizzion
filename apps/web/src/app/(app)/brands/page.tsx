@@ -15,6 +15,7 @@ export default async function BrandsPage() {
     note: item.note,
     valueLabel: `${item.value} touchpoints`,
   }));
+  const hasBrands = dashboard.brands.length > 0;
 
   return (
     <div className="space-y-6">
@@ -91,6 +92,12 @@ export default async function BrandsPage() {
           title="Competitor Intelligence"
         />
       </section>
+
+      {!hasBrands ? (
+        <section className="rounded-[1.8rem] border border-dashed border-border bg-white px-5 py-8 text-sm text-muted-foreground shadow-[var(--shadow-soft)]">
+          No real brands or competitors are available for this workspace yet.
+        </section>
+      ) : null}
     </div>
   );
 }
@@ -110,7 +117,7 @@ function BrandPanel({
       <h2 className="mt-2 text-xl font-semibold text-foreground">{title}</h2>
 
       <div className="mt-5 space-y-4">
-        {brands.map((brand) => (
+        {brands.length > 0 ? brands.map((brand) => (
           <article
             className="rounded-[1.6rem] border border-border bg-[linear-gradient(135deg,#ffffff_0%,#fbf7f4_100%)] p-5"
             key={brand.id}
@@ -158,11 +165,15 @@ function BrandPanel({
               <InfoList
                 icon={<CampaignIcon className="h-4 w-4 text-brand-red" />}
                 label="Monitoring notes"
-                values={[brand.isPreview ? "Preview watch profile" : "Workspace-backed profile"]}
+                values={["Workspace-backed profile"]}
               />
             </div>
           </article>
-        ))}
+        )) : (
+          <div className="rounded-[1.4rem] border border-dashed border-border bg-panel-soft px-4 py-6 text-sm text-muted-foreground">
+            No records available in this section yet.
+          </div>
+        )}
       </div>
     </section>
   );

@@ -9,6 +9,7 @@ export default async function CreativesPage() {
   const approvalMix = buildApprovalMix(dashboard.creatives);
   const brandShare = buildBrandShare(dashboard.creatives);
   const occurrenceTrend = buildOccurrenceTrend(dashboard.creatives);
+  const hasCreatives = dashboard.creatives.length > 0;
 
   return (
     <div className="space-y-6">
@@ -22,7 +23,7 @@ export default async function CreativesPage() {
               Creative Library
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground md:text-[15px]">
-              Unified preview of Coke and competitor creatives across TV, social, web advertising,
+              Unified view of workspace-backed creatives across TV, social, web advertising,
               and OOH-ready assets with approval state, occurrences, and monitoring metadata.
             </p>
           </div>
@@ -46,7 +47,7 @@ export default async function CreativesPage() {
       <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <AreaTrendCard
           title="Creative Occurrence Trend"
-          subtitle="Recent occurrence pressure across the current creative preview set"
+          subtitle="Recent occurrence pressure across the current creative library"
           data={occurrenceTrend}
           formatter={(value) => `${value} hits`}
         />
@@ -76,15 +77,15 @@ export default async function CreativesPage() {
             <CreativeIcon className="h-5 w-5" />
           </div>
           <div>
-            <h2 className="text-xl font-semibold text-foreground">Creative Preview Shelf</h2>
+            <h2 className="text-xl font-semibold text-foreground">Creative Library Shelf</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Preview records are intentionally populated here so the cross-media creative workflow can be reviewed visually.
+              Cross-media creative records captured from the current workspace.
             </p>
           </div>
         </div>
 
         <div className="mt-5 grid gap-4 xl:grid-cols-2">
-          {dashboard.creatives.map((creative) => (
+          {hasCreatives ? dashboard.creatives.map((creative) => (
             <article
               className="grid gap-4 rounded-[1.7rem] border border-border bg-[linear-gradient(135deg,#ffffff_0%,#fbf7f4_100%)] p-5 lg:grid-cols-[180px_1fr]"
               key={creative.id}
@@ -137,7 +138,11 @@ export default async function CreativesPage() {
                 </div>
               </div>
             </article>
-          ))}
+          )) : (
+            <div className="xl:col-span-2 rounded-[1.4rem] border border-dashed border-border bg-panel-soft px-4 py-8 text-sm text-muted-foreground">
+              No real creative records are available yet.
+            </div>
+          )}
         </div>
       </section>
 
@@ -161,6 +166,11 @@ export default async function CreativesPage() {
               </p>
             </div>
           ))}
+          {!hasCreatives ? (
+            <div className="md:col-span-2 xl:col-span-4 rounded-[1.3rem] border border-dashed border-border bg-panel-soft px-4 py-6 text-sm text-muted-foreground">
+              No creative review notes are available because the workspace has no real creative assets yet.
+            </div>
+          ) : null}
         </div>
       </section>
     </div>
@@ -172,7 +182,7 @@ function buildMediaTypeMix(creatives: Awaited<ReturnType<typeof getMonitoringDas
   for (const creative of creatives) {
     map.set(creative.mediaType, (map.get(creative.mediaType) ?? 0) + 1);
   }
-  return [...map.entries()].map(([label, value]) => ({ label, value, note: "Preview creative count" }));
+  return [...map.entries()].map(([label, value]) => ({ label, value, note: "Workspace creative count" }));
 }
 
 function buildApprovalMix(creatives: Awaited<ReturnType<typeof getMonitoringDashboardData>>["creatives"]) {

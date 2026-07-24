@@ -18,8 +18,8 @@ export default async function TvReviewQueuePage() {
       <section className="rounded-[2.1rem] border border-white/85 bg-white/90 p-6 shadow-[var(--shadow-card)]">
         <h1 className="text-3xl font-semibold text-foreground">TV Review Queue</h1>
         <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground">
-          Manual uploads, sandbox detections, and medium-confidence occurrences that need boundary
-          checks, classification review, or approval.
+          Manual uploads and medium-confidence occurrences that need boundary checks,
+          classification review, or approval.
         </p>
       </section>
 
