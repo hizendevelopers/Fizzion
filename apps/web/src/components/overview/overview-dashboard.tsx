@@ -1304,7 +1304,7 @@ function ActiveBrandsCard({ brands, currency, expectedCount, loading }: {
     <article className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-[0_4px_16px_rgba(0,0,0,0.04)]">
       <h2 className="text-base font-semibold text-[#111827]">Active Brands</h2>
       <p className="mt-0.5 text-xs text-[#6B7280]">Matches the KPI for same filters</p>
-      <div className="mt-3 space-y-2">
+      <div className="mt-3 max-h-[36rem] space-y-2 overflow-y-auto pe-1">
         {loading && brands.length === 0
           ? <div className="rounded-xl border border-[#F1F3F5] bg-[#F9FAFB] px-4 py-6 text-center text-xs text-[#9CA3AF]">Loading…</div>
           : brands.length === 0
