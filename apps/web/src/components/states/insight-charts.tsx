@@ -807,7 +807,7 @@ export function ShareOfVoiceCard({
       ) : null}
 
       {normalized.length > 0 ? (
-        <div className={`${hideHeader ? "" : "mt-5"} grid gap-5 lg:grid-cols-[312px_minmax(0,1fr)] lg:items-center`}>
+        <div className={`${hideHeader ? "" : "mt-4"} grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)] lg:items-center`}>
           <div className="mx-auto w-full max-w-[312px] rounded-[1.85rem] bg-[linear-gradient(180deg,#fcfbfa_0%,#f6f0eb_100%)] px-5 py-4">
             <BottleIllustration
               idPrefix={idPrefix}
@@ -815,28 +815,28 @@ export function ShareOfVoiceCard({
             />
           </div>
 
-          <div className="space-y-4">
-            <div className="rounded-[1.35rem] border border-border bg-panel-soft px-4 py-4">
-              <p className="text-sm font-semibold text-foreground">{leadItem?.label ?? "Leading share"} is currently leading the monitored SOV mix</p>
-              <p className="mt-1 text-sm leading-7 text-muted-foreground">
+          <div className="space-y-3">
+            <div className="rounded-[1.35rem] border border-border bg-panel-soft px-4 py-3.5">
+              <p className="text-[13px] font-semibold text-foreground">{leadItem?.label ?? "Leading share"} is currently leading the monitored SOV mix</p>
+              <p className="mt-1 text-[13px] leading-6 text-muted-foreground">
                 Every colored band in this can visual is driven by the real filtered share values for the current page, using one consistent SOV presentation across the platform.
               </p>
             </div>
 
-            <div className="grid max-h-[404px] gap-2.5 overflow-y-auto pr-1">
+            <div className="grid max-h-[356px] gap-2 overflow-y-auto pr-1">
               {normalized.map((item) => {
                 const color = item.resolvedColor;
                 return (
-                  <div className="rounded-[1rem] border border-border bg-white px-3 py-2.5" key={`${title}-${item.label}`}>
+                  <div className="rounded-[1rem] border border-border bg-white px-3 py-2.5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]" key={`${title}-${item.label}`}>
                     <div className="flex items-center justify-between gap-4">
                       <div className="min-w-0">
-                        <p className="flex items-center gap-2 truncate text-sm font-semibold text-foreground">
+                        <p className="flex items-center gap-2 truncate text-[13px] font-semibold text-foreground">
                           <span className="h-3 w-3 rounded-full" style={{ background: color }} />
                           {item.label}
                         </p>
-                        {item.note ? <p className="text-xs text-muted-foreground">{item.note}</p> : null}
+                        {item.note ? <p className="text-[11px] text-muted-foreground">{item.note}</p> : null}
                       </div>
-                      <span className="text-sm font-semibold text-foreground">
+                      <span className="text-[13px] font-semibold text-foreground">
                         {item.valueLabel ?? `${(item.share * 100).toFixed(1)}%`}
                       </span>
                     </div>

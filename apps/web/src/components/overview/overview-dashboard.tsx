@@ -252,7 +252,7 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
   }, []);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* ─── Page Header ─── */}
       <Section dark>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
@@ -387,7 +387,7 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
         />
       </section>
 
-      <section className="space-y-5">
+      <section className="space-y-4">
         <StackedSpendingChartCard
           title="Total Spending"
           subtitle="Brand spending trend over time"
@@ -437,7 +437,7 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
           plotHeight={228}
         />
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)] xl:items-start">
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1.24fr)_minmax(300px,0.76fr)] xl:items-start">
           {state.error ? (
             <SpendingSovCard
               data={state.data.shareOfVoice}
@@ -457,7 +457,7 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
       </section>
 
       {/* ─── Platform Split + Active Campaigns + Active Brands ─── */}
-      <section className="grid gap-5 lg:grid-cols-2 xl:grid-cols-[1.4fr_1fr]">
+      <section className="grid gap-4 lg:grid-cols-2 xl:grid-cols-[1.4fr_1fr]">
         <CampaignListCard
           campaigns={state.data.activeCampaigns}
           currency={state.data.summary.currency}
