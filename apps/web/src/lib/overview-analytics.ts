@@ -935,39 +935,70 @@ export async function getOverviewAnalytics(rawFilters?: OverviewFilterInput) {
   const previousEnd = addDays(startOfDay(filters.start), -1);
   const previousStart = addDays(previousEnd, -(previousRangeLength - 1));
 
-  const [brandsRes, platformsRes, campaignsRes, campaignPlatformsRes, spendRes] = await Promise.all([
+  const spendRes = await client
+    .from("spend_records")
+    .select("brand_id,campaign_id,platform_id,spend_date,amount,currency")
+    .eq("organization_id", organizationId)
+    .gte("spend_date", formatIsoDate(previousStart))
+    .lte("spend_date", filters.endDate);
+
+  if (spendRes.error) throw spendRes.error;
+
+  const spendRecords = ((spendRes.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+    brandId: String(row.brand_id),
+    campaignId: String(row.campaign_id),
+    platformId: String(row.platform_id),
+    spendDate: String(row.spend_date),
+    amount: Number(row.amount ?? 0),
+    currency: String(row.currency ?? "USD"),
+  }));
+
+  const relevantBrandIds = Array.from(new Set(spendRecords.map((record) => record.brandId)));
+  const relevantCampaignIds = Array.from(new Set(spendRecords.map((record) => record.campaignId)));
+  const relevantPlatformIds = Array.from(new Set(spendRecords.map((record) => record.platformId)));
+
+  if (relevantCampaignIds.length === 0) {
+    return computeOverviewAnalytics({
+      filters,
+      brands: [],
+      platforms: [],
+      campaigns: [],
+      campaignPlatforms: [],
+      currentSpendRecords: [],
+      previousSpendRecords: [],
+    });
+  }
+
+  const [brandsRes, platformsRes, campaignsRes, campaignPlatformsRes] = await Promise.all([
     client
       .from("brands")
       .select("id,name,slug,logo_url,color,competitor_group,is_active")
       .eq("organization_id", organizationId)
+      .in("id", relevantBrandIds)
       .order("name", { ascending: true }),
     client
       .from("platforms")
       .select("id,name,slug,icon,color,is_active")
       .eq("organization_id", organizationId)
+      .in("id", relevantPlatformIds)
       .order("name", { ascending: true }),
     client
       .from("campaigns")
       .select("id,brand_id,name,status,start_date,end_date")
       .eq("organization_id", organizationId)
+      .in("id", relevantCampaignIds)
       .order("start_date", { ascending: false }),
     client
       .from("campaign_platforms")
       .select("campaign_id,platform_id")
-      .eq("organization_id", organizationId),
-    client
-      .from("spend_records")
-      .select("brand_id,campaign_id,platform_id,spend_date,amount,currency")
       .eq("organization_id", organizationId)
-      .gte("spend_date", formatIsoDate(previousStart))
-      .lte("spend_date", filters.endDate),
+      .in("campaign_id", relevantCampaignIds),
   ]);
 
   if (brandsRes.error) throw brandsRes.error;
   if (platformsRes.error) throw platformsRes.error;
   if (campaignsRes.error) throw campaignsRes.error;
   if (campaignPlatformsRes.error) throw campaignPlatformsRes.error;
-  if (spendRes.error) throw spendRes.error;
 
   const brands = ((brandsRes.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
     id: String(row.id),
@@ -999,16 +1030,7 @@ export async function getOverviewAnalytics(rawFilters?: OverviewFilterInput) {
     platformId: String(row.platform_id),
   }));
 
-  const filteredSpend = ((spendRes.data ?? []) as Array<Record<string, unknown>>)
-    .map((row) => ({
-      brandId: String(row.brand_id),
-      campaignId: String(row.campaign_id),
-      platformId: String(row.platform_id),
-      spendDate: String(row.spend_date),
-      amount: Number(row.amount ?? 0),
-      currency: String(row.currency ?? "USD"),
-    }))
-    .filter((record) => {
+  const filteredSpend = spendRecords.filter((record) => {
       if (filters.brandIds.length > 0 && !filters.brandIds.includes(record.brandId)) return false;
       if (filters.campaignIds.length > 0 && !filters.campaignIds.includes(record.campaignId)) return false;
       if (filters.platformIds.length > 0 && !filters.platformIds.includes(record.platformId)) return false;
