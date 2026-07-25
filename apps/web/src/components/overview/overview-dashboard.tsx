@@ -438,20 +438,37 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
         />
 
         <div className="grid gap-3 xl:grid-cols-[minmax(0,1.24fr)_minmax(300px,0.76fr)] xl:items-start">
-          {state.error ? (
-            <SpendingSovCard
-              data={state.data.shareOfVoice}
+          <div className="grid gap-3">
+            {state.error ? (
+              <SpendingSovCard
+                data={state.data.shareOfVoice}
+                currency={state.data.summary.currency}
+                loading={state.loading}
+                error={state.error}
+                onRetry={() => void loadData(pendingFilters)}
+              />
+            ) : (
+              <SharedOverviewSovCard
+                data={state.data.shareOfVoice}
+                currency={state.data.summary.currency}
+              />
+            )}
+            <CampaignListCard
+              campaigns={state.data.activeCampaigns}
               currency={state.data.summary.currency}
+              activeSearch={pendingFilters.campaignSearch}
+              sort={pendingFilters.sortCampaigns}
               loading={state.loading}
-              error={state.error}
-              onRetry={() => void loadData(pendingFilters)}
+              onSearchChange={(v) => setPendingFilters((prev) => ({ ...prev, campaignSearch: v, page: 1 }))}
+              onSortChange={(v) => setPendingFilters((prev) => ({ ...prev, sortCampaigns: v, page: 1 }))}
+              onApplySearch={applyFilters}
+              onViewMore={() => {
+                const next = { ...pendingFilters, page: pendingFilters.page + 1 };
+                setPendingFilters(next);
+                void loadData(next);
+              }}
             />
-          ) : (
-            <SharedOverviewSovCard
-              data={state.data.shareOfVoice}
-              currency={state.data.summary.currency}
-            />
-          )}
+          </div>
           <div className="grid gap-3">
             <PlatformSplitCard data={state.data.platformSplit} currency={state.data.summary.currency} />
             <ActiveBrandsCard
@@ -464,24 +481,6 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
         </div>
       </section>
 
-      {/* ─── Active Campaigns ─── */}
-      <section>
-        <CampaignListCard
-          campaigns={state.data.activeCampaigns}
-          currency={state.data.summary.currency}
-          activeSearch={pendingFilters.campaignSearch}
-          sort={pendingFilters.sortCampaigns}
-          loading={state.loading}
-          onSearchChange={(v) => setPendingFilters((prev) => ({ ...prev, campaignSearch: v, page: 1 }))}
-          onSortChange={(v) => setPendingFilters((prev) => ({ ...prev, sortCampaigns: v, page: 1 }))}
-          onApplySearch={applyFilters}
-          onViewMore={() => {
-            const next = { ...pendingFilters, page: pendingFilters.page + 1 };
-            setPendingFilters(next);
-            void loadData(next);
-          }}
-        />
-      </section>
     </div>
   );
 }
