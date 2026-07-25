@@ -594,19 +594,37 @@ export async function getWebDetections(rawFilters?: Partial<WebFilters>) {
   const filters = normalizeWebFilters(rawFilters);
   const orgId = await resolveOrganizationId();
 
-  let query = client
-    .from("web_ad_detections").select("*")
+    // Build count query
+  let countQuery = client
+    .from("web_ad_detections")
+    .select("id", { count: "exact", head: true })
     .eq("organization_id", orgId)
-    .gte("detected_at", filters.startDate).lte("detected_at", filters.endDate);
+    .gte("detected_at", filters.startDate)
+    .lte("detected_at", filters.endDate);
 
-  if (filters.brandIds.length > 0) query = query.in("brand_id", filters.brandIds);
-  if (filters.campaignIds.length > 0) query = query.in("campaign_id", filters.campaignIds);
-  if (filters.websiteIds.length > 0) query = query.in("website_id", filters.websiteIds);
-  if (filters.adFormats.length > 0) query = query.in("ad_format", filters.adFormats);
-  if (filters.statuses.length > 0) query = query.in("review_status", filters.statuses);
+  if (filters.brandIds.length > 0) countQuery = countQuery.in("brand_id", filters.brandIds);
+  if (filters.campaignIds.length > 0) countQuery = countQuery.in("campaign_id", filters.campaignIds);
+  if (filters.websiteIds.length > 0) countQuery = countQuery.in("website_id", filters.websiteIds);
+  if (filters.adFormats.length > 0) countQuery = countQuery.in("ad_format", filters.adFormats);
+  if (filters.statuses.length > 0) countQuery = countQuery.in("review_status", filters.statuses);
 
-  const { count: totalCount } = await query.select("id", { count: "exact", head: true });
-  const { data: rows } = await query
+  const { count: totalCount } = await countQuery;
+
+  // Build data query
+  let dataQuery = client
+    .from("web_ad_detections")
+    .select("*")
+    .eq("organization_id", orgId)
+    .gte("detected_at", filters.startDate)
+    .lte("detected_at", filters.endDate);
+
+  if (filters.brandIds.length > 0) dataQuery = dataQuery.in("brand_id", filters.brandIds);
+  if (filters.campaignIds.length > 0) dataQuery = dataQuery.in("campaign_id", filters.campaignIds);
+  if (filters.websiteIds.length > 0) dataQuery = dataQuery.in("website_id", filters.websiteIds);
+  if (filters.adFormats.length > 0) dataQuery = dataQuery.in("ad_format", filters.adFormats);
+  if (filters.statuses.length > 0) dataQuery = dataQuery.in("review_status", filters.statuses);
+
+  const { data: rows } = await dataQuery
     .order(filters.sortBy, { ascending: filters.sortDirection === "asc" })
     .range((filters.page - 1) * filters.pageSize, filters.page * filters.pageSize - 1);
 

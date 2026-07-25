@@ -597,7 +597,11 @@ function MiniSparkline({ data, color }: { data: Array<{ value: number }>; color:
   const w = 240, h = 40;
   const mx = Math.max(...data.map((d) => d.value), 1);
   const step = data.length > 1 ? w / (data.length - 1) : w;
-  const pts = data.map((d, i) => `${i === 0 ? "M" : "L"}${(i * step).toFixed(1)} ${h - ((d.value / mx) * h).toFixed(1)}`).join(" ");
+  const pts = data.map((d, i) => {
+    const px = (i * step).toFixed(1);
+    const py = (h - ((d.value / mx) * h)).toFixed(1);
+    return `${i === 0 ? "M" : "L"}${px} ${py}`;
+  }).join(" ");
 
   return (
     <svg className="h-full w-full" viewBox={`0 0 ${w} ${h}`} fill="none">
@@ -637,77 +641,82 @@ function MultiLineChart({
 
   const xStep = data.length > 1 ? pw / (data.length - 1) : pw / 2;
 
+  // Pre-compute grid line positions to simplify JSX expressions
+  const gridLineElements = yTicks.map((val, i) => {
+    const yPos = margin.top + ph - (val / maxVal) * ph;
+    return (
+      <g key={i}>
+        <line x1={margin.left} x2={w - margin.right} y1={yPos} y2={yPos} stroke="#F1F3F5" strokeWidth={1} />
+        <text x={margin.left - 8} y={yPos + 4} fill="#9CA3AF" fontSize={10} textAnchor="end">{formatCurrency(val, currency)}</text>
+      </g>
+    );
+  });
+
+  // Pre-compute X labels
+  const xLabelElements = data.filter((_, i) => i % Math.max(1, Math.floor(data.length / 8)) === 0).map((d) => {
+    const idx = data.indexOf(d);
+    const xPos = margin.left + idx * xStep;
+    return (
+      <text key={d.key} x={xPos} y={h - margin.bottom + 16} fill="#9CA3AF" fontSize={9} textAnchor="middle">{d.label}</text>
+    );
+  });
+
+  // Pre-compute line paths for each brand
+  const lineElements = allBrandIds.map((brandId) => {
+    const brand = brandsById.get(brandId);
+    const color = brand?.color ?? "#F40009";
+    const pts = data.map((d, i) => {
+      const b = d.brands.find((b) => b.brandId === brandId);
+      const v = b?.value ?? 0;
+      const x = margin.left + i * xStep;
+      const y = margin.top + ph - (v / maxVal) * ph;
+      return `${i === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`;
+    }).join(" ");
+    return (
+      <path key={brandId} d={pts} stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" fill="none" opacity={0.85} />
+    );
+  });
+
+  // Pre-compute hover circles
+  const hoverElements = data.map((d, i) => {
+    const x = margin.left + i * xStep;
+    return (
+      <g key={d.key}>
+        {d.brands.map((b) => {
+          const v = b.value;
+          const y = margin.top + ph - (v / maxVal) * ph;
+          return (
+            <circle
+              key={b.brandId}
+              cx={x} cy={y} r={4}
+              fill="transparent"
+              style={{ cursor: "pointer" }}
+              onMouseEnter={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setHoveredPoint({
+                  brandId: b.brandId,
+                  label: d.label,
+                  value: v,
+                  color: brandsById.get(b.brandId)?.color ?? "#F40009",
+                  x: rect.left + rect.width / 2,
+                  y: rect.top,
+                });
+              }}
+              onMouseLeave={() => setHoveredPoint(null)}
+            />
+          );
+        })}
+      </g>
+    );
+  });
+
   return (
     <div className="relative">
       <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ maxHeight: h }}>
-        {/* Grid */}
-        {yTicks.map((val, i) => (
-          <g key={i}>
-            <line x1={margin.left} x2={w - margin.right} y1={margin.top + ph - (val / maxVal) * ph} y2={margin.top + ph - (val / maxVal) * ph} stroke="#F1F3F5" strokeWidth={1} />
-            <text x={margin.left - 8} y={margin.top + ph - (val / maxVal) * ph + 4} fill="#9CA3AF" fontSize={10} textAnchor="end">
-              {formatCurrency(val, currency)}
-            </text>
-          </g>
-        ))}
-        {/* X labels */}
-        {data.filter((_, i) => i % Math.max(1, Math.floor(data.length / 8)) === 0).map((d, i, arr) => {
-          const idx = data.indexOf(d);
-          const x = margin.left + idx * xStep;
-          return (
-            <text key={d.key} x={x} y={h - margin.bottom + 16} fill="#9CA3AF" fontSize={9} textAnchor="middle">
-              {d.label}
-            </text>
-          );
-        })}
-
-        {/* Lines */}
-        {allBrandIds.map((brandId) => {
-          const brand = brandsById.get(brandId);
-          const color = brand?.color ?? "#F40009";
-          const pts = data.map((d, i) => {
-            const b = d.brands.find((b) => b.brandId === brandId);
-            const v = b?.value ?? 0;
-            const x = margin.left + i * xStep;
-            const y = margin.top + ph - (v / maxVal) * ph;
-            return `${i === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`;
-          }).join(" ");
-          return (
-            <path key={brandId} d={pts} stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" fill="none" opacity={0.85} />
-          );
-        })}
-
-        {/* Hover interaction layer */}
-        {data.map((d, i) => {
-          const x = margin.left + i * xStep;
-          return (
-            <g key={d.key}>
-              {d.brands.map((b) => {
-                const v = b.value;
-                const y = margin.top + ph - (v / maxVal) * ph;
-                return (
-                  <circle
-                    key={b.brandId}
-                    cx={x} cy={y} r={4}
-                    fill="transparent"
-                    style={{ cursor: "pointer" }}
-                    onMouseEnter={(e) => {
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      setHoveredPoint({
-                        brandId: b.brandId,
-                        label: d.label,
-                        value: v,
-                        color: brandsById.get(b.brandId)?.color ?? "#F40009",
-                        x: rect.left + rect.width / 2,
-                        y: rect.top,
-                      });
-                    }}
-                    onMouseLeave={() => setHoveredPoint(null)}
-                  />
-                );
-              })}
-            </g>
-          );
-        })}
+        {gridLineElements}
+        {xLabelElements}
+        {lineElements}
+        {hoverElements}
       </svg>
 
       {/* Legend */}

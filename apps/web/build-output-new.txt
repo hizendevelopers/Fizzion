@@ -1,0 +1,18 @@
+▲ Next.js 16.2.10 (Turbopack)
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 23.5s
+  Running TypeScript ...
+Failed to type check.
+
+./src/lib/tv-analytics.ts:799:58
+Type error: Expected 0-1 arguments, but got 2.
+
+  [90m797 |[0m
+  [90m798 |[0m   [90m// Count total[0m
+[31m[1m>[0m [90m799 |[0m   [36mconst[0m { count: totalCount } = [36mawait[0m query.select([32m"id"[0m, { count: [32m"exact"[0m, head: [36mtrue[0m });
+  [90m    |[0m                                                          [31m[1m^[0m
+  [90m800 |[0m
+  [90m801 |[0m   [90m// Fetch paginated[0m
+  [90m802 |[0m   [36mconst[0m { data: rows } = [36mawait[0m query
+Next.js build worker exited with code: 1 and signal: null

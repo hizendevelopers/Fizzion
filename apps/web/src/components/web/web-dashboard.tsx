@@ -62,7 +62,11 @@ function MiniSparkline({ data, color }: { data: Array<{ value: number }>; color:
   const w = 240, h = 40;
   const mx = Math.max(...data.map((d) => d.value), 1);
   const step = data.length > 1 ? w / (data.length - 1) : w;
-  const pts = data.map((d, i) => `${i === 0 ? "M" : "L"}${(i * step).toFixed(1)} ${h - ((d.value / mx) * h).toFixed(1)}`).join(" ");
+  const pts = data.map((d, i) => {
+    const px = (i * step).toFixed(1);
+    const py = (h - ((d.value / mx) * h)).toFixed(1);
+    return `${i === 0 ? "M" : "L"}${px} ${py}`;
+  }).join(" ");
   return <svg className="h-full w-full" viewBox={`0 0 ${w} ${h}`} fill="none"><path d={pts} stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></svg>;
 }
 function Section({ dark, children }: { dark?: boolean; children: React.ReactNode }) {

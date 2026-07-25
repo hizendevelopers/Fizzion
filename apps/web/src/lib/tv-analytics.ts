@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Brand, Campaign, TvChannel, TvCampaignChannel, SpendRecord, TvAdDetection } from "../../../../packages/types/src/supabase";
 
 import { getOptionalSupabaseAdminClient } from "@/lib/supabase/server";
 
@@ -441,7 +442,7 @@ export async function getTvOverview(rawFilters?: Partial<TvFilters>): Promise<Tv
   if (spendRes.error) throw spendRes.error;
 
   // Transform data
-  const brands = ((brandsRes.data ?? []) as any[]).map((r: any) => ({
+  const brands = ((brandsRes.data ?? []) as Brand[]).map((r) => ({
     id: String(r.id),
     name: String(r.name),
     slug: r.slug ? String(r.slug) : null,
@@ -449,7 +450,7 @@ export async function getTvOverview(rawFilters?: Partial<TvFilters>): Promise<Tv
     logoUrl: r.logo_url ? String(r.logo_url) : null,
   }));
 
-  const channels = ((channelsRes.data ?? []) as any[]).map((r: any) => ({
+  const channels = ((channelsRes.data ?? []) as TvChannel[]).map((r) => ({
     id: String(r.id),
     name: String(r.name),
     slug: String(r.slug),
@@ -459,7 +460,7 @@ export async function getTvOverview(rawFilters?: Partial<TvFilters>): Promise<Tv
     country: r.country ? String(r.country) : "IQ",
   }));
 
-  const campaigns = ((campaignsRes.data ?? []) as any[]).map((r: any) => ({
+  const campaigns = ((campaignsRes.data ?? []) as Campaign[]).map((r) => ({
     id: String(r.id),
     brandId: r.brand_id ? String(r.brand_id) : null,
     name: String(r.name),
@@ -469,7 +470,7 @@ export async function getTvOverview(rawFilters?: Partial<TvFilters>): Promise<Tv
   }));
 
   const channelCampaignMap = new Map<string, Set<string>>();
-  for (const row of (channelMapRes.data ?? []) as any[]) {
+  for (const row of (channelMapRes.data ?? []) as TvCampaignChannel[]) {
     const cid = String(row.campaign_id);
     const existing = channelCampaignMap.get(cid) ?? new Set<string>();
     existing.add(String(row.channel_id));
@@ -496,7 +497,7 @@ export async function getTvOverview(rawFilters?: Partial<TvFilters>): Promise<Tv
   });
 
   // Filter spend records
-  const allSpend = ((spendRes.data ?? []) as any[]).map((r: any) => ({
+  const allSpend = ((spendRes.data ?? []) as SpendRecord[]).map((r) => ({
     brandId: String(r.brand_id),
     campaignId: String(r.campaign_id),
     platformId: String(r.platform_id),
@@ -780,26 +781,40 @@ export async function getTvDetectedAds(rawFilters?: Partial<TvFilters>) {
   const filters = normalizeTvFilters(rawFilters);
   const orgId = await resolveOrganizationId();
 
-  let query = client
+  // Build count query by applying filters
+  let countQuery = client
+    .from("tv_ad_detections")
+    .select("*", { count: "exact", head: true })
+    .eq("organization_id", orgId)
+    .gte("detected_at", filters.startDate)
+    .lte("detected_at", filters.endDate);
+
+  if (filters.brandIds.length > 0) countQuery = countQuery.in("brand_id", filters.brandIds);
+  if (filters.campaignIds.length > 0) countQuery = countQuery.in("campaign_id", filters.campaignIds);
+  if (filters.channelIds.length > 0) countQuery = countQuery.in("channel_id", filters.channelIds);
+  if (filters.genres.length > 0) countQuery = countQuery.in("genre", filters.genres);
+  if (filters.dayparts.length > 0) countQuery = countQuery.in("daypart", filters.dayparts);
+  if (filters.languages.length > 0) countQuery = countQuery.in("language", filters.languages);
+
+  // Fetch total count
+  const { count: totalCount } = await countQuery;
+
+  // Fetch paginated data - re-apply the same filters since the query builder is terminal
+  let dataFilter = client
     .from("tv_ad_detections")
     .select("*")
     .eq("organization_id", orgId)
     .gte("detected_at", filters.startDate)
     .lte("detected_at", filters.endDate);
 
-  // Apply filters
-  if (filters.brandIds.length > 0) query = query.in("brand_id", filters.brandIds);
-  if (filters.campaignIds.length > 0) query = query.in("campaign_id", filters.campaignIds);
-  if (filters.channelIds.length > 0) query = query.in("channel_id", filters.channelIds);
-  if (filters.genres.length > 0) query = query.in("genre", filters.genres);
-  if (filters.dayparts.length > 0) query = query.in("daypart", filters.dayparts);
-  if (filters.languages.length > 0) query = query.in("language", filters.languages);
+  if (filters.brandIds.length > 0) dataFilter = dataFilter.in("brand_id", filters.brandIds);
+  if (filters.campaignIds.length > 0) dataFilter = dataFilter.in("campaign_id", filters.campaignIds);
+  if (filters.channelIds.length > 0) dataFilter = dataFilter.in("channel_id", filters.channelIds);
+  if (filters.genres.length > 0) dataFilter = dataFilter.in("genre", filters.genres);
+  if (filters.dayparts.length > 0) dataFilter = dataFilter.in("daypart", filters.dayparts);
+  if (filters.languages.length > 0) dataFilter = dataFilter.in("language", filters.languages);
 
-  // Count total
-  const { count: totalCount } = await query.select("id", { count: "exact", head: true });
-
-  // Fetch paginated
-  const { data: rows } = await query
+  const { data: rows } = await dataFilter
     .order(filters.sortBy, { ascending: filters.sortDirection === "asc" })
     .range((filters.page - 1) * filters.pageSize, filters.page * filters.pageSize - 1);
 
