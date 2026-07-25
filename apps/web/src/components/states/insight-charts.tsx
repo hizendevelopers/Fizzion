@@ -145,7 +145,7 @@ function BottleIllustration({
     }))
     .filter((segment) => segment.share > 0);
   const totalShare = normalizedSegments.reduce((sum, segment) => sum + segment.share, 0);
-  const normalizedTotal = clampShare(totalShare);
+  const totalForFill = totalShare > 0 ? totalShare : 1;
   const clipId = `${idPrefix}-sov-can-clip`;
   const shellId = `${idPrefix}-sov-can-shell`;
   const rimId = `${idPrefix}-sov-can-rim`;
@@ -158,7 +158,8 @@ function BottleIllustration({
   const fillHeight = fillBottom - fillTop;
   const renderedSegments = normalizedSegments.reduce<Array<{ key: string; y: number; height: number; color: string; share: number }>>(
     (segmentsSoFar, segment, index) => {
-      const segmentHeight = fillHeight * segment.share;
+      const normalizedFillShare = segment.share / totalForFill;
+      const segmentHeight = fillHeight * normalizedFillShare;
       const nextTop = (segmentsSoFar.at(-1)?.y ?? fillBottom) - segmentHeight;
       segmentsSoFar.push({
         key: `${idPrefix}-segment-${index}`,
@@ -243,7 +244,7 @@ function BottleIllustration({
       <path d="M66 42 H154 C166 42 176 51 176 62 V286 C176 303 162 316 145 316 H75 C58 316 44 303 44 286 V62 C44 51 54 42 66 42 Z" stroke="rgba(255,255,255,0.76)" strokeWidth="1.2" />
       <rect x="70" y="314" width="80" height="4" rx="2" fill="rgba(78,85,101,0.24)" />
       <text x="110" y="347" fill="#667085" fontFamily="Arial, sans-serif" fontSize="11" fontWeight="700" textAnchor="middle">
-        {Math.round(normalizedTotal * 100)}
+        {normalizedSegments.length > 0 ? 100 : 0}
       </text>
     </svg>
   );
