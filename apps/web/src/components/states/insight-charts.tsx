@@ -147,15 +147,16 @@ function BottleIllustration({
   const totalShare = normalizedSegments.reduce((sum, segment) => sum + segment.share, 0);
   const normalizedTotal = clampShare(totalShare);
   const clipId = `${idPrefix}-sov-can-clip`;
-  const bodyId = `${idPrefix}-sov-can-body`;
-  const topId = `${idPrefix}-sov-can-top`;
-  const bottomId = `${idPrefix}-sov-can-bottom`;
+  const shellId = `${idPrefix}-sov-can-shell`;
+  const rimId = `${idPrefix}-sov-can-rim`;
+  const metalId = `${idPrefix}-sov-can-metal`;
   const tabId = `${idPrefix}-sov-can-tab`;
   const shadowId = `${idPrefix}-sov-can-shadow`;
+  const highlightId = `${idPrefix}-sov-can-highlight`;
   const renderedSegments = normalizedSegments.reduce<Array<{ key: string; y: number; height: number; color: string; share: number }>>(
     (segmentsSoFar, segment, index) => {
-      const segmentHeight = 216 * segment.share;
-      const nextTop = (segmentsSoFar.at(-1)?.y ?? 279) - segmentHeight;
+      const segmentHeight = 224 * segment.share;
+      const nextTop = (segmentsSoFar.at(-1)?.y ?? 293) - segmentHeight;
       segmentsSoFar.push({
         key: `${idPrefix}-segment-${index}`,
         y: nextTop,
@@ -169,57 +170,62 @@ function BottleIllustration({
   );
 
   return (
-    <svg className="h-[340px] w-full" fill="none" viewBox="0 0 220 350">
+    <svg className="h-[356px] w-full" fill="none" viewBox="0 0 220 360">
       <defs>
-        <linearGradient id={bodyId} x1="58" x2="162" y1="36" y2="300">
-          <stop offset="0%" stopColor="#faf7f5" />
-          <stop offset="10%" stopColor="#ffffff" />
-          <stop offset="22%" stopColor="#ded7d1" />
-          <stop offset="48%" stopColor="#ffffff" />
-          <stop offset="78%" stopColor="#d8d0cb" />
-          <stop offset="100%" stopColor="#f5efea" />
+        <linearGradient id={shellId} x1="48" x2="172" y1="42" y2="318">
+          <stop offset="0%" stopColor="#fbfbfc" />
+          <stop offset="16%" stopColor="#ffffff" />
+          <stop offset="28%" stopColor="#dbd7d4" />
+          <stop offset="52%" stopColor="#ffffff" />
+          <stop offset="76%" stopColor="#d6d2cf" />
+          <stop offset="100%" stopColor="#f3efec" />
         </linearGradient>
-        <linearGradient id={topId} x1="60" x2="160" y1="26" y2="58">
-          <stop offset="0%" stopColor="#d9452b" />
-          <stop offset="55%" stopColor="#cf2f16" />
-          <stop offset="100%" stopColor="#a9180f" />
+        <linearGradient id={rimId} x1="54" x2="166" y1="36" y2="36">
+          <stop offset="0%" stopColor="#7c7d82" />
+          <stop offset="50%" stopColor="#595b61" />
+          <stop offset="100%" stopColor="#808189" />
         </linearGradient>
-        <linearGradient id={bottomId} x1="60" x2="160" y1="296" y2="318">
-          <stop offset="0%" stopColor="#496baf" />
-          <stop offset="100%" stopColor="#234f96" />
+        <linearGradient id={metalId} x1="82" x2="138" y1="2" y2="34">
+          <stop offset="0%" stopColor="#efefef" />
+          <stop offset="100%" stopColor="#aeaeae" />
         </linearGradient>
-        <linearGradient id={tabId} x1="88" x2="132" y1="4" y2="31">
-          <stop offset="0%" stopColor="#dedede" />
-          <stop offset="100%" stopColor="#a8a8a8" />
+        <linearGradient id={tabId} x1="93" x2="127" y1="6" y2="30">
+          <stop offset="0%" stopColor="#fafafa" />
+          <stop offset="100%" stopColor="#c9c9c9" />
         </linearGradient>
-        <radialGradient id={shadowId} cx="0" cy="0" gradientTransform="translate(110 325) rotate(90) scale(16 66)" gradientUnits="userSpaceOnUse">
+        <radialGradient id={shadowId} cx="0" cy="0" gradientTransform="translate(110 334) rotate(90) scale(14 72)" gradientUnits="userSpaceOnUse">
           <stop stopColor="rgba(96,78,78,0.18)" />
           <stop offset="1" stopColor="rgba(96,78,78,0)" />
         </radialGradient>
+        <linearGradient id={highlightId} x1="64" x2="120" y1="54" y2="296">
+          <stop offset="0%" stopColor="rgba(255,255,255,0.34)" />
+          <stop offset="24%" stopColor="rgba(255,255,255,0.12)" />
+          <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+        </linearGradient>
         <clipPath id={clipId}>
-          <rect x="58" y="38" width="104" height="244" rx="24" />
+          <path d="M76 42 H144 C155 42 164 51 164 62 V286 C164 302 151 316 135 316 H85 C69 316 56 302 56 286 V62 C56 51 65 42 76 42 Z" />
         </clipPath>
       </defs>
 
-      <ellipse cx="110" cy="325" fill={`url(#${shadowId})`} rx="66" ry="16" />
-      <path d="M92 7 H128 C132 7 135 10 135 14 V30 H85 V14 C85 10 88 7 92 7 Z" fill={`url(#${tabId})`} />
-      <ellipse cx="110" cy="14" rx="12" ry="7" fill="#ececec" />
-      <ellipse cx="110" cy="14" rx="5" ry="3" fill="#c9c9c9" />
-      <rect x="60" y="30" width="100" height="8" rx="4" fill="#666666" />
-      <rect x="58" y="38" width="104" height="244" rx="24" fill={`url(#${bodyId})`} stroke="#d7cfca" strokeWidth="4" />
+      <ellipse cx="110" cy="334" fill={`url(#${shadowId})`} rx="72" ry="14" />
+      <path d="M96 4 H124 C128 4 131 7 131 11 V26 H89 V11 C89 7 92 4 96 4 Z" fill={`url(#${metalId})`} />
+      <ellipse cx="110" cy="12" rx="13" ry="7" fill="#ededed" />
+      <ellipse cx="110" cy="12" rx="5.5" ry="3" fill="#bdbdbd" />
+      <path d="M98 8 H122 C124.2 8 126 9.8 126 12 V21 C126 23.2 124.2 25 122 25 H98 C95.8 25 94 23.2 94 21 V12 C94 9.8 95.8 8 98 8 Z" fill={`url(#${tabId})`} />
+      <path d="M76 42 H144 C155 42 164 51 164 62 V286 C164 302 151 316 135 316 H85 C69 316 56 302 56 286 V62 C56 51 65 42 76 42 Z" fill={`url(#${shellId})`} stroke="#d3ceca" strokeWidth="4" />
+      <rect x="73" y="30" width="74" height="7" rx="3.5" fill={`url(#${rimId})`} />
       <g clipPath={`url(#${clipId})`}>
-        <rect x="58" y="38" width="104" height="244" fill="rgba(255,255,255,0.12)" />
-        <rect x="58" y="38" width="104" height="42" fill={`url(#${topId})`} />
+        <rect x="56" y="42" width="108" height="274" fill="rgba(255,255,255,0.04)" />
         {renderedSegments.map((segment) => (
           <g key={segment.key}>
-            <rect x="58" y={segment.y} width="104" height={segment.height} fill={segment.color} />
-            {segment.height >= 26 ? (
+            <rect x="56" y={segment.y} width="108" height={segment.height} fill={segment.color} />
+            {segment.height >= 24 ? (
               <text
                 x="110"
                 y={segment.y + segment.height / 2 + 4}
-                fill={segment.color.toLowerCase() === "#f40009" ? "#ffffff" : "#1f2937"}
+                fill={segment.color.toLowerCase() === "#f40009" || segment.color.toLowerCase() === "#005cb9" ? "#ffffff" : "#1f2937"}
                 fontFamily="Arial, sans-serif"
-                fontSize="11"
+                fontSize="12"
                 fontWeight="700"
                 textAnchor="middle"
               >
@@ -228,12 +234,12 @@ function BottleIllustration({
             ) : null}
           </g>
         ))}
-        <rect x="58" y="258" width="104" height="24" fill={`url(#${bottomId})`} />
-        <path d="M82 44 C75 92 75 226 82 280" stroke="rgba(255,255,255,0.24)" strokeLinecap="round" strokeWidth="5" />
-        <path d="M141 46 C147 95 147 224 140 280" stroke="rgba(255,255,255,0.18)" strokeLinecap="round" strokeWidth="4" />
+        <path d="M74 60 C69 100 68 236 78 300" stroke={`url(#${highlightId})`} strokeLinecap="round" strokeWidth="10" />
+        <path d="M148 60 C152 112 152 226 146 296" stroke="rgba(255,255,255,0.12)" strokeLinecap="round" strokeWidth="5" />
       </g>
-      <rect x="58" y="38" width="104" height="244" rx="24" stroke="rgba(255,255,255,0.72)" strokeWidth="1.4" />
-      <text x="110" y="62" fill="#ffffff" fontFamily="Arial, sans-serif" fontSize="12" fontWeight="700" textAnchor="middle">
+      <path d="M76 42 H144 C155 42 164 51 164 62 V286 C164 302 151 316 135 316 H85 C69 316 56 302 56 286 V62 C56 51 65 42 76 42 Z" stroke="rgba(255,255,255,0.76)" strokeWidth="1.2" />
+      <rect x="78" y="314" width="64" height="4" rx="2" fill="rgba(78,85,101,0.24)" />
+      <text x="110" y="347" fill="#667085" fontFamily="Arial, sans-serif" fontSize="11" fontWeight="700" textAnchor="middle">
         {Math.round(normalizedTotal * 100)}
       </text>
     </svg>
@@ -801,8 +807,8 @@ export function ShareOfVoiceCard({
       ) : null}
 
       {normalized.length > 0 ? (
-        <div className={`${hideHeader ? "" : "mt-5"} grid gap-5 lg:grid-cols-[240px_1fr] lg:items-center`}>
-          <div className="mx-auto w-full max-w-[240px] rounded-[1.85rem] bg-[linear-gradient(180deg,#fff9f7_0%,#fff2ef_100%)] p-4">
+        <div className={`${hideHeader ? "" : "mt-5"} grid gap-5 lg:grid-cols-[230px_1fr] lg:items-center`}>
+          <div className="mx-auto w-full max-w-[230px] rounded-[1.85rem] bg-[linear-gradient(180deg,#fcfbfa_0%,#f6f0eb_100%)] p-4">
             <BottleIllustration
               idPrefix={idPrefix}
               segments={normalized.map((item) => ({ share: item.share, color: item.resolvedColor }))}
@@ -811,21 +817,20 @@ export function ShareOfVoiceCard({
 
           <div className="space-y-4">
             <div className="rounded-[1.35rem] border border-border bg-panel-soft px-4 py-4">
-              <p className="text-sm font-semibold text-foreground">{leadItem?.label ?? "Leading share"} owns the biggest slice in this live SOV mix</p>
+              <p className="text-sm font-semibold text-foreground">{leadItem?.label ?? "Leading share"} is currently leading the monitored SOV mix</p>
               <p className="mt-1 text-sm leading-7 text-muted-foreground">
-                The stacked SOV visual now shows the full brand mix using assigned brand colors from current stored records. No interpolation or mock percentages are used here.
+                Every colored band in this can visual is driven by the real filtered share values for the current page, using one consistent SOV presentation across the platform.
               </p>
             </div>
 
-            <div className="space-y-4">
+            <div className="grid gap-2.5">
               {normalized.map((item) => {
-                const width = `${Math.max(item.share * 100, 4)}%`;
                 const color = item.resolvedColor;
                 return (
-                  <div key={`${title}-${item.label}`}>
+                  <div className="rounded-[1rem] border border-border bg-white px-3 py-2.5" key={`${title}-${item.label}`}>
                     <div className="flex items-center justify-between gap-4">
-                      <div>
-                        <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                      <div className="min-w-0">
+                        <p className="flex items-center gap-2 truncate text-sm font-semibold text-foreground">
                           <span className="h-3 w-3 rounded-full" style={{ background: color }} />
                           {item.label}
                         </p>
@@ -835,8 +840,11 @@ export function ShareOfVoiceCard({
                         {item.valueLabel ?? `${(item.share * 100).toFixed(1)}%`}
                       </span>
                     </div>
-                    <div className="mt-2 h-3 overflow-hidden rounded-full bg-panel-soft">
-                      <div className="h-full rounded-full" style={{ width, background: color }} />
+                    <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-panel-soft">
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${Math.max(item.share * 100, 4)}%`, background: color }}
+                      />
                     </div>
                   </div>
                 );

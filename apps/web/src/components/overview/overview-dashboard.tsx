@@ -8,7 +8,7 @@ import { createPortal } from "react-dom";
 import type { OverviewFilters, OverviewResponse } from "@/lib/overview-analytics";
 import { formatCompactUsdFromCurrency, formatUsdFromCurrency } from "@/lib/display-currency";
 import { cn } from "@/lib/utils";
-import { StackedSpendingChartCard } from "@/components/states/insight-charts";
+import { ShareOfVoiceCard, StackedSpendingChartCard } from "@/components/states/insight-charts";
 import {
   BrandIcon,
   CalendarIcon,
@@ -39,10 +39,50 @@ function formatCurrency(value: number, currency: string) {
   return formatUsdFromCurrency(value, currency);
 }
 
+function SharedOverviewSovCard({
+  data,
+  currency,
+}: {
+  data: OverviewResponse["shareOfVoice"];
+  currency: string;
+}) {
+  return (
+    <ShareOfVoiceCard
+      title="Spending SOV"
+      subtitle="Share of total spend by brand"
+      data={data.map((entry) => ({
+        label: entry.brandName,
+        share: entry.percentage / 100,
+        note: `${formatCurrency(entry.spend, currency)} • ${entry.activeCampaignCount} campaigns`,
+        color: entry.color,
+        valueLabel: `${entry.percentage.toFixed(1)}%`,
+      }))}
+      emptyLabel="No spending data is available for the selected filters."
+    />
+  );
+}
+
 function formatDelta(value: number | null) {
   if (value == null) return "—";
   const prefix = value > 0 ? "+" : "";
   return `${prefix}${value.toFixed(1)}%`;
+}
+
+function getTextColorForBg(bgColor: string) {
+  const hex = bgColor.replace("#", "");
+  if (hex.length < 6) return "#FFFFFF";
+  const r = Number.parseInt(hex.slice(0, 2), 16);
+  const g = Number.parseInt(hex.slice(2, 4), 16);
+  const b = Number.parseInt(hex.slice(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.55 ? "#111827" : "#FFFFFF";
+}
+
+function formatSovLabel(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "0";
+  if (value >= 10) return `${Math.round(value)}`;
+  if (value >= 1) return value % 1 === 0 ? `${Math.round(value)}` : value.toFixed(1);
+  return value.toFixed(1);
 }
 
 function toIsoDate(date: Date) {
@@ -70,27 +110,10 @@ function getPresetDates(preset: OverviewFilters["preset"]) {
   return { startDate: toIsoDate(start), endDate: toIsoDate(end) };
 }
 
-function getTextColorForBg(bgColor: string) {
-  const hex = bgColor.replace("#", "");
-  if (hex.length < 6) return "#FFFFFF";
-  const r = Number.parseInt(hex.slice(0, 2), 16);
-  const g = Number.parseInt(hex.slice(2, 4), 16);
-  const b = Number.parseInt(hex.slice(4, 6), 16);
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.55 ? "#111827" : "#FFFFFF";
-}
-
 function getBrandInitials(name: string) {
   const parts = name.split(/[\s-]+/).filter(Boolean);
   if (parts.length >= 2) return parts.slice(0, 2).map((p) => p.charAt(0).toUpperCase()).join("");
   return name.slice(0, 2).toUpperCase();
-}
-
-function formatSovLabel(value: number): string {
-  if (!Number.isFinite(value) || value <= 0) return "0";
-  if (value >= 10) return `${Math.round(value)}`;
-  if (value >= 1) return value % 1 === 0 ? `${Math.round(value)}` : value.toFixed(1);
-  return value.toFixed(1);
 }
 
 /* ──────────────────── Main Dashboard ───────────────────── */
@@ -415,13 +438,20 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
         />
 
         <div className="grid gap-5 xl:grid-cols-2">
-          <SpendingSovCard
-            data={state.data.shareOfVoice}
-            currency={state.data.summary.currency}
-            loading={state.loading}
-            error={state.error}
-            onRetry={() => void loadData(pendingFilters)}
-          />
+          {state.error ? (
+            <SpendingSovCard
+              data={state.data.shareOfVoice}
+              currency={state.data.summary.currency}
+              loading={state.loading}
+              error={state.error}
+              onRetry={() => void loadData(pendingFilters)}
+            />
+          ) : (
+            <SharedOverviewSovCard
+              data={state.data.shareOfVoice}
+              currency={state.data.summary.currency}
+            />
+          )}
           <PlatformSplitCard data={state.data.platformSplit} currency={state.data.summary.currency} />
         </div>
       </section>
