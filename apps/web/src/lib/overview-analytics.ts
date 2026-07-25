@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getOptionalSupabaseAdminClient } from "@/lib/supabase/server";
 
 const ORGANIZATION_SLUG = "coca_cola_iraq";
-const overviewPresetSchema = z.enum(["last7", "last30", "last90", "thisMonth", "previousMonth", "custom"]);
+const overviewPresetSchema = z.enum(["last7", "last30", "last90", "last2Years", "thisMonth", "previousMonth", "custom"]);
 const overviewSortSchema = z.enum(["spend", "name", "brand", "startDate"]);
 const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
@@ -306,6 +306,10 @@ function buildDateRange(preset: OverviewPreset, customStart?: string, customEnd?
 
   if (preset === "last90") {
     return { start: addDays(today, -89), end: endOfDay(today) };
+  }
+
+  if (preset === "last2Years") {
+    return { start: addDays(today, -729), end: endOfDay(today) };
   }
 
   if (preset === "thisMonth") {
@@ -825,6 +829,7 @@ export function computeOverviewAnalytics(input: AnalyticsComputationInput): Over
         { id: "last7", label: "Last 7 Days" },
         { id: "last30", label: "Last 30 Days" },
         { id: "last90", label: "Last 90 Days" },
+        { id: "last2Years", label: "Last 2 Years" },
         { id: "thisMonth", label: "This Month" },
         { id: "previousMonth", label: "Previous Month" },
         { id: "custom", label: "Custom Range" },

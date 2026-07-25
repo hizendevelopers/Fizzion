@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { computeOverviewAnalytics, getBrandColor, normalizeOverviewFilters } from "@/lib/overview-analytics";
 
@@ -184,4 +186,30 @@ test("brand colors remain consistent across outputs", () => {
   assert.equal(result.spending.totalsByBrand.find((brand) => brand.brandId === baseBrands[0].id)?.color, cokeColor);
   assert.equal(result.shareOfVoice.find((brand) => brand.brandId === baseBrands[0].id)?.color, cokeColor);
   assert.equal(result.activeBrands.find((brand) => brand.brandId === baseBrands[0].id)?.brandColor, cokeColor);
+});
+
+test("last2Years preset normalizes safely and keeps a full 24 month window available", () => {
+  const filters = normalizeOverviewFilters({
+    preset: "last2Years",
+    page: 1,
+    pageSize: 20,
+  });
+
+  assert.equal(filters.preset, "last2Years");
+  const start = new Date(`${filters.startDate}T00:00:00Z`);
+  const end = new Date(`${filters.endDate}T00:00:00Z`);
+  const diffDays = Math.round((end.getTime() - start.getTime()) / 86_400_000);
+
+  assert.ok(diffDays >= 728);
+  assert.ok(diffDays <= 730);
+});
+
+test("overview filter popovers use floating overlays instead of inline expanding details", () => {
+  const source = readFileSync(join(process.cwd(), "src/components/overview/overview-dashboard.tsx"), "utf8");
+
+  assert.match(source, /createPortal/);
+  assert.match(source, /function FilterPopoverShell/);
+  assert.match(source, /fixed inset-x-4 bottom-4 max-h-\[72vh\]/);
+  assert.match(source, /openFilterPanel/);
+  assert.doesNotMatch(source, /<details className=/);
 });
