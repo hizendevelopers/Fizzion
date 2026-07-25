@@ -548,6 +548,8 @@ function SpendingChart({
       formatter={formatUsd}
       compactFormatter={formatCompactUsd}
       loading={loading}
+      hideHeaderTotal
+      hideSummaryPanels
     />
   );
 }
@@ -590,6 +592,7 @@ function SovPanel({ items, loading }: { items: TvOverviewResponse["brandSov"]; l
       title="TV Spending SOV"
       subtitle="Share of total filtered TV spend by brand."
       hideHeader
+      hideLeadSummary
       data={(BreakdownWithOthers(items) as Array<TvOverviewResponse["brandSov"][number] & { brandName: string; brandId: string; color: string }>).map((item) => ({
         label: item.brandName,
         share: item.percentage / 100,

@@ -374,6 +374,8 @@ export function StackedSpendingChartCard({
   loading = false,
   svgHeight = 286,
   plotHeight = 184,
+  hideHeaderTotal = false,
+  hideSummaryPanels = false,
 }: {
   title: string;
   subtitle?: string;
@@ -390,6 +392,8 @@ export function StackedSpendingChartCard({
   loading?: boolean;
   svgHeight?: number;
   plotHeight?: number;
+  hideHeaderTotal?: boolean;
+  hideSummaryPanels?: boolean;
 }) {
   const [focusedSegmentId, setFocusedSegmentId] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<{
@@ -476,10 +480,12 @@ export function StackedSpendingChartCard({
             <h3 className="text-lg font-semibold text-foreground">{title}</h3>
             <p className="mt-1 text-sm text-muted-foreground">{subtitle ?? "Brand spend over time."}</p>
           </div>
-          <div className="rounded-[1.2rem] border border-border bg-panel-soft px-4 py-3 text-right">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{totalLabel}</p>
-            <p className="mt-2 text-xl font-semibold text-foreground">{totalValue}</p>
-          </div>
+          {!hideHeaderTotal ? (
+            <div className="rounded-[1.2rem] border border-border bg-panel-soft px-4 py-3 text-right">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{totalLabel}</p>
+              <p className="mt-2 text-xl font-semibold text-foreground">{totalValue}</p>
+            </div>
+          ) : null}
         </div>
         <div className="p-5">
           <div className="flex min-h-[260px] items-center justify-center rounded-[1.5rem] border border-dashed border-border bg-panel-soft px-4 py-8 text-center text-sm text-muted-foreground">
@@ -516,31 +522,35 @@ export function StackedSpendingChartCard({
           <h3 className="text-lg font-semibold text-foreground">{title}</h3>
           <p className="mt-1 text-sm text-muted-foreground">{subtitle ?? "Brand spend over time."}</p>
         </div>
-        <div className="rounded-[1.2rem] border border-border bg-panel-soft px-4 py-3 text-right">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{totalLabel}</p>
-          <p className="mt-2 text-xl font-semibold text-foreground">{totalValue}</p>
-        </div>
+        {!hideHeaderTotal ? (
+          <div className="rounded-[1.2rem] border border-border bg-panel-soft px-4 py-3 text-right">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{totalLabel}</p>
+            <p className="mt-2 text-xl font-semibold text-foreground">{totalValue}</p>
+          </div>
+        ) : null}
       </div>
 
       <div className="space-y-4 p-5">
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_auto]">
-          <div className="rounded-[1.35rem] border border-border bg-[linear-gradient(135deg,#FFF7F5_0%,#FFFFFF_58%,#F8FAFC_100%)] px-4 py-3.5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Summary</p>
-            <p className="mt-1.5 text-xl font-semibold tracking-tight text-foreground">{totalValue}</p>
-            <div className="mt-2.5 flex flex-wrap gap-2 text-xs text-secondary-foreground">
-              {summaryPills.map((pill) => (
-                <span key={pill} className="rounded-full bg-white px-3 py-1.5">
-                  {pill}
-                </span>
-              ))}
+        {!hideSummaryPanels ? (
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_auto]">
+            <div className="rounded-[1.35rem] border border-border bg-[linear-gradient(135deg,#FFF7F5_0%,#FFFFFF_58%,#F8FAFC_100%)] px-4 py-3.5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Summary</p>
+              <p className="mt-1.5 text-xl font-semibold tracking-tight text-foreground">{totalValue}</p>
+              <div className="mt-2.5 flex flex-wrap gap-2 text-xs text-secondary-foreground">
+                {summaryPills.map((pill) => (
+                  <span key={pill} className="rounded-full bg-white px-3 py-1.5">
+                    {pill}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-[1.35rem] border border-border bg-white px-4 py-3.5 text-right">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Previous period</p>
+              <p className={`mt-1.5 text-xl font-semibold tracking-tight ${comparisonTone}`}>{comparisonValue ?? "New"}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{comparisonLabel}</p>
             </div>
           </div>
-          <div className="rounded-[1.35rem] border border-border bg-white px-4 py-3.5 text-right">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Previous period</p>
-            <p className={`mt-1.5 text-xl font-semibold tracking-tight ${comparisonTone}`}>{comparisonValue ?? "New"}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{comparisonLabel}</p>
-          </div>
-        </div>
+        ) : null}
 
         <div className="rounded-[1.5rem] border border-border bg-[#FDFDFE] p-3.5">
           <div className="mb-3 flex flex-wrap gap-2">
@@ -784,12 +794,14 @@ export function ShareOfVoiceCard({
   data,
   emptyLabel = "Not enough distribution data is available yet.",
   hideHeader = false,
+  hideLeadSummary = false,
 }: {
   title: string;
   subtitle?: string;
   data: ShareOfVoiceDatum[];
   emptyLabel?: string;
   hideHeader?: boolean;
+  hideLeadSummary?: boolean;
 }) {
   const normalized = data
     .filter((item) => item.share > 0)
@@ -820,12 +832,14 @@ export function ShareOfVoiceCard({
           </div>
 
           <div className="space-y-3">
-            <div className="rounded-[1.35rem] border border-border bg-panel-soft px-4 py-3.5">
-              <p className="text-[13px] font-semibold text-foreground">{leadItem?.label ?? "Leading share"} is currently leading the monitored SOV mix</p>
-              <p className="mt-1 text-[13px] leading-6 text-muted-foreground">
-                Every colored band in this can visual is driven by the real filtered share values for the current page, using one consistent SOV presentation across the platform.
-              </p>
-            </div>
+            {!hideLeadSummary ? (
+              <div className="rounded-[1.35rem] border border-border bg-panel-soft px-4 py-3.5">
+                <p className="text-[13px] font-semibold text-foreground">{leadItem?.label ?? "Leading share"} is currently leading the monitored SOV mix</p>
+                <p className="mt-1 text-[13px] leading-6 text-muted-foreground">
+                  Every colored band in this can visual is driven by the real filtered share values for the current page, using one consistent SOV presentation across the platform.
+                </p>
+              </div>
+            ) : null}
 
             <div className="grid max-h-[356px] gap-2 overflow-y-auto pr-1">
               {normalized.map((item) => {
