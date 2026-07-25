@@ -153,10 +153,13 @@ function BottleIllustration({
   const tabId = `${idPrefix}-sov-can-tab`;
   const shadowId = `${idPrefix}-sov-can-shadow`;
   const highlightId = `${idPrefix}-sov-can-highlight`;
+  const fillTop = 46;
+  const fillBottom = 312;
+  const fillHeight = fillBottom - fillTop;
   const renderedSegments = normalizedSegments.reduce<Array<{ key: string; y: number; height: number; color: string; share: number }>>(
     (segmentsSoFar, segment, index) => {
-      const segmentHeight = 224 * segment.share;
-      const nextTop = (segmentsSoFar.at(-1)?.y ?? 293) - segmentHeight;
+      const segmentHeight = fillHeight * segment.share;
+      const nextTop = (segmentsSoFar.at(-1)?.y ?? fillBottom) - segmentHeight;
       segmentsSoFar.push({
         key: `${idPrefix}-segment-${index}`,
         y: nextTop,
@@ -215,7 +218,7 @@ function BottleIllustration({
       <path d="M66 42 H154 C166 42 176 51 176 62 V286 C176 303 162 316 145 316 H75 C58 316 44 303 44 286 V62 C44 51 54 42 66 42 Z" fill={`url(#${shellId})`} stroke="#d3ceca" strokeWidth="4" />
       <rect x="63" y="30" width="94" height="7" rx="3.5" fill={`url(#${rimId})`} />
       <g clipPath={`url(#${clipId})`}>
-        <rect x="44" y="42" width="132" height="274" fill="rgba(255,255,255,0.04)" />
+        <rect x="44" y={fillTop} width="132" height={fillHeight} fill="rgba(255,255,255,0.04)" />
         {renderedSegments.map((segment) => (
           <g key={segment.key}>
             <rect x="44" y={segment.y} width="132" height={segment.height} fill={segment.color} />
