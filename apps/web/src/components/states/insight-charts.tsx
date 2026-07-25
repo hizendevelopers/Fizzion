@@ -170,7 +170,7 @@ function BottleIllustration({
   );
 
   return (
-    <svg className="h-[356px] w-full" fill="none" viewBox="0 0 220 360">
+    <svg className="h-[410px] w-full" fill="none" viewBox="0 0 220 360">
       <defs>
         <linearGradient id={shellId} x1="48" x2="172" y1="42" y2="318">
           <stop offset="0%" stopColor="#fbfbfc" />
@@ -807,8 +807,8 @@ export function ShareOfVoiceCard({
       ) : null}
 
       {normalized.length > 0 ? (
-        <div className={`${hideHeader ? "" : "mt-5"} grid gap-5 lg:grid-cols-[230px_1fr] lg:items-center`}>
-          <div className="mx-auto w-full max-w-[230px] rounded-[1.85rem] bg-[linear-gradient(180deg,#fcfbfa_0%,#f6f0eb_100%)] p-4">
+        <div className={`${hideHeader ? "" : "mt-5"} grid gap-5 lg:grid-cols-[270px_1fr] lg:items-center`}>
+          <div className="mx-auto w-full max-w-[270px] rounded-[1.85rem] bg-[linear-gradient(180deg,#fcfbfa_0%,#f6f0eb_100%)] p-4">
             <BottleIllustration
               idPrefix={idPrefix}
               segments={normalized.map((item) => ({ share: item.share, color: item.resolvedColor }))}
@@ -823,7 +823,7 @@ export function ShareOfVoiceCard({
               </p>
             </div>
 
-            <div className="grid gap-2.5">
+            <div className="grid max-h-[404px] gap-2.5 overflow-y-auto pr-1">
               {normalized.map((item) => {
                 const color = item.resolvedColor;
                 return (
