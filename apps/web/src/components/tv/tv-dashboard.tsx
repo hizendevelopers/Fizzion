@@ -11,7 +11,9 @@ import type {
   TvSortDirection,
   TvSortField,
 } from "@/lib/tv-analytics";
+import { ShareOfVoiceCard } from "@/components/states/insight-charts";
 import { cn } from "@/lib/utils";
+import { formatCompactUsdFromCurrency, formatUsdFromCurrency } from "@/lib/display-currency";
 import {
   BrandIcon,
   CalendarIcon,
@@ -44,25 +46,12 @@ const FILTER_PRESETS: Array<{ id: FilterState["preset"]; label: string }> = [
   { id: "last2y", label: "Last 2 years" },
 ];
 
-const USD_PKR_RATE = 277.69;
-
-function convertPkrToUsd(value: number) {
-  return value / USD_PKR_RATE;
-}
-
 function formatUsd(value: number) {
-  return `${new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 0,
-  }).format(Math.round(convertPkrToUsd(value)))} USD`;
+  return formatUsdFromCurrency(value, "PKR");
 }
 
 function formatCompactUsd(value: number) {
-  const converted = convertPkrToUsd(value);
-  if (converted === 0) return "0";
-  return new Intl.NumberFormat("en-US", {
-    notation: "compact",
-    maximumFractionDigits: converted >= 1_000_000 ? 1 : 0,
-  }).format(converted);
+  return formatCompactUsdFromCurrency(value, "PKR");
 }
 
 function formatPercent(value: number) {
@@ -816,39 +805,25 @@ function BreakdownWithOthers<T extends { percentage: number; displayPercentage: 
 }
 
 function SovPanel({ items, loading }: { items: TvOverviewResponse["brandSov"]; loading: boolean }) {
-  const displayItems = useMemo(
-    () => BreakdownWithOthers(items) as Array<TvOverviewResponse["brandSov"][number] & { brandName: string; brandId: string; color: string }>,
-    [items],
-  );
-
   if (loading && items.length === 0) return <LoadingBars />;
   if (items.length === 0) {
     return <EmptyPanel body="No share of voice is available for the selected filters." title="No SOV data" />;
   }
 
   return (
-    <div className="space-y-3">
-      {displayItems.map((item) => (
-        <div key={item.brandId} className="rounded-[1.25rem] border border-[#EEF2F6] bg-[#FCFCFD] p-3">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-3">
-              <span className="h-3 w-3 rounded-full" style={{ backgroundColor: item.color }} />
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-[#101828]">{item.brandName}</p>
-                <p className="text-xs text-[#667085]">{formatUsd(item.spend)}</p>
-              </div>
-            </div>
-            <span className="text-sm font-semibold text-[#101828]">{item.displayPercentage.toFixed(1)}%</span>
-          </div>
-          <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-[#EAECF0]">
-            <div
-              className="h-full rounded-full"
-              style={{ width: `${Math.min(item.percentage, 100)}%`, backgroundColor: item.color }}
-            />
-          </div>
-        </div>
-      ))}
-    </div>
+    <ShareOfVoiceCard
+      title="TV Spending SOV"
+      subtitle="Share of total filtered TV spend by brand."
+      hideHeader
+      data={(BreakdownWithOthers(items) as Array<TvOverviewResponse["brandSov"][number] & { brandName: string; brandId: string; color: string }>).map((item) => ({
+        label: item.brandName,
+        share: item.percentage / 100,
+        note: formatUsd(item.spend),
+        color: item.color,
+        valueLabel: `${item.displayPercentage.toFixed(1)}%`,
+      }))}
+      emptyLabel="No share of voice is available for the selected filters."
+    />
   );
 }
 

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 
 import type { OverviewFilters, OverviewResponse } from "@/lib/overview-analytics";
+import { formatUsdFromCurrency } from "@/lib/display-currency";
 import { cn } from "@/lib/utils";
 import {
   BrandIcon,
@@ -31,11 +32,7 @@ type AsyncState = {
 /* ──────────────────────── Helpers ──────────────────────── */
 
 function formatCurrency(value: number, currency: string) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  }).format(value);
+  return formatUsdFromCurrency(value, currency);
 }
 
 function formatDelta(value: number | null) {
@@ -234,7 +231,7 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
           </div>
           <div className="shrink-0 rounded-xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm leading-relaxed text-[#AEB5C2]">
             <p><span className="text-white/70">Period:</span> {state.data.summary.rangeLabel}</p>
-            <p><span className="text-white/70">Currency:</span> {state.data.summary.currency}</p>
+            <p><span className="text-white/70">Currency:</span> USD</p>
             <p><span className="text-white/70">Filters:</span> {state.data.summary.activeFilterCount}</p>
           </div>
         </div>

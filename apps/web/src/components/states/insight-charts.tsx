@@ -384,11 +384,13 @@ export function ShareOfVoiceCard({
   subtitle,
   data,
   emptyLabel = "Not enough distribution data is available yet.",
+  hideHeader = false,
 }: {
   title: string;
   subtitle?: string;
   data: ShareOfVoiceDatum[];
   emptyLabel?: string;
+  hideHeader?: boolean;
 }) {
   const normalized = data
     .filter((item) => item.share > 0)
@@ -402,11 +404,15 @@ export function ShareOfVoiceCard({
 
   return (
     <article className="rounded-[1.8rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
-      <h3 className="text-lg font-semibold text-foreground">{title}</h3>
-      <p className="mt-1 text-sm text-muted-foreground">{subtitle ?? "Real proportional distribution from current data"}</p>
+      {!hideHeader ? (
+        <>
+          <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+          <p className="mt-1 text-sm text-muted-foreground">{subtitle ?? "Real proportional distribution from current data"}</p>
+        </>
+      ) : null}
 
       {normalized.length > 0 ? (
-        <div className="mt-5 grid gap-5 lg:grid-cols-[240px_1fr] lg:items-center">
+        <div className={`${hideHeader ? "" : "mt-5"} grid gap-5 lg:grid-cols-[240px_1fr] lg:items-center`}>
           <div className="mx-auto w-full max-w-[240px] rounded-[1.85rem] bg-[linear-gradient(180deg,#fff9f7_0%,#fff2ef_100%)] p-4">
             <BottleIllustration
               idPrefix={idPrefix}

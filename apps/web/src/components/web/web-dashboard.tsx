@@ -5,7 +5,9 @@ import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 
 import type { WebOverviewResponse, WebFilters, WebDetection } from "@/lib/web-analytics";
+import { formatUsdFromCurrency } from "@/lib/display-currency";
 import { cn } from "@/lib/utils";
+import { ShareOfVoiceCard } from "@/components/states/insight-charts";
 import {
   BrandIcon, CalendarIcon, CampaignIcon, ChevronDownIcon, GlobeIcon, ReportIcon, SearchIcon, WebIcon,
 } from "@/components/app/ui-icons";
@@ -18,7 +20,7 @@ type AsyncState = { data: WebOverviewResponse; loading: boolean; error: string |
 /* ──────────────────────── Helpers ──────────────────────── */
 
 function formatCurrency(value: number, currency: string) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
+  return formatUsdFromCurrency(value, currency);
 }
 function formatDelta(value: number | null) {
   if (value == null) return "—";
@@ -109,8 +111,20 @@ function MultiLineChart({ data, brands, currency }: { data: WebOverviewResponse[
 
 /* ─────────────────── SOV Card ─────────────────────── */
 function SovCard({ data, currency }: { data: WebOverviewResponse["shareOfVoice"]; currency: string }) {
-  const sorted = useMemo(() => [...data].sort((a, b) => b.percentage - a.percentage), [data]);
-  return (<article className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-[0_4px_16px_rgba(0,0,0,0.04)]"><h2 className="text-base font-semibold text-[#111827]">Web SOV</h2><p className="mt-0.5 text-xs text-[#6B7280]">Share of web spend by brand</p>{sorted.length === 0 ? <EmptyState title="No data" description="No SOV data for current filters." /> : <div className="mt-3 space-y-2">{sorted.map((e) => (<div key={e.brandId} className="flex items-center justify-between rounded-lg border border-[#F1F3F5] px-3 py-2"><div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: e.color }} /><span className="text-xs font-medium text-[#374151]">{e.brandName}</span></div><span className="text-xs font-semibold text-[#111827]">{e.percentage.toFixed(1)}%</span></div>))}</div>}</article>);
+  return (
+    <ShareOfVoiceCard
+      title="Web SOV"
+      subtitle="Share of web spend by brand"
+      data={data.map((entry) => ({
+        label: entry.brandName,
+        share: entry.percentage / 100,
+        note: formatUsdFromCurrency(entry.spend, currency),
+        color: entry.color,
+        valueLabel: `${entry.percentage.toFixed(1)}%`,
+      }))}
+      emptyLabel="No SOV data for current filters."
+    />
+  );
 }
 
 /* ─────────────────── Website Split Card ────────────────── */
@@ -276,7 +290,7 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
           </div>
           <div className="shrink-0 rounded-xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm leading-relaxed text-[#AEB5C2]">
             <p><span className="text-white/70">Period:</span> {state.data.summary.rangeLabel}</p>
-            <p><span className="text-white/70">Currency:</span> {state.data.summary.currency}</p>
+            <p><span className="text-white/70">Currency:</span> USD</p>
             <p><span className="text-white/70">Filters:</span> {state.data.summary.activeFilterCount}</p>
           </div>
         </div>

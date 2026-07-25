@@ -8,6 +8,7 @@ import {
   CategoryBarCard,
   ShareOfVoiceCard,
 } from "@/components/states/insight-charts";
+import { formatUsdFromCurrency } from "@/lib/display-currency";
 import type {
   OohAnalyticsSummary,
   OohAreaItem,
@@ -30,7 +31,7 @@ type OohInventoryClientProps = {
 
 function formatCurrency(value: number | null | undefined, currency: string | null | undefined) {
   if (value === null || value === undefined) return "Not available";
-  return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value)} ${currency ?? ""}`.trim();
+  return formatUsdFromCurrency(value, currency);
 }
 
 function formatCompactNumber(value: number | null | undefined) {
@@ -255,14 +256,16 @@ export function OohInventoryClient({
             <ShareOfVoiceCard
               title="OOH Brand Share"
               subtitle="Brand assignment share across currently filtered OOH assets"
-              data={analytics.brandShare}
+              data={analytics.brandShare.map((entry) => ({
+                ...entry,
+                note: entry.note ?? `${(entry.share * 100).toFixed(1)}%`,
+              }))}
               emptyLabel="No brand-mapped OOH assets are available in the current scope yet."
             />
             <BrandSpendDistributionCard
               title="Spending Distribution"
               subtitle="Brand-wise spend share using current mapped placement values"
               data={analytics.brandSpendShare}
-              currency={analytics.spendCurrency}
             />
             <CategoryBarCard
               title="Asset Type Mix"
@@ -519,12 +522,10 @@ function BrandSpendDistributionCard({
   title,
   subtitle,
   data,
-  currency,
 }: {
   title: string;
   subtitle?: string;
   data: Array<{ label: string; share: number; note?: string; valueLabel?: string; color?: string }>;
-  currency: string | null;
 }) {
   const latest = data[0]?.note ?? "Not available";
 
@@ -557,7 +558,7 @@ function BrandSpendDistributionCard({
                         <span className="h-3 w-3 rounded-full" style={{ background: color }} />
                         {item.label}
                       </p>
-                      <p className="text-xs text-muted-foreground">{item.note ?? `0 ${currency ?? ""}`.trim()}</p>
+                      <p className="text-xs text-muted-foreground">{item.note ?? "$0"}</p>
                     </div>
                     <span className="text-sm font-semibold text-foreground">
                       {item.valueLabel ?? `${(item.share * 100).toFixed(1)}%`}
