@@ -3,6 +3,7 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
+import { createPortal } from "react-dom";
 
 import type { WebOverviewResponse, WebFilters, WebDetection } from "@/lib/web-analytics";
 import { formatCompactUsdFromCurrency, formatUsdFromCurrency } from "@/lib/display-currency";
@@ -16,6 +17,7 @@ import {
 
 type WebDashboardProps = { initialData: WebOverviewResponse };
 type AsyncState = { data: WebOverviewResponse; loading: boolean; error: string | null };
+type WebFilterPanel = "date" | "brands" | "campaigns" | "websites" | "languages" | "adFormats" | "pageTypes" | "statuses" | null;
 
 /* ──────────────────────── Helpers ──────────────────────── */
 
@@ -48,6 +50,13 @@ function getBrandInitials(name: string) {
   return name.slice(0, 2).toUpperCase();
 }
 
+function formatDateRangeSummary(startDate: string, endDate: string) {
+  if (!startDate || !endDate) return "Choose dates";
+
+  const formatter = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return `${formatter.format(new Date(`${startDate}T00:00:00`))} – ${formatter.format(new Date(`${endDate}T00:00:00`))}`;
+}
+
 /* ──────────────────── Sub-Components ────────────────────── */
 
 function EmptyState({ title, description }: { title: string; description: string }) {
@@ -76,12 +85,218 @@ function Section({ dark, children }: { dark?: boolean; children: React.ReactNode
 }
 
 /* ────────────────── Date Range Filter ──────────────────── */
-function DateRangeFilter({ preset, startDate, endDate, onPresetChange, onStartDateChange, onEndDateChange }: { preset: WebFilters["preset"]; startDate: string; endDate: string; onPresetChange: (v: WebFilters["preset"]) => void; onStartDateChange: (v: string) => void; onEndDateChange: (v: string) => void }) {
-  return (<div className="rounded-xl border border-white/[0.07] bg-white/[0.04] p-3"><div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-white"><CalendarIcon className="h-3.5 w-3.5 text-[#FF3340]" />Date Range</div><div className="mt-2 grid gap-2 md:grid-cols-[auto_1fr_1fr]"><select className="h-10 rounded-lg border border-white/10 bg-[#1A1F29] px-2.5 text-sm text-white outline-none" value={preset} onChange={(e) => onPresetChange(e.target.value as WebFilters["preset"])}><option value="last7">Last 7 Days</option><option value="last30">Last 30 Days</option><option value="last90">Last 90 Days</option><option value="thisMonth">This Month</option><option value="previousMonth">Previous Month</option><option value="custom">Custom</option></select><input className="h-10 rounded-lg border border-white/10 bg-[#1A1F29] px-2.5 text-sm text-white outline-none [color-scheme:dark]" type="date" value={startDate} max={endDate || undefined} onChange={(e) => onStartDateChange(e.target.value)} /><input className="h-10 rounded-lg border border-white/10 bg-[#1A1F29] px-2.5 text-sm text-white outline-none [color-scheme:dark]" type="date" value={endDate} min={startDate || undefined} onChange={(e) => onEndDateChange(e.target.value)} /></div></div>);
+function useFilterPopover({
+  isOpen,
+  onOpenChange,
+}: {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const [position, setPosition] = useState({ top: 0, left: 0, width: 320 });
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const updatePosition = () => {
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+
+      const rect = trigger.getBoundingClientRect();
+      const width = Math.min(Math.max(rect.width, 320), window.innerWidth - 24);
+      setPosition({
+        top: rect.bottom + 10,
+        left: Math.max(12, Math.min(rect.left, window.innerWidth - width - 12)),
+        width,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (triggerRef.current?.contains(target) || panelRef.current?.contains(target)) return;
+      onOpenChange(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onOpenChange(false);
+        triggerRef.current?.focus();
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen, onOpenChange]);
+
+  return {
+    triggerRef,
+    panelRef,
+    position,
+    close: () => {
+      onOpenChange(false);
+      triggerRef.current?.focus();
+    },
+  };
+}
+
+function FilterPopoverShell({
+  isOpen,
+  onOpenChange,
+  panelRef,
+  position,
+  align = "start",
+  children,
+}: {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  panelRef: React.RefObject<HTMLDivElement | null>;
+  position: { top: number; left: number; width: number };
+  align?: "start" | "end";
+  children: React.ReactNode;
+}) {
+  if (typeof document === "undefined" || !isOpen) return null;
+
+  const mobile = typeof window !== "undefined" && window.innerWidth < 768;
+  const width = Math.min(position.width, 392);
+  const left = align === "end" ? Math.max(12, position.left + position.width - width) : position.left;
+
+  return createPortal(
+    <>
+      <div className="fixed inset-0 z-40 bg-transparent" aria-hidden="true" onClick={() => onOpenChange(false)} />
+      <div
+        ref={panelRef}
+        className={cn(
+          "z-50 overflow-hidden rounded-2xl border border-white/[0.08] bg-[#151922] shadow-[0_24px_80px_rgba(0,0,0,0.45)]",
+          mobile ? "fixed inset-x-4 bottom-4 max-h-[72vh]" : "fixed max-h-[min(28rem,calc(100vh-2rem))]",
+        )}
+        style={mobile ? undefined : { top: position.top, left, width }}
+      >
+        {children}
+      </div>
+    </>,
+    document.body,
+  );
+}
+
+function DateRangeFilter({
+  preset,
+  startDate,
+  endDate,
+  isOpen,
+  onOpenChange,
+  onPresetChange,
+  onStartDateChange,
+  onEndDateChange,
+}: {
+  preset: WebFilters["preset"];
+  startDate: string;
+  endDate: string;
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  onPresetChange: (v: WebFilters["preset"]) => void;
+  onStartDateChange: (v: string) => void;
+  onEndDateChange: (v: string) => void;
+}) {
+  const { triggerRef, panelRef, position, close } = useFilterPopover({ isOpen, onOpenChange });
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        className="flex h-11 w-full items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.04] px-3 text-left transition hover:border-white/15 hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F40009]/70"
+        type="button"
+        aria-expanded={isOpen}
+        aria-haspopup="dialog"
+        onClick={() => onOpenChange(!isOpen)}
+      >
+        <span className="flex min-w-0 items-center gap-2.5">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#F40009]/12 text-[#FF4D55]">
+            <CalendarIcon className="h-4 w-4" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45">Date Range</span>
+            <span className="block truncate text-sm font-medium text-white">{formatDateRangeSummary(startDate, endDate)}</span>
+          </span>
+        </span>
+        <ChevronDownIcon className={cn("h-4 w-4 shrink-0 text-white/45 transition", isOpen && "rotate-180")} />
+      </button>
+      <FilterPopoverShell isOpen={isOpen} onOpenChange={onOpenChange} panelRef={panelRef} position={position}>
+        <div className="space-y-4 p-4">
+          <div className="space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/45">Date Range</p>
+            <p className="text-sm text-white/65">Choose a preset or set a custom range.</p>
+          </div>
+          <div className="grid gap-3">
+            <label className="space-y-1.5">
+              <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-white/45">Preset</span>
+              <select
+                className="h-10 w-full rounded-xl border border-white/10 bg-[#10141C] px-3 text-sm text-white outline-none transition focus:border-[#F40009]/70"
+                onChange={(e) => onPresetChange(e.target.value as WebFilters["preset"])}
+                value={preset}
+              >
+                <option value="last7">Last 7 Days</option>
+                <option value="last30">Last 30 Days</option>
+                <option value="last90">Last 90 Days</option>
+                <option value="thisMonth">This Month</option>
+                <option value="previousMonth">Previous Month</option>
+                <option value="custom">Custom</option>
+              </select>
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <input
+                className="h-10 rounded-xl border border-white/10 bg-[#10141C] px-3 text-sm text-white outline-none transition focus:border-[#F40009]/70 [color-scheme:dark]"
+                type="date"
+                value={startDate}
+                max={endDate || undefined}
+                onChange={(e) => onStartDateChange(e.target.value)}
+              />
+              <input
+                className="h-10 rounded-xl border border-white/10 bg-[#10141C] px-3 text-sm text-white outline-none transition focus:border-[#F40009]/70 [color-scheme:dark]"
+                type="date"
+                value={endDate}
+                min={startDate || undefined}
+                onChange={(e) => onEndDateChange(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex items-center justify-end border-t border-white/[0.08] pt-3">
+            <button
+              className="inline-flex h-9 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] px-3 text-xs font-semibold text-white/70 transition hover:bg-white/[0.08]"
+              type="button"
+              onClick={close}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      </FilterPopoverShell>
+    </>
+  );
 }
 
 /* ─────────────────── Multi-Select Filter ───────────────── */
-function MultiSelectFilter({ label, icon, options, selectedIds, onChange }: { label: string; icon: React.ReactNode; options: Array<{ id: string; label: string; color?: string; description?: string }>; selectedIds: string[]; onChange: (ids: string[]) => void }) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function LegacyInlineMultiSelectFilter({ label, icon, options, selectedIds, onChange }: { label: string; icon: React.ReactNode; options: Array<{ id: string; label: string; color?: string; description?: string }>; selectedIds: string[]; onChange: (ids: string[]) => void }) {
   const [query, setQuery] = useState("");
   const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
   const filtered = useMemo(() => options.filter((o) => `${o.label} ${o.description ?? ""}`.toLowerCase().includes(query.toLowerCase())), [options, query]);
@@ -109,6 +324,144 @@ function SovCard({ data, currency }: { data: WebOverviewResponse["shareOfVoice"]
       }))}
       emptyLabel="No SOV data for current filters."
     />
+  );
+}
+
+function MultiSelectFilter({
+  label,
+  icon,
+  options,
+  selectedIds,
+  isOpen,
+  onOpenChange,
+  onChange,
+  emptyLabel,
+  align = "start",
+}: {
+  label: string;
+  icon: React.ReactNode;
+  options: Array<{ id: string; label: string; color?: string; description?: string; status?: string }>;
+  selectedIds: string[];
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  onChange: (ids: string[]) => void;
+  emptyLabel: string;
+  align?: "start" | "end";
+}) {
+  const [query, setQuery] = useState("");
+  const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const filtered = useMemo(
+    () => options.filter((o) => `${o.label} ${o.description ?? ""} ${o.status ?? ""}`.toLowerCase().includes(query.toLowerCase())),
+    [options, query],
+  );
+  const summaryLabel = selectedIds.length === 0
+    ? "All"
+    : selectedIds.length === 1
+      ? options.find((option) => option.id === selectedIds[0])?.label ?? "1 selected"
+      : `${selectedIds.length} selected`;
+  const { triggerRef, panelRef, position, close } = useFilterPopover({ isOpen, onOpenChange });
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        className="flex h-11 w-full items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.04] px-3 text-left transition hover:border-white/15 hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F40009]/70"
+        type="button"
+        aria-expanded={isOpen}
+        aria-haspopup="dialog"
+        onClick={() => onOpenChange(!isOpen)}
+      >
+        <span className="flex min-w-0 items-center gap-2.5">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#F40009]/12 text-[#FF4D55]">
+            {icon}
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45">{label}</span>
+            <span className="block truncate text-sm font-medium text-white">{summaryLabel}</span>
+          </span>
+        </span>
+        <ChevronDownIcon className={cn("h-4 w-4 shrink-0 text-white/45 transition", isOpen && "rotate-180")} />
+      </button>
+      <FilterPopoverShell isOpen={isOpen} onOpenChange={onOpenChange} panelRef={panelRef} position={position} align={align}>
+        <div className="space-y-3 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/45">{label}</p>
+              <p className="mt-1 text-sm text-white/65">Search and refine selections.</p>
+            </div>
+            <span className="rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[11px] font-semibold text-white/60">
+              {selectedIds.length === 0 ? "All" : selectedIds.length}
+            </span>
+          </div>
+          <div className="relative">
+            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/30" />
+            <input
+              className="h-10 w-full rounded-xl border border-white/10 bg-[#10141C] pl-9 pr-3 text-sm text-white outline-none placeholder:text-white/28 transition focus:border-[#F40009]/70"
+              placeholder={`Search ${label.toLowerCase()}...`}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              type="search"
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3 text-xs">
+            <button className="font-semibold text-white/70 transition hover:text-white" onClick={() => onChange(filtered.map((option) => option.id))} type="button">
+              Select all
+            </button>
+            <button className="font-semibold text-white/55 transition hover:text-white" onClick={() => onChange([])} type="button">
+              Clear all
+            </button>
+          </div>
+          <div className="max-h-72 space-y-1.5 overflow-y-auto pr-1">
+            {filtered.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-white/[0.08] bg-white/[0.03] px-3 py-6 text-center text-sm text-white/45">
+                {emptyLabel}
+              </div>
+            ) : (
+              filtered.map((opt) => {
+                const checked = selected.has(opt.id);
+                return (
+                  <label
+                    key={opt.id}
+                    className={cn(
+                      "flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-2.5 transition",
+                      checked ? "border-white/18 bg-white/[0.08]" : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05]",
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      className="mt-1"
+                      onChange={() => onChange(checked ? selectedIds.filter((id) => id !== opt.id) : [...selectedIds, opt.id])}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        {opt.color && <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: opt.color }} />}
+                        <span className="truncate text-sm font-medium text-white">{opt.label}</span>
+                        {opt.status && (
+                          <span className="rounded-full border border-white/[0.08] bg-white/[0.05] px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-white/45">
+                            {opt.status}
+                          </span>
+                        )}
+                      </div>
+                      {opt.description && <p className="mt-1 truncate text-xs text-white/45">{opt.description}</p>}
+                    </div>
+                  </label>
+                );
+              })
+            )}
+          </div>
+          <div className="flex items-center justify-end border-t border-white/[0.08] pt-3">
+            <button
+              className="inline-flex h-9 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] px-3 text-xs font-semibold text-white/70 transition hover:bg-white/[0.08]"
+              type="button"
+              onClick={close}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      </FilterPopoverShell>
+    </>
   );
 }
 
@@ -144,6 +497,7 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
   const detectionsAbortRef = useRef<AbortController | null>(null);
   const [pendingFilters, setPendingFilters] = useState<WebFilters>(initialData.filters);
   const [state, setState] = useState<AsyncState>({ data: initialData, loading: false, error: null });
+  const [openFilterPanel, setOpenFilterPanel] = useState<WebFilterPanel>(null);
   const [detectionsPage, setDetectionsPage] = useState(1);
   const [detections, setDetections] = useState<{ items: WebDetection[]; total: number; hasMore: boolean }>({ items: [], total: 0, hasMore: false });
   const [detectionsLoading, setDetectionsLoading] = useState(false);
@@ -157,7 +511,22 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
     setState({ data: initialData, loading: false, error: null });
   }, [initialData]);
 
+  useEffect(() => {
+    setOpenFilterPanel(null);
+  }, [pathname]);
+
   const hasDirtyFilters = JSON.stringify(pendingFilters) !== JSON.stringify(state.data.filters);
+
+  const campaignFilterOptions = useMemo(() => {
+    return state.data.filterOptions.campaigns
+      .filter((campaign) => pendingFilters.brandIds.length === 0 || !campaign.brandId || pendingFilters.brandIds.includes(campaign.brandId))
+      .map((campaign) => ({
+        id: campaign.id,
+        label: campaign.name,
+        description: campaign.brandName,
+        status: campaign.status,
+      }));
+  }, [pendingFilters.brandIds, state.data.filterOptions.campaigns]);
 
   const loadDetections = useCallback(async (page: number, filters: WebFilters) => {
     const requestId = ++latestDetectionsRequest.current;
@@ -235,6 +604,7 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
   const applyFilters = useCallback(() => {
     const next = { ...pendingFilters, page: 1, pageSize: 12 };
     setPendingFilters(next);
+    setOpenFilterPanel(null);
     void loadData(next);
   }, [pendingFilters, loadData]);
 
@@ -242,6 +612,7 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
     const { startDate, endDate } = getPresetDates("last30");
     const defaults = { ...pendingFilters, preset: "last30" as const, startDate, endDate, brandIds: [] as string[], campaignIds: [] as string[], websiteIds: [] as string[], languages: [] as string[], adFormats: [] as string[], pageTypes: [] as string[], statuses: [] as string[], page: 1, pageSize: 12, sortBy: "detected_at", sortDirection: "desc", activeFilterCount: 0 };
     setPendingFilters(defaults);
+    setOpenFilterPanel(null);
     void loadData(defaults);
   }, [pendingFilters, loadData]);
 
@@ -283,15 +654,88 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
 
       {/* Filter Bar */}
       <section className="rounded-2xl border border-white/[0.07] bg-[#12151C] p-4 shadow-[0_8px_24px_rgba(0,0,0,0.24)]">
-        <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
-          <DateRangeFilter preset={pendingFilters.preset} startDate={pendingFilters.startDate} endDate={pendingFilters.endDate} onPresetChange={updatePreset} onStartDateChange={(v) => updateDate("startDate", v)} onEndDateChange={(v) => updateDate("endDate", v)} />
-          <MultiSelectFilter icon={<BrandIcon className="h-4 w-4" />} label="Brands" options={state.data.filterOptions.brands.map((b) => ({ id: b.id, label: b.name, color: b.color }))} selectedIds={pendingFilters.brandIds} onChange={(ids) => setPendingFilters((prev) => ({ ...prev, brandIds: ids, page: 1 }))} />
-          <MultiSelectFilter icon={<CampaignIcon className="h-4 w-4" />} label="Campaigns" options={state.data.filterOptions.campaigns.map((c) => ({ id: c.id, label: c.name, description: c.brandName }))} selectedIds={pendingFilters.campaignIds} onChange={(ids) => setPendingFilters((prev) => ({ ...prev, campaignIds: ids, page: 1 }))} />
-          <MultiSelectFilter icon={<GlobeIcon className="h-4 w-4" />} label="Websites" options={state.data.filterOptions.websites.map((w) => ({ id: w.id, label: w.name, description: w.domain }))} selectedIds={pendingFilters.websiteIds} onChange={(ids) => setPendingFilters((prev) => ({ ...prev, websiteIds: ids, page: 1 }))} />
-          <MultiSelectFilter icon={<GlobeIcon className="h-4 w-4" />} label="Language" options={state.data.filterOptions.languages.map((item) => ({ id: item, label: item }))} selectedIds={pendingFilters.languages} onChange={(ids) => setPendingFilters((prev) => ({ ...prev, languages: ids, page: 1 }))} />
-          <MultiSelectFilter icon={<WebIcon className="h-4 w-4" />} label="Ad Format" options={state.data.filterOptions.adFormats.map((item) => ({ id: item, label: item }))} selectedIds={pendingFilters.adFormats} onChange={(ids) => setPendingFilters((prev) => ({ ...prev, adFormats: ids, page: 1 }))} />
-          <MultiSelectFilter icon={<WebIcon className="h-4 w-4" />} label="Page Type" options={state.data.filterOptions.pageTypes.map((item) => ({ id: item, label: item }))} selectedIds={pendingFilters.pageTypes} onChange={(ids) => setPendingFilters((prev) => ({ ...prev, pageTypes: ids, page: 1 }))} />
-          <MultiSelectFilter icon={<ReportIcon className="h-4 w-4" />} label="Status" options={state.data.filterOptions.statuses.map((item) => ({ id: item, label: item }))} selectedIds={pendingFilters.statuses} onChange={(ids) => setPendingFilters((prev) => ({ ...prev, statuses: ids, page: 1 }))} />
+        <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-[1.25fr_repeat(7,minmax(0,1fr))]">
+          <DateRangeFilter
+            preset={pendingFilters.preset}
+            startDate={pendingFilters.startDate}
+            endDate={pendingFilters.endDate}
+            isOpen={openFilterPanel === "date"}
+            onOpenChange={(next) => setOpenFilterPanel(next ? "date" : null)}
+            onPresetChange={updatePreset}
+            onStartDateChange={(v) => updateDate("startDate", v)}
+            onEndDateChange={(v) => updateDate("endDate", v)}
+          />
+          <MultiSelectFilter
+            icon={<BrandIcon className="h-4 w-4" />}
+            label="Brands"
+            options={state.data.filterOptions.brands.map((b) => ({ id: b.id, label: b.name, color: b.color }))}
+            selectedIds={pendingFilters.brandIds}
+            isOpen={openFilterPanel === "brands"}
+            onOpenChange={(next) => setOpenFilterPanel(next ? "brands" : null)}
+            emptyLabel="No brands found."
+            onChange={(ids) => setPendingFilters((prev) => ({ ...prev, brandIds: ids, campaignIds: [], page: 1 }))}
+          />
+          <MultiSelectFilter
+            icon={<CampaignIcon className="h-4 w-4" />}
+            label="Campaigns"
+            options={campaignFilterOptions}
+            selectedIds={pendingFilters.campaignIds}
+            isOpen={openFilterPanel === "campaigns"}
+            onOpenChange={(next) => setOpenFilterPanel(next ? "campaigns" : null)}
+            emptyLabel="No campaigns found."
+            onChange={(ids) => setPendingFilters((prev) => ({ ...prev, campaignIds: ids, page: 1 }))}
+          />
+          <MultiSelectFilter
+            icon={<GlobeIcon className="h-4 w-4" />}
+            label="Websites"
+            options={state.data.filterOptions.websites.map((w) => ({ id: w.id, label: w.name, description: w.domain }))}
+            selectedIds={pendingFilters.websiteIds}
+            isOpen={openFilterPanel === "websites"}
+            onOpenChange={(next) => setOpenFilterPanel(next ? "websites" : null)}
+            emptyLabel="No websites found."
+            onChange={(ids) => setPendingFilters((prev) => ({ ...prev, websiteIds: ids, page: 1 }))}
+          />
+          <MultiSelectFilter
+            icon={<GlobeIcon className="h-4 w-4" />}
+            label="Language"
+            options={state.data.filterOptions.languages.map((item) => ({ id: item, label: item }))}
+            selectedIds={pendingFilters.languages}
+            isOpen={openFilterPanel === "languages"}
+            onOpenChange={(next) => setOpenFilterPanel(next ? "languages" : null)}
+            emptyLabel="No languages found."
+            onChange={(ids) => setPendingFilters((prev) => ({ ...prev, languages: ids, page: 1 }))}
+          />
+          <MultiSelectFilter
+            icon={<WebIcon className="h-4 w-4" />}
+            label="Ad Format"
+            options={state.data.filterOptions.adFormats.map((item) => ({ id: item, label: item }))}
+            selectedIds={pendingFilters.adFormats}
+            isOpen={openFilterPanel === "adFormats"}
+            onOpenChange={(next) => setOpenFilterPanel(next ? "adFormats" : null)}
+            emptyLabel="No ad formats found."
+            onChange={(ids) => setPendingFilters((prev) => ({ ...prev, adFormats: ids, page: 1 }))}
+          />
+          <MultiSelectFilter
+            icon={<WebIcon className="h-4 w-4" />}
+            label="Page Type"
+            options={state.data.filterOptions.pageTypes.map((item) => ({ id: item, label: item }))}
+            selectedIds={pendingFilters.pageTypes}
+            isOpen={openFilterPanel === "pageTypes"}
+            onOpenChange={(next) => setOpenFilterPanel(next ? "pageTypes" : null)}
+            emptyLabel="No page types found."
+            onChange={(ids) => setPendingFilters((prev) => ({ ...prev, pageTypes: ids, page: 1 }))}
+          />
+          <MultiSelectFilter
+            icon={<ReportIcon className="h-4 w-4" />}
+            label="Status"
+            options={state.data.filterOptions.statuses.map((item) => ({ id: item, label: item, status: item }))}
+            selectedIds={pendingFilters.statuses}
+            isOpen={openFilterPanel === "statuses"}
+            onOpenChange={(next) => setOpenFilterPanel(next ? "statuses" : null)}
+            emptyLabel="No statuses found."
+            align="end"
+            onChange={(ids) => setPendingFilters((prev) => ({ ...prev, statuses: ids, page: 1 }))}
+          />
           <div className="flex items-end gap-2 md:col-span-2 xl:col-span-2 2xl:col-span-1">
             <button className="inline-flex h-11 items-center justify-center rounded-xl bg-[#F40009] px-5 text-sm font-semibold text-white transition hover:bg-[#d60008] disabled:cursor-not-allowed disabled:opacity-50" disabled={state.loading || !hasDirtyFilters} onClick={applyFilters} type="button">{state.loading ? "Applying…" : "Apply"}</button>
             <button className="inline-flex h-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] px-4 text-sm font-semibold text-white/70 transition hover:bg-white/10" disabled={state.loading} onClick={resetFilters} type="button">Reset</button>
