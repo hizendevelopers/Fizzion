@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import type { OohAreaItem, OohAssetDetail, OohBrandItem } from "@/lib/ooh/ooh-data";
 import type { OohAssetCreateInput } from "@/lib/ooh/ooh-schemas";
+import { formatUsdFromCurrency } from "@/lib/display-currency";
 import { OohCoordinatePicker } from "./ooh-coordinate-picker";
 
 type OohAssetFormProps = {
@@ -121,8 +122,7 @@ function formatMoney(value: number | null | undefined, currency: string | null |
   if (value === null || value === undefined) {
     return "Not available";
   }
-
-  return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value)} ${currency ?? ""}`.trim();
+  return formatUsdFromCurrency(value, currency);
 }
 
 function normalizeExternalImageUrl(value: string) {

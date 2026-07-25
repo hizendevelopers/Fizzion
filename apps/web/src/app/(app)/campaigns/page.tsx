@@ -153,8 +153,8 @@ export default async function CampaignsPage() {
                 <span>
                   {campaign.startDate} to {campaign.endDate}
                 </span>
-                <Link className="font-semibold text-brand-red" href="/reports">
-                  Open reporting
+                <Link className="font-semibold text-brand-red" href="/executive-overview">
+                  Open overview
                 </Link>
               </div>
             </article>

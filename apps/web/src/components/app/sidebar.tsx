@@ -9,15 +9,12 @@ import { cn } from "@/lib/utils";
 import { SidebarBranding } from "@/components/brand/sidebar-branding";
 
 import {
-  AlertIcon,
   BrandIcon,
   CampaignIcon,
   ChevronDownIcon,
   CreativeIcon,
   GlobeIcon,
   OohIcon,
-  ReportIcon,
-  ShieldIcon,
   SocialIcon,
   SparkleIcon,
   TvIcon,
@@ -37,9 +34,6 @@ const navIconMap: Record<string, React.ReactNode> = {
   creatives: <CreativeIcon />,
   campaigns: <CampaignIcon />,
   brands: <BrandIcon />,
-  reports: <ReportIcon />,
-  alerts: <AlertIcon />,
-  dataQuality: <ShieldIcon />,
   admin: <GlobeIcon />,
 };
 

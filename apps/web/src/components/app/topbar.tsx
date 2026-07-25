@@ -10,7 +10,7 @@ export function Topbar() {
           className="text-[22px] font-semibold tracking-tight text-[#F7F8FA]"
           style={{ fontWeight: 650 }}
         >
-          Media Monitoring
+          Media Intelligence Reimagined
         </h2>
 
         <div className="flex items-center justify-end gap-3">

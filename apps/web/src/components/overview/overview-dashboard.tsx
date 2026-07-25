@@ -319,8 +319,7 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
         />
       </section>
 
-      {/* ─── Total Spending (70%) + Spending SOV (30%) ─── */}
-      <section className="grid gap-5 lg:grid-cols-[1.6fr_1fr]">
+      <section className="space-y-5">
         <StackedSpendingChartCard
           title="Total Spending"
           subtitle="Brand spending trend over time"
@@ -366,9 +365,10 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
           formatter={(value) => formatCurrency(value, state.data.summary.currency)}
           compactFormatter={(value) => formatCompactUsdFromCurrency(value, state.data.summary.currency)}
           loading={state.loading}
+          svgHeight={340}
+          plotHeight={228}
         />
 
-        {/* Spending SOV */}
         <SpendingSovCard
           data={state.data.shareOfVoice}
           currency={state.data.summary.currency}

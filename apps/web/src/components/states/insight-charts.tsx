@@ -362,6 +362,8 @@ export function StackedSpendingChartCard({
   formatter = (value) => value.toLocaleString(),
   compactFormatter = (value) => value.toLocaleString(),
   loading = false,
+  svgHeight = 286,
+  plotHeight = 184,
 }: {
   title: string;
   subtitle?: string;
@@ -376,6 +378,8 @@ export function StackedSpendingChartCard({
   formatter?: (value: number) => string;
   compactFormatter?: (value: number) => string;
   loading?: boolean;
+  svgHeight?: number;
+  plotHeight?: number;
 }) {
   const [focusedSegmentId, setFocusedSegmentId] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<{
@@ -477,8 +481,8 @@ export function StackedSpendingChartCard({
   }
 
   const width = Math.max(860, chartBuckets.length * 32 + 140);
-  const height = 286;
-  const chartHeight = 184;
+  const height = svgHeight;
+  const chartHeight = plotHeight;
   const chartWidth = width - 96;
   const marginLeft = 68;
   const marginTop = 14;

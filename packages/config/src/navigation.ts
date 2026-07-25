@@ -20,9 +20,6 @@ export const primaryNavigation: NavItem[] = [
       { href: "/products", key: "products" },
     ],
   },
-  { href: "/reports", key: "reports" },
-  { href: "/alerts", key: "alerts" },
-  { href: "/data-quality", key: "dataQuality" },
   {
     href: "/admin/users",
     key: "admin",

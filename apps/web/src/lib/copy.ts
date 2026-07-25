@@ -38,7 +38,7 @@ type CopyTree = {
 
 const en: CopyTree = {
   appName: "FizZion",
-  partnership: "Media Monitoring",
+  partnership: "Media Intelligence Reimagined",
   languageLabel: "Language",
   timezoneLabel: "Time zone",
   searchPlaceholder: "Search brands, creatives, channels, URLs, captions, and notes",
@@ -105,7 +105,7 @@ const en: CopyTree = {
 
 const ar: CopyTree = {
   appName: "فِزيون",
-  partnership: "Media Monitoring",
+  partnership: "Media Intelligence Reimagined",
   languageLabel: "اللغة",
   timezoneLabel: "المنطقة الزمنية",
   searchPlaceholder: "ابحث في العلامات والإعلانات والقنوات والروابط والتعليقات والملاحظات",
