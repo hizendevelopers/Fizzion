@@ -646,7 +646,7 @@ function MultiLineChart({
             <line x1={margin.left} x2={w - margin.right} y1={margin.top + ph - (val / maxVal) * ph} y2={margin.top + ph - (val / maxVal) * ph} stroke="#F1F3F5" strokeWidth={1} />
             <text x={margin.left - 8} y={margin.top + ph - (val / maxVal) * ph + 4} fill="#9CA3AF" fontSize={10} textAnchor="end">
               {formatCurrency(val, currency)}
-            </Text>
+            </text>
           </g>
         ))}
         {/* X labels */}
