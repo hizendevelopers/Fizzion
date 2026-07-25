@@ -29,6 +29,7 @@ declare
   lifebuoy_id uuid;
   bonus_id uuid;
   ary_news_id uuid;
+  inserted_channel_id uuid;
   ad_rec record;
 begin
   select id into org_id from public.organizations where slug = 'coca_cola_iraq';
@@ -37,10 +38,11 @@ begin
   end if;
 
   -- Get TV and Web platform IDs
-  select id into platform_tv_id from public.platforms where organization_id = org_id and slug = 'youtube';
+  select id into platform_tv_id from public.platforms where organization_id = org_id and slug = 'tv';
   if platform_tv_id is null then
     insert into public.platforms (organization_id, name, slug, icon, color, is_active)
     values (org_id, 'TV', 'tv', 'tv', '#FF0000', true)
+    on conflict (organization_id, slug) do update set name = excluded.name
     returning id into platform_tv_id;
   end if;
 
@@ -101,8 +103,10 @@ begin
   select id into ary_news_id from public.tv_channels where organization_id = org_id and slug = 'ary-news';
 
   -- Insert 10 Iraqi TV channels
-  for channel_rec in (
-    values
+  for channel_rec in
+    select *
+    from (
+      values
       ('Al Iraqiya', 'al-iraqiya', 'Arabic', 'News', 'IQ'),
       ('Al Sharqiya', 'al-sharqiya', 'Arabic', 'Entertainment', 'IQ'),
       ('Al Sumaria', 'al-sumaria', 'Arabic', 'News', 'IQ'),
@@ -113,23 +117,25 @@ begin
       ('Rudaw', 'rudaw', 'Kurdish', 'News', 'IQ'),
       ('Kurdistan TV', 'kurdistan-tv', 'Kurdish', 'General', 'IQ'),
       ('NRT', 'nrt', 'Kurdish', 'News', 'IQ')
-  ) as t(name, slug, lang, genre, country
+    ) as t(name, slug, lang, genre, country)
   loop
     insert into public.tv_channels (organization_id, name, slug, primary_language, genre, country, is_active)
-    values (org_id, t.name, t.slug, t.lang, t.genre, t.country, true)
+    values (org_id, channel_rec.name, channel_rec.slug, channel_rec.lang, channel_rec.genre, channel_rec.country, true)
     on conflict (organization_id, slug) do update set
       name = excluded.name, primary_language = excluded.primary_language,
       genre = excluded.genre, country = excluded.country, is_active = excluded.is_active
-    returning id into channel_rec;
-    channel_ids := array_append(channel_ids, channel_rec);
+    returning id into inserted_channel_id;
+    channel_ids := array_append(channel_ids, inserted_channel_id);
   end loop;
 
   -- ==========================================================
   -- TV CAMPAIGNS
   -- ==========================================================
   -- TV-specific campaigns with medium='tv'
-  for campaign_rec in (
-    values
+  for campaign_rec in
+    select *
+    from (
+      values
       ('Coca-Cola', 'Coca-Cola TV Ramadan', '2026-03-01', '2026-05-15', 'completed', 'tv'),
       ('Coca-Cola', 'Coke Studio TV', '2026-05-20', null, 'active', 'tv'),
       ('Pepsi', 'Pepsi TV Summer', '2026-04-01', '2026-08-31', 'active', 'tv'),
@@ -141,7 +147,7 @@ begin
       ('Tapal', 'Tapal TV Tea Time', '2026-04-01', '2026-10-31', 'active', 'tv'),
       ('Lifebuoy', 'Lifebuoy TV Health', '2026-04-01', '2026-09-30', 'active', 'tv'),
       ('Bonus', 'Bonus TV Laundry', '2026-04-01', '2026-08-31', 'active', 'tv')
-  ) as t(brand_name, campaign_name, start_date, end_date, status, medium
+    ) as t(brand_name, campaign_name, start_date, end_date, status, medium)
   loop
     insert into public.campaigns (
       organization_id, brand_id, name, market, start_date, end_date,
@@ -149,14 +155,14 @@ begin
     )
     values (
       org_id,
-      (brand_map->>t.brand_name)::uuid,
-      t.campaign_name,
+      (brand_map->>campaign_rec.brand_name)::uuid,
+      campaign_rec.campaign_name,
       'Iraq',
-      t.start_date::date,
-      case when t.end_date is null then null else t.end_date::date end,
-      t.status,
-      t.medium,
-      case t.brand_name
+      campaign_rec.start_date::date,
+      case when campaign_rec.end_date is null then null else campaign_rec.end_date::date end,
+      campaign_rec.status,
+      campaign_rec.medium,
+      case campaign_rec.brand_name
         when 'Coca-Cola' then 250000 when 'Pepsi' then 220000
         when '7UP' then 140000 when 'Mountain Dew' then 160000
         when 'RC Cola' then 90000 when 'Mirinda' then 115000
@@ -165,7 +171,7 @@ begin
         else 100000
       end,
       'USD',
-      t.campaign_name || ' TV advertising campaign'
+      campaign_rec.campaign_name || ' TV advertising campaign'
     )
     on conflict (organization_id, name) do update set
       brand_id = excluded.brand_id, medium = excluded.medium, status = excluded.status;
@@ -382,8 +388,10 @@ begin
   -- ==========================================================
   -- WEBSITES: 10 Iraqi News Websites
   -- ==========================================================
-  for website_rec in (
-    values
+  for website_rec in
+    select *
+    from (
+      values
       ('Al Sumaria', 'alsumaria.tv', 'https://www.alsumaria.tv', 'Arabic', 'News'),
       ('Rudaw', 'rudaw.net', 'https://www.rudaw.net', 'Kurdish', 'News'),
       ('Shafaq News', 'shafaq.com', 'https://www.shafaq.com', 'Arabic', 'News'),
@@ -394,7 +402,7 @@ begin
       ('URA News', 'uranews.com', 'https://uranews.com', 'Arabic', 'News'),
       ('Al Mirbad', 'almirbad.com', 'https://almirbad.com', 'Arabic', 'News'),
       ('Iraqi News Agency', 'ina.iq', 'https://ina.iq', 'Arabic', 'News')
-  ) as t(name, domain, homepage_url, lang, category
+    ) as t(name, domain, homepage_url, lang, category)
   loop
     insert into public.websites (
       organization_id, name, domain, homepage_url, logo_url,
@@ -402,8 +410,8 @@ begin
       screenshot_enabled, scan_interval_minutes, country
     )
     values (
-      org_id, t.name, t.domain, t.homepage_url, null,
-      t.lang, t.category, true, true,
+      org_id, website_rec.name, website_rec.domain, website_rec.homepage_url, null,
+      website_rec.lang, website_rec.category, true, true,
       true, 120, 'IQ'
     )
     on conflict (organization_id, domain) do update set
@@ -420,15 +428,17 @@ begin
   -- ==========================================================
   -- WEB CAMPAIGNS (medium='web')
   -- ==========================================================
-  for campaign_rec in (
-    values
+  for campaign_rec in
+    select *
+    from (
+      values
       ('Coca-Cola', 'Coca-Cola Web Display', '2026-04-01', '2026-10-31', 'active', 'web'),
       ('Pepsi', 'Pepsi Web Banner', '2026-04-01', '2026-09-30', 'active', 'web'),
       ('7UP', '7UP Web Fresh', '2026-05-01', '2026-10-31', 'active', 'web'),
       ('Mountain Dew', 'Mountain Dew Web Gaming', '2026-04-15', '2026-08-15', 'active', 'web'),
       ('RC Cola', 'RC Cola Web Value', '2026-06-01', '2026-12-31', 'active', 'web'),
       ('Mirinda', 'Mirinda Web Colorful', '2026-05-10', '2026-11-30', 'active', 'web')
-  ) as t(brand_name, campaign_name, start_date, end_date, status, medium
+    ) as t(brand_name, campaign_name, start_date, end_date, status, medium)
   loop
     insert into public.campaigns (
       organization_id, brand_id, name, market, start_date, end_date,
@@ -436,21 +446,21 @@ begin
     )
     values (
       org_id,
-      (brand_map->>t.brand_name)::uuid,
-      t.campaign_name,
+      (brand_map->>campaign_rec.brand_name)::uuid,
+      campaign_rec.campaign_name,
       'Iraq',
-      t.start_date::date,
-      t.end_date::date,
-      t.status,
-      t.medium,
-      case t.brand_name
+      campaign_rec.start_date::date,
+      campaign_rec.end_date::date,
+      campaign_rec.status,
+      campaign_rec.medium,
+      case campaign_rec.brand_name
         when 'Coca-Cola' then 180000 when 'Pepsi' then 150000
         when '7UP' then 90000 when 'Mountain Dew' then 110000
         when 'RC Cola' then 60000 when 'Mirinda' then 75000
         else 100000
       end,
       'USD',
-      t.campaign_name || ' Web advertising campaign'
+      campaign_rec.campaign_name || ' Web advertising campaign'
     )
     on conflict (organization_id, name) do update set
       brand_id = excluded.brand_id, medium = excluded.medium, status = excluded.status;
@@ -465,7 +475,7 @@ begin
     where c.organization_id = org_id and c.medium = 'web'
   loop
     -- Each web campaign runs on 4-7 websites
-    for i in 1..(4 + floor(random() * 4))
+    for i in 1..((4 + floor(random() * 4))::int)
     loop
       if i <= array_length(website_ids, 1) then
         insert into public.web_campaign_websites (organization_id, campaign_id, website_id)
@@ -543,7 +553,7 @@ begin
       where wcw.website_id = website_rec.id and wcw.organization_id = org_id
       limit 3
     loop
-      for i in 1..(2 + floor(random() * 3))
+      for i in 1..((2 + floor(random() * 3))::int)
       loop
         insert into public.web_ad_detections (
           organization_id, website_id, campaign_id, brand_id,
