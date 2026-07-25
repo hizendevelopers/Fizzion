@@ -1418,12 +1418,6 @@ export function TvDashboard({ initialData }: TvDashboardProps) {
       </section>
 
       <SectionShell
-        rightSlot={
-          <div className="rounded-2xl bg-[#F8FAFC] px-4 py-3 text-right">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#98A2B3]">Reconciled total</p>
-            <p className="mt-1 text-lg font-semibold text-[#101828]">{formatUsd(state.data.reconciliation.totalSpend)}</p>
-          </div>
-        }
         subtitle="Brand-wise TV spending over time for the selected filters."
         title="TV Spending"
       >
@@ -1458,7 +1452,101 @@ export function TvDashboard({ initialData }: TvDashboardProps) {
         subtitle="Detected television advertisements and their associated media metadata."
         title="Detected Ads"
       >
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+        <div className="flex flex-col gap-3">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <select
+              className="h-11 rounded-2xl border border-[#D0D5DD] bg-white px-3 text-sm text-[#344054] outline-none"
+              onChange={(event) => {
+                const value = event.target.value;
+                const next = {
+                  ...pendingFilters,
+                  brandIds: value === "__all" ? [] : [value],
+                  campaignIds: value === "__all"
+                    ? pendingFilters.campaignIds
+                    : pendingFilters.campaignIds.filter((campaignId) =>
+                        state.data.filterOptions.campaigns.some((campaign) => campaign.id === campaignId && campaign.brandId === value),
+                      ),
+                  activeFilterCount: pendingFilters.activeFilterCount,
+                };
+                setPendingFilters(next);
+                analyticsCache.current.clear();
+                detectedAdsCache.current.clear();
+                setDetectedAdsPage(1);
+                void loadAnalytics(next);
+              }}
+              value={state.data.filters.brandIds.length === 1 ? state.data.filters.brandIds[0] : "__all"}
+            >
+              <option value="__all">All brands</option>
+              {state.data.filterOptions.brands.map((brand) => (
+                <option key={brand.id} value={brand.id}>
+                  {brand.name}
+                </option>
+              ))}
+            </select>
+            <select
+              className="h-11 rounded-2xl border border-[#D0D5DD] bg-white px-3 text-sm text-[#344054] outline-none"
+              onChange={(event) => {
+                const value = event.target.value;
+                const selectedCampaign =
+                  value === "__all"
+                    ? null
+                    : state.data.filterOptions.campaigns.find((campaign) => campaign.id === value) ?? null;
+                const next = {
+                  ...pendingFilters,
+                  campaignIds: value === "__all" ? [] : [value],
+                  brandIds:
+                    selectedCampaign && selectedCampaign.brandId
+                      ? pendingFilters.brandIds.length === 0 || pendingFilters.brandIds.includes(selectedCampaign.brandId)
+                        ? pendingFilters.brandIds
+                        : [selectedCampaign.brandId]
+                      : pendingFilters.brandIds,
+                  activeFilterCount: pendingFilters.activeFilterCount,
+                };
+                setPendingFilters(next);
+                analyticsCache.current.clear();
+                detectedAdsCache.current.clear();
+                setDetectedAdsPage(1);
+                void loadAnalytics(next);
+              }}
+              value={state.data.filters.campaignIds.length === 1 ? state.data.filters.campaignIds[0] : "__all"}
+            >
+              <option value="__all">All campaigns</option>
+              {state.data.filterOptions.campaigns.map((campaign) => (
+                <option key={campaign.id} value={campaign.id}>
+                  {campaign.name}
+                </option>
+              ))}
+            </select>
+            <select
+              className="h-11 rounded-2xl border border-[#D0D5DD] bg-white px-3 text-sm text-[#344054] outline-none"
+              onChange={(event) => {
+                const value = event.target.value;
+                const next = {
+                  ...pendingFilters,
+                  channelIds: value === "__all" ? [] : [value],
+                  activeFilterCount: pendingFilters.activeFilterCount,
+                };
+                setPendingFilters(next);
+                analyticsCache.current.clear();
+                detectedAdsCache.current.clear();
+                setDetectedAdsPage(1);
+                void loadAnalytics(next);
+              }}
+              value={state.data.filters.channelIds.length === 1 ? state.data.filters.channelIds[0] : "__all"}
+            >
+              <option value="__all">All channels</option>
+              {state.data.filterOptions.channels.map((channel) => (
+                <option key={channel.id} value={channel.id}>
+                  {channel.name}
+                </option>
+              ))}
+            </select>
+            <div className="flex items-center rounded-2xl border border-dashed border-[#D0D5DD] bg-[#F8FAFC] px-3 text-xs font-medium text-[#667085]">
+              Table filters: brand, campaign, channel
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
           <div className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl border border-[#D0D5DD] bg-[#F8FAFC] px-3">
             <SearchIcon className="h-4 w-4 text-[#98A2B3]" />
             <input
@@ -1486,6 +1574,7 @@ export function TvDashboard({ initialData }: TvDashboardProps) {
               </option>
             ))}
           </select>
+          </div>
         </div>
 
         {detectedAdsError ? (
