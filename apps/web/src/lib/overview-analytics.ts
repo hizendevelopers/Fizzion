@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getOptionalSupabaseAdminClient } from "@/lib/supabase/server";
 
 const ORGANIZATION_SLUG = "coca_cola_iraq";
+const OVERVIEW_PLATFORM_SLUGS = ["meta", "tiktok", "youtube", "google-ads", "web-advertising", "ooh"] as const;
 const overviewPresetSchema = z.enum(["last7", "last30", "last90", "last2Years", "thisMonth", "previousMonth", "custom"]);
 const overviewSortSchema = z.enum(["spend", "name", "brand", "startDate"]);
 const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -935,10 +936,34 @@ export async function getOverviewAnalytics(rawFilters?: OverviewFilterInput) {
   const previousEnd = addDays(startOfDay(filters.start), -1);
   const previousStart = addDays(previousEnd, -(previousRangeLength - 1));
 
+  const allowedPlatformsRes = await client
+    .from("platforms")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .in("slug", [...OVERVIEW_PLATFORM_SLUGS]);
+
+  if (allowedPlatformsRes.error) throw allowedPlatformsRes.error;
+
+  const allowedPlatformIds = ((allowedPlatformsRes.data ?? []) as Array<Record<string, unknown>>)
+    .map((row) => String(row.id));
+
+  if (allowedPlatformIds.length === 0) {
+    return computeOverviewAnalytics({
+      filters,
+      brands: [],
+      platforms: [],
+      campaigns: [],
+      campaignPlatforms: [],
+      currentSpendRecords: [],
+      previousSpendRecords: [],
+    });
+  }
+
   const spendRes = await client
     .from("spend_records")
     .select("brand_id,campaign_id,platform_id,spend_date,amount,currency")
     .eq("organization_id", organizationId)
+    .in("platform_id", allowedPlatformIds)
     .gte("spend_date", formatIsoDate(previousStart))
     .lte("spend_date", filters.endDate);
 
