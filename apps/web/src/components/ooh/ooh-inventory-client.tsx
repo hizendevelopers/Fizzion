@@ -66,7 +66,6 @@ export function OohInventoryClient({
   lastUpdatedLabel,
 }: OohInventoryClientProps) {
   const [highlightedAssetId, setHighlightedAssetId] = useState<string | null>(assets[0]?.id ?? null);
-  const [mobileView, setMobileView] = useState<"map" | "list">("map");
   const areaOptions = useMemo(() => getAreaOptions(areas, query.city), [areas, query.city]);
   const spendByCityData = useMemo(
     () => toCategoryData(analytics.spendByCity, analytics.spendCurrency ?? undefined),
@@ -341,25 +340,8 @@ export function OohInventoryClient({
             <OohImportPanel />
           </section>
 
-          <div className="flex gap-2 md:hidden">
-            <button
-              type="button"
-              onClick={() => setMobileView("map")}
-              className={`rounded-full px-4 py-2 text-sm font-medium ${mobileView === "map" ? "bg-sidebar text-white" : "border border-border bg-white"}`}
-            >
-              Map
-            </button>
-            <button
-              type="button"
-              onClick={() => setMobileView("list")}
-              className={`rounded-full px-4 py-2 text-sm font-medium ${mobileView === "list" ? "bg-sidebar text-white" : "border border-border bg-white"}`}
-            >
-              Results
-            </button>
-          </div>
-
-          <div className="grid gap-6 xl:grid-cols-[1.7fr_1fr]">
-            <div id="ooh-map-coverage" className={mobileView === "list" ? "hidden md:block" : ""}>
+          <div className="space-y-6">
+            <div id="ooh-map-coverage">
               <OohMap
                 assets={assets}
                 highlightedAssetId={highlightedAssetId}
@@ -371,7 +353,7 @@ export function OohInventoryClient({
               />
             </div>
 
-            <div id="ooh-locations-directory" className={mobileView === "map" ? "hidden md:block" : ""}>
+            <div id="ooh-locations-directory">
               <div className="rounded-[1.8rem] border border-border bg-white shadow-[var(--shadow-soft)]">
                 <div className="flex items-center justify-between border-b border-border px-4 py-3">
                   <div>

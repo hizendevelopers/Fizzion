@@ -123,11 +123,12 @@ test("TV page source removes legacy filter heading copy and duplicate date-range
 });
 
 test("TV spending chart source keeps stacked bar and polished tooltip contract", () => {
-  const source = readFileSync(join(process.cwd(), "src/components/tv/tv-dashboard.tsx"), "utf8");
+  const tvSource = readFileSync(join(process.cwd(), "src/components/tv/tv-dashboard.tsx"), "utf8");
+  const sharedSource = readFileSync(join(process.cwd(), "src/components/states/insight-charts.tsx"), "utf8");
 
-  assert.equal(source.includes('aria-label="TV spending stacked chart"'), true);
-  assert.equal(source.includes("buildRoundedSegmentPath"), true);
-  assert.equal(source.includes("Period total:"), true);
-  assert.equal(source.includes("Period share:"), true);
-  assert.equal(source.includes('Date: {tooltip.bucket}'), true);
+  assert.equal(tvSource.includes("StackedSpendingChartCard"), true);
+  assert.equal(sharedSource.includes("stacked spending chart"), true);
+  assert.equal(sharedSource.includes("Period total:"), true);
+  assert.equal(sharedSource.includes("Period share:"), true);
+  assert.equal(sharedSource.includes("Date: {tooltip.bucketLabel}"), true);
 });

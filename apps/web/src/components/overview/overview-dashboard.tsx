@@ -5,8 +5,9 @@ import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 
 import type { OverviewFilters, OverviewResponse } from "@/lib/overview-analytics";
-import { formatUsdFromCurrency } from "@/lib/display-currency";
+import { formatCompactUsdFromCurrency, formatUsdFromCurrency } from "@/lib/display-currency";
 import { cn } from "@/lib/utils";
+import { StackedSpendingChartCard } from "@/components/states/insight-charts";
 import {
   BrandIcon,
   CalendarIcon,
@@ -80,21 +81,6 @@ function getBrandInitials(name: string) {
   const parts = name.split(/[\s-]+/).filter(Boolean);
   if (parts.length >= 2) return parts.slice(0, 2).map((p) => p.charAt(0).toUpperCase()).join("");
   return name.slice(0, 2).toUpperCase();
-}
-
-function buildCanBodyPath(cx: number, topY: number, tw: number, bw: number, bh: number, sr: number, br: number) {
-  const t = topY, b = topY + bh;
-  return [
-    `M ${cx - tw + sr} ${t}`,
-    `Q ${cx - tw} ${t}, ${cx - tw} ${t + sr}`,
-    `L ${cx - bw} ${b - br}`,
-    `Q ${cx - bw} ${b}, ${cx - bw + br} ${b}`,
-    `L ${cx + bw - br} ${b}`,
-    `Q ${cx + bw} ${b}, ${cx + bw} ${b - br}`,
-    `L ${cx + tw} ${t + sr}`,
-    `Q ${cx + tw} ${t}, ${cx + tw - sr} ${t}`,
-    "Z",
-  ].join(" ");
 }
 
 function formatSovLabel(value: number): string {
@@ -207,14 +193,6 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
       preset: "custom",
       page: 1,
     }));
-  }, []);
-
-  const toggleMultiSelect = useCallback((field: "brandIds" | "campaignIds" | "platformIds", id: string, checked: boolean) => {
-    setPendingFilters((prev) => {
-      const arr = prev[field];
-      const next = checked ? [...arr, id] : arr.filter((x) => x !== id);
-      return { ...prev, [field]: next, campaignIds: field === "brandIds" ? [] : prev.campaignIds, page: 1 };
-    });
   }, []);
 
   return (
@@ -343,28 +321,52 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
 
       {/* ─── Total Spending (70%) + Spending SOV (30%) ─── */}
       <section className="grid gap-5 lg:grid-cols-[1.6fr_1fr]">
-        {/* Total Spending */}
-        <article className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-[0_4px_16px_rgba(0,0,0,0.04)]">
-          <div className="flex items-center justify-between border-b border-[#F1F3F5] px-5 py-4">
-            <div>
-              <h2 className="text-lg font-semibold text-[#111827]">Total Spending</h2>
-              <p className="mt-0.5 text-sm text-[#6B7280]">Brand spending trend over time</p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs font-medium uppercase tracking-wider text-[#9CA3AF]">Total</p>
-              <p className="text-xl font-bold text-[#111827]">
-                {formatCurrency(state.data.spending.total, state.data.summary.currency)}
-              </p>
-            </div>
-          </div>
-          <div className="p-5">
-            <MultiLineChart
-              currency={state.data.summary.currency}
-              data={state.data.spending.timeSeries}
-              brands={state.data.spending.totalsByBrand}
-            />
-          </div>
-        </article>
+        <StackedSpendingChartCard
+          title="Total Spending"
+          subtitle="Brand spending trend over time"
+          buckets={state.data.spending.timeSeries.map((bucket) => ({
+            key: bucket.key,
+            label: bucket.label,
+            total: bucket.total,
+            segments: bucket.brands.map((brand) => {
+              const match = state.data.spending.totalsByBrand.find((item) => item.brandId === brand.brandId);
+              return {
+                id: brand.brandId,
+                label: match?.brandName ?? brand.brandId,
+                value: brand.value,
+                color: match?.color,
+              };
+            }),
+          }))}
+          breakdown={state.data.spending.totalsByBrand.map((brand) => ({
+            id: brand.brandId,
+            label: brand.brandName,
+            amount: brand.totalSpend,
+            share: brand.percentage,
+            color: brand.color,
+            note: `${brand.percentage.toFixed(1)}% of filtered spend`,
+            secondaryLabel:
+              brand.previousChangePercent == null
+                ? "New"
+                : `${brand.previousChangePercent > 0 ? "+" : ""}${brand.previousChangePercent.toFixed(1)}%`,
+          }))}
+          totalLabel="Current total"
+          totalValue={formatCurrency(state.data.spending.total, state.data.summary.currency)}
+          summaryPills={[
+            `${state.data.spending.totalsByBrand.length} brands`,
+            state.data.summary.rangeLabel,
+          ]}
+          comparisonValue={
+            state.data.kpis.totalSpending.changePercent == null
+              ? "New"
+              : `${state.data.kpis.totalSpending.changePercent > 0 ? "+" : ""}${state.data.kpis.totalSpending.changePercent.toFixed(1)}%`
+          }
+          comparisonLabel="Compared with the equivalent previous period."
+          emptyLabel="No spend data matched the current filters."
+          formatter={(value) => formatCurrency(value, state.data.summary.currency)}
+          compactFormatter={(value) => formatCompactUsdFromCurrency(value, state.data.summary.currency)}
+          loading={state.loading}
+        />
 
         {/* Spending SOV */}
         <SpendingSovCard
@@ -608,137 +610,6 @@ function MiniSparkline({ data, color }: { data: Array<{ value: number }>; color:
 }
 
 /* ───────────────── Multi-Line Trend Chart ──────────────── */
-
-function MultiLineChart({
-  data, brands, currency,
-}: {
-  data: OverviewResponse["spending"]["timeSeries"];
-  brands: OverviewResponse["spending"]["totalsByBrand"];
-  currency: string;
-}) {
-  const [hoveredPoint, setHoveredPoint] = useState<{ brandId: string; label: string; value: number; color: string; x: number; y: number } | null>(null);
-  const brandsById = useMemo(() => new Map(brands.map((b) => [b.brandId, b])), [brands]);
-
-  if (data.length === 0) {
-    return <EmptyState title="No data" description="No spend data matched the current filters." />;
-  }
-
-  const margin = { top: 16, right: 16, bottom: 28, left: 52 };
-  const w = 700, h = 280;
-  const pw = w - margin.left - margin.right;
-  const ph = h - margin.top - margin.bottom;
-
-  // Collect unique brand IDs across all time points
-  const allBrandIds = [...new Set(data.flatMap((d) => d.brands.map((b) => b.brandId)))];
-  const maxVal = Math.max(...data.map((d) => d.total), 1);
-
-  // Grid lines
-  const gridLines = 5;
-  const yTicks = Array.from({ length: gridLines }, (_, i) => (maxVal / (gridLines - 1)) * i);
-
-  const xStep = data.length > 1 ? pw / (data.length - 1) : pw / 2;
-
-  // Pre-compute grid line positions to simplify JSX expressions
-  const gridLineElements = yTicks.map((val, i) => {
-    const yPos = margin.top + ph - (val / maxVal) * ph;
-    return (
-      <g key={i}>
-        <line x1={margin.left} x2={w - margin.right} y1={yPos} y2={yPos} stroke="#F1F3F5" strokeWidth={1} />
-        <text x={margin.left - 8} y={yPos + 4} fill="#9CA3AF" fontSize={10} textAnchor="end">{formatCurrency(val, currency)}</text>
-      </g>
-    );
-  });
-
-  // Pre-compute X labels
-  const xLabelElements = data.filter((_, i) => i % Math.max(1, Math.floor(data.length / 8)) === 0).map((d) => {
-    const idx = data.indexOf(d);
-    const xPos = margin.left + idx * xStep;
-    return (
-      <text key={d.key} x={xPos} y={h - margin.bottom + 16} fill="#9CA3AF" fontSize={9} textAnchor="middle">{d.label}</text>
-    );
-  });
-
-  // Pre-compute line paths for each brand
-  const lineElements = allBrandIds.map((brandId) => {
-    const brand = brandsById.get(brandId);
-    const color = brand?.color ?? "#F40009";
-    const pts = data.map((d, i) => {
-      const b = d.brands.find((b) => b.brandId === brandId);
-      const v = b?.value ?? 0;
-      const x = margin.left + i * xStep;
-      const y = margin.top + ph - (v / maxVal) * ph;
-      return `${i === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`;
-    }).join(" ");
-    return (
-      <path key={brandId} d={pts} stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" fill="none" opacity={0.85} />
-    );
-  });
-
-  // Pre-compute hover circles
-  const hoverElements = data.map((d, i) => {
-    const x = margin.left + i * xStep;
-    return (
-      <g key={d.key}>
-        {d.brands.map((b) => {
-          const v = b.value;
-          const y = margin.top + ph - (v / maxVal) * ph;
-          return (
-            <circle
-              key={b.brandId}
-              cx={x} cy={y} r={4}
-              fill="transparent"
-              style={{ cursor: "pointer" }}
-              onMouseEnter={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                setHoveredPoint({
-                  brandId: b.brandId,
-                  label: d.label,
-                  value: v,
-                  color: brandsById.get(b.brandId)?.color ?? "#F40009",
-                  x: rect.left + rect.width / 2,
-                  y: rect.top,
-                });
-              }}
-              onMouseLeave={() => setHoveredPoint(null)}
-            />
-          );
-        })}
-      </g>
-    );
-  });
-
-  return (
-    <div className="relative">
-      <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ maxHeight: h }}>
-        {gridLineElements}
-        {xLabelElements}
-        {lineElements}
-        {hoverElements}
-      </svg>
-
-      {/* Legend */}
-      <div className="mt-2 flex flex-wrap gap-2">
-        {brands.map((b) => (
-          <span key={b.brandId} className="inline-flex items-center gap-1.5 rounded-full border border-[#E5E7EB] bg-white px-2.5 py-1 text-[11px] font-medium text-[#374151]">
-            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: b.color }} />
-            {b.brandName}
-          </span>
-        ))}
-      </div>
-
-      {/* Tooltip */}
-      {hoveredPoint && (
-        <div
-          className="pointer-events-none fixed z-50 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs shadow-[0_8px_20px_rgba(0,0,0,0.1)]"
-          style={{ left: Math.min(hoveredPoint.x, window.innerWidth - 160), top: Math.max(hoveredPoint.y - 48, 4) }}
-        >
-          <p className="font-semibold text-[#111827]">{brandsById.get(hoveredPoint.brandId)?.brandName ?? hoveredPoint.brandId}</p>
-          <p className="mt-0.5 text-[#6B7280]">{hoveredPoint.label}: <span className="font-semibold text-[#111827]">{formatCurrency(hoveredPoint.value, currency)}</span></p>
-        </div>
-      )}
-    </div>
-  );
-}
 
 /* ──────────────────── Can Body Path Builder ────────────── */
 

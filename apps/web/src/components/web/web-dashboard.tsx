@@ -5,9 +5,9 @@ import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 
 import type { WebOverviewResponse, WebFilters, WebDetection } from "@/lib/web-analytics";
-import { formatUsdFromCurrency } from "@/lib/display-currency";
+import { formatCompactUsdFromCurrency, formatUsdFromCurrency } from "@/lib/display-currency";
 import { cn } from "@/lib/utils";
-import { ShareOfVoiceCard } from "@/components/states/insight-charts";
+import { ShareOfVoiceCard, StackedSpendingChartCard } from "@/components/states/insight-charts";
 import {
   BrandIcon, CalendarIcon, CampaignIcon, ChevronDownIcon, GlobeIcon, ReportIcon, SearchIcon, WebIcon,
 } from "@/components/app/ui-icons";
@@ -94,21 +94,6 @@ function KpiCard({ title, value, delta, icon, color, tooltip, loading, trend }: 
 }
 
 /* ────────────────── Multi-Line Trend Chart ──────────────── */
-function MultiLineChart({ data, brands, currency }: { data: WebOverviewResponse["spending"]["timeSeries"]; brands: WebOverviewResponse["spending"]["totalsByBrand"]; currency: string }) {
-  const [hoveredPoint, setHoveredPoint] = useState<{ brandId: string; label: string; value: number; color: string; x: number; y: number } | null>(null);
-  const brandsById = useMemo(() => new Map(brands.map((b) => [b.brandId, b])), [brands]);
-  if (data.length === 0) return <EmptyState title="No data" description="No spend data matched the current filters." />;
-  const margin = { top: 16, right: 16, bottom: 28, left: 52 };
-  const w = 700, h = 280;
-  const pw = w - margin.left - margin.right, ph = h - margin.top - margin.bottom;
-  const allBrandIds = [...new Set(data.flatMap((d) => d.brands.map((b) => b.brandId)))];
-  const maxVal = Math.max(...data.map((d) => d.total), 1);
-  const gridLines = 5;
-  const yTicks = Array.from({ length: gridLines }, (_, i) => (maxVal / (gridLines - 1)) * i);
-  const xStep = data.length > 1 ? pw / (data.length - 1) : pw / 2;
-  return (<div className="relative"><svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ maxHeight: h }}>{yTicks.map((val, i) => (<g key={i}><line x1={margin.left} x2={w - margin.right} y1={margin.top + ph - (val / maxVal) * ph} y2={margin.top + ph - (val / maxVal) * ph} stroke="#F1F3F5" strokeWidth={1} /><text x={margin.left - 8} y={margin.top + ph - (val / maxVal) * ph + 4} fill="#9CA3AF" fontSize={10} textAnchor="end">{formatCurrency(val, currency)}</text></g>))}{data.filter((_, i) => i % Math.max(1, Math.floor(data.length / 8)) === 0).map((d) => { const idx = data.indexOf(d); return <text key={d.key} x={margin.left + idx * xStep} y={h - margin.bottom + 16} fill="#9CA3AF" fontSize={9} textAnchor="middle">{d.label}</text>; })}{allBrandIds.map((brandId) => { const brand = brandsById.get(brandId); const color = brand?.color ?? "#7C3AED"; const pts = data.map((d, i) => { const b = d.brands.find((b) => b.brandId === brandId); const v = b?.value ?? 0; const x = margin.left + i * xStep; const y = margin.top + ph - (v / maxVal) * ph; return `${i === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`; }).join(" "); return <path key={brandId} d={pts} stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" fill="none" opacity={0.85} />; })}{data.map((d, i) => { const x = margin.left + i * xStep; return d.brands.map((b) => { const v = b.value; const y = margin.top + ph - (v / maxVal) * ph; return <circle key={b.brandId} cx={x} cy={y} r={4} fill="transparent" style={{ cursor: "pointer" }} onMouseEnter={(e) => { const rect = e.currentTarget.getBoundingClientRect(); setHoveredPoint({ brandId: b.brandId, label: d.label, value: v, color: brandsById.get(b.brandId)?.color ?? "#7C3AED", x: rect.left + rect.width / 2, y: rect.top }); }} onMouseLeave={() => setHoveredPoint(null)} />; }); })}</svg><div className="mt-2 flex flex-wrap gap-2">{brands.map((b) => (<span key={b.brandId} className="inline-flex items-center gap-1.5 rounded-full border border-[#E5E7EB] bg-white px-2.5 py-1 text-[11px] font-medium text-[#374151]"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: b.color }} />{b.brandName}</span>))}</div>{hoveredPoint && (<div className="pointer-events-none fixed z-50 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs shadow-[0_8px_20px_rgba(0,0,0,0.1)]" style={{ left: Math.min(hoveredPoint.x, window.innerWidth - 160), top: Math.max(hoveredPoint.y - 48, 4) }}><p className="font-semibold text-[#111827]">{brandsById.get(hoveredPoint.brandId)?.brandName ?? hoveredPoint.brandId}</p><p className="mt-0.5 text-[#6B7280]">{hoveredPoint.label}: <span className="font-semibold text-[#111827]">{formatCurrency(hoveredPoint.value, currency)}</span></p></div>)}</div>);
-}
-
 /* ─────────────────── SOV Card ─────────────────────── */
 function SovCard({ data, currency }: { data: WebOverviewResponse["shareOfVoice"]; currency: string }) {
   return (
@@ -332,13 +317,49 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
 
       {/* Spending Trend + SOV */}
       <section className="grid gap-5 lg:grid-cols-[1.6fr_1fr]">
-        <article className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-[0_4px_16px_rgba(0,0,0,0.04)]">
-          <div className="flex items-center justify-between border-b border-[#F1F3F5] px-5 py-4">
-            <div><h2 className="text-lg font-semibold text-[#111827]">Web Spending Trend</h2><p className="mt-0.5 text-sm text-[#6B7280]">Brand web spending over time</p></div>
-            <div className="text-right"><p className="text-xs font-medium uppercase tracking-wider text-[#9CA3AF]">Total</p><p className="text-xl font-bold text-[#111827]">{formatCurrency(state.data.spending.total, state.data.summary.currency)}</p></div>
-          </div>
-          <div className="p-5"><MultiLineChart currency={state.data.summary.currency} data={state.data.spending.timeSeries} brands={state.data.spending.totalsByBrand} /></div>
-        </article>
+        <StackedSpendingChartCard
+          title="Web Spending Trend"
+          subtitle="Brand web spending over time"
+          buckets={state.data.spending.timeSeries.map((bucket) => ({
+            key: bucket.key,
+            label: bucket.label,
+            total: bucket.total,
+            segments: bucket.brands.map((brand) => ({
+              id: brand.brandId,
+              label: brand.brandName,
+              value: brand.value,
+              color: brand.color,
+            })),
+          }))}
+          breakdown={state.data.spending.totalsByBrand.map((brand) => ({
+            id: brand.brandId,
+            label: brand.brandName,
+            amount: brand.totalSpend,
+            share: brand.percentage,
+            color: brand.color,
+            note: `${brand.percentage.toFixed(1)}% of filtered spend`,
+            secondaryLabel:
+              brand.previousChangePercent == null
+                ? "New"
+                : `${brand.previousChangePercent > 0 ? "+" : ""}${brand.previousChangePercent.toFixed(1)}%`,
+          }))}
+          totalLabel="Current total"
+          totalValue={formatCurrency(state.data.spending.total, state.data.summary.currency)}
+          summaryPills={[
+            `${state.data.spending.totalsByBrand.length} brands`,
+            state.data.summary.rangeLabel,
+          ]}
+          comparisonValue={
+            state.data.kpis.totalSpending.changePercent == null
+              ? "New"
+              : `${state.data.kpis.totalSpending.changePercent > 0 ? "+" : ""}${state.data.kpis.totalSpending.changePercent.toFixed(1)}%`
+          }
+          comparisonLabel="Compared with the equivalent previous period."
+          emptyLabel="No spend data matched the current filters."
+          formatter={(value) => formatCurrency(value, state.data.summary.currency)}
+          compactFormatter={(value) => formatCompactUsdFromCurrency(value, state.data.summary.currency)}
+          loading={state.loading}
+        />
         <SovCard data={state.data.shareOfVoice} currency={state.data.summary.currency} />
       </section>
 

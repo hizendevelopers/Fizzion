@@ -11,7 +11,7 @@ import type {
   TvSortDirection,
   TvSortField,
 } from "@/lib/tv-analytics";
-import { ShareOfVoiceCard } from "@/components/states/insight-charts";
+import { ShareOfVoiceCard, StackedSpendingChartCard } from "@/components/states/insight-charts";
 import { cn } from "@/lib/utils";
 import { formatCompactUsdFromCurrency, formatUsdFromCurrency } from "@/lib/display-currency";
 import {
@@ -99,44 +99,6 @@ function defaultRangeForPreset(preset: FilterState["preset"]) {
     startDate: start.toISOString().slice(0, 10),
     endDate: end.toISOString().slice(0, 10),
   };
-}
-
-function buildRoundedSegmentPath({
-  x,
-  y,
-  width,
-  height,
-  roundTop,
-  roundBottom,
-  radius = 6,
-}: {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  roundTop: boolean;
-  roundBottom: boolean;
-  radius?: number;
-}) {
-  if (height <= 0 || width <= 0) return "";
-  const r = Math.min(radius, width / 2, height / 2);
-  const topLeft = roundTop ? r : 0;
-  const topRight = roundTop ? r : 0;
-  const bottomRight = roundBottom ? r : 0;
-  const bottomLeft = roundBottom ? r : 0;
-
-  return [
-    `M ${x + bottomLeft} ${y + height}`,
-    `L ${x + width - bottomRight} ${y + height}`,
-    bottomRight ? `Q ${x + width} ${y + height} ${x + width} ${y + height - bottomRight}` : `L ${x + width} ${y + height}`,
-    `L ${x + width} ${y + topRight}`,
-    topRight ? `Q ${x + width} ${y} ${x + width - topRight} ${y}` : `L ${x + width} ${y}`,
-    `L ${x + topLeft} ${y}`,
-    topLeft ? `Q ${x} ${y} ${x} ${y + topLeft}` : `L ${x} ${y}`,
-    `L ${x} ${y + height - bottomLeft}`,
-    bottomLeft ? `Q ${x} ${y + height} ${x + bottomLeft} ${y + height}` : `L ${x} ${y + height}`,
-    "Z",
-  ].join(" ");
 }
 
 function EmptyPanel({
@@ -547,233 +509,46 @@ function SpendingChart({
   breakdown: TvOverviewResponse["brandSpendBreakdown"];
   loading: boolean;
 }) {
-  const [focusedBrandId, setFocusedBrandId] = useState<string | null>(null);
-  const [tooltip, setTooltip] = useState<{
-    x: number;
-    y: number;
-    brand: string;
-    bucket: string;
-    spend: number;
-    share: number;
-    periodTotal: number;
-  } | null>(null);
-
-  const primaryBrands = useMemo(() => breakdown.slice(0, 6), [breakdown]);
-  const visibleBrandIds = useMemo(() => new Set(primaryBrands.map((brand) => brand.brandId)), [primaryBrands]);
-  const chartBuckets = useMemo(
-    () =>
-      data.buckets.map((bucket) => {
-        const primarySegments = bucket.brands.filter((brand) => visibleBrandIds.has(brand.brandId));
-        const otherSegments = bucket.brands.filter((brand) => !visibleBrandIds.has(brand.brandId));
-        const othersSpend = otherSegments.reduce((sum, brand) => sum + brand.spend, 0);
-        const othersShare = otherSegments.reduce((sum, brand) => sum + brand.shareOfBucket, 0);
-
-        return {
-          ...bucket,
-          brands:
-            othersSpend > 0
-              ? [
-                  ...primarySegments,
-                  {
-                    brandId: "others",
-                    brandName: "Others",
-                    color: "#CBD5E1",
-                    spend: othersSpend,
-                    shareOfBucket: othersShare,
-                  },
-                ]
-              : primarySegments,
-        };
-      }),
-    [data.buckets, visibleBrandIds],
-  );
-
-  const width = 860;
-  const height = 286;
-  const chartHeight = 184;
-  const chartWidth = 764;
-  const marginLeft = 68;
-  const marginTop = 14;
-  const columnWidth = chartBuckets.length > 0 ? chartWidth / chartBuckets.length : 0;
-  const maxBucketSpend = Math.max(...chartBuckets.map((bucket) => bucket.totalSpend), 1);
-  const xLabelStep = chartBuckets.length <= 10 ? 1 : chartBuckets.length <= 18 ? 2 : chartBuckets.length <= 30 ? 3 : 4;
   const chartRangeLabel =
-    chartBuckets.length > 1
-      ? `${chartBuckets[0]?.label ?? ""} to ${chartBuckets[chartBuckets.length - 1]?.label ?? ""}`
-      : chartBuckets[0]?.label ?? "Selected range";
-
-  if (loading && data.buckets.length === 0) {
-    return <LoadingBars />;
-  }
-
-  if (data.buckets.length === 0) {
-    return (
-      <EmptyPanel
-        body="No TV spend found for the selected filters."
-        title="No trend data"
-      />
-    );
-  }
+    data.buckets.length > 1
+      ? `${data.buckets[0]?.label ?? ""} to ${data.buckets[data.buckets.length - 1]?.label ?? ""}`
+      : data.buckets[0]?.label ?? "Selected range";
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_auto]">
-        <div className="rounded-[1.35rem] border border-[#EEF2F6] bg-[linear-gradient(135deg,#FFF7F5_0%,#FFFFFF_58%,#F8FAFC_100%)] px-4 py-3.5">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#98A2B3]">Summary</p>
-          <p className="mt-1.5 text-xl font-semibold tracking-tight text-[#101828]">{formatUsd(data.totalSpend)}</p>
-          <div className="mt-2.5 flex flex-wrap gap-2 text-xs text-[#475467]">
-            <span className="rounded-full bg-white px-3 py-1.5">{data.representedBrandCount} brands</span>
-            <span className="rounded-full bg-white px-3 py-1.5">{data.granularity}</span>
-            <span className="rounded-full bg-white px-3 py-1.5">{chartRangeLabel}</span>
-          </div>
-        </div>
-        <div className="rounded-[1.35rem] border border-[#EEF2F6] bg-white px-4 py-3.5 text-right">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#98A2B3]">Previous period</p>
-          <p
-            className={cn(
-              "mt-1.5 text-xl font-semibold tracking-tight",
-              data.changePercent == null ? "text-[#101828]" : data.changePercent >= 0 ? "text-[#027A48]" : "text-[#B42318]",
-            )}
-          >
-            {data.changePercent == null ? "New" : `${data.changePercent > 0 ? "+" : ""}${data.changePercent.toFixed(1)}%`}
-          </p>
-          <p className="mt-1 text-xs text-[#667085]">Compared with the equivalent previous period.</p>
-        </div>
-      </div>
-
-      <div className="rounded-[1.5rem] border border-[#EEF2F6] bg-[#FDFDFE] p-3.5">
-        <div className="mb-3 flex flex-wrap gap-2">
-          {[
-            ...primaryBrands,
-            ...(breakdown.length > primaryBrands.length ? [{ brandId: "others", brandName: "Others", color: "#CBD5E1" }] : []),
-          ].map((brand) => (
-            <button
-              key={brand.brandId}
-              className={cn(
-                "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition",
-                focusedBrandId === brand.brandId
-                  ? "border-[#F04438] bg-[#FFF5F4] text-[#B42318]"
-                  : "border-[#D0D5DD] bg-white text-[#344054]",
-              )}
-              onClick={() => setFocusedBrandId((current) => (current === brand.brandId ? null : brand.brandId))}
-              type="button"
-            >
-              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: brand.color }} />
-              {brand.brandName}
-            </button>
-          ))}
-        </div>
-
-        <div className="relative overflow-x-auto">
-          <svg className="min-w-[760px] w-full" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="TV spending stacked chart">
-          {Array.from({ length: 4 }).map((_, index) => {
-            const y = marginTop + chartHeight - (chartHeight / 3) * index;
-            const tickValue = (maxBucketSpend / 3) * index;
-            return (
-              <g key={index}>
-                <line x1={marginLeft} x2={marginLeft + chartWidth} y1={y} y2={y} stroke="#EEF2F6" strokeWidth={1} />
-                <text fill="#98A2B3" fontSize={11} textAnchor="end" x={marginLeft - 10} y={y + 4}>
-                  {formatCompactUsd(tickValue)}
-                </text>
-              </g>
-            );
-          })}
-
-          {chartBuckets.map((bucket, index) => {
-            let runningHeight = 0;
-            return (
-              <g key={bucket.key}>
-                {bucket.brands.map((brand) => {
-                  const segmentHeight = bucket.totalSpend > 0 ? (brand.spend / maxBucketSpend) * chartHeight : 0;
-                  const y = marginTop + chartHeight - runningHeight - segmentHeight;
-                  const x = marginLeft + index * columnWidth + 7;
-                  runningHeight += segmentHeight;
-                  const dimmed = focusedBrandId && focusedBrandId !== brand.brandId;
-                  const segmentIndex = bucket.brands.findIndex((item) => item.brandId === brand.brandId);
-                  return (
-                    <path
-                      key={`${bucket.key}-${brand.brandId}`}
-                      d={buildRoundedSegmentPath({
-                        x,
-                        y,
-                        width: Math.max(columnWidth - 14, 12),
-                        height: Math.max(segmentHeight, 0),
-                        roundTop: segmentIndex === bucket.brands.length - 1,
-                        roundBottom: segmentIndex === 0,
-                      })}
-                      fill={brand.color}
-                      onClick={() =>
-                        setFocusedBrandId((current) => (current === brand.brandId ? null : brand.brandId))
-                      }
-                      onMouseEnter={(event) => {
-                        const svgRect = event.currentTarget.ownerSVGElement?.getBoundingClientRect();
-                        if (!svgRect) return;
-                        setTooltip({
-                          x: event.clientX - svgRect.left,
-                          y: event.clientY - svgRect.top,
-                          brand: brand.brandName,
-                          bucket: bucket.label,
-                          spend: brand.spend,
-                          share: brand.shareOfBucket,
-                          periodTotal: bucket.totalSpend,
-                        });
-                      }}
-                      onMouseLeave={() => setTooltip(null)}
-                      opacity={dimmed ? 0.2 : 0.95}
-                    />
-                  );
-                })}
-                {index % xLabelStep === 0 || index === chartBuckets.length - 1 ? (
-                  <text
-                    fill="#98A2B3"
-                    fontSize={10}
-                    textAnchor="middle"
-                    x={marginLeft + index * columnWidth + columnWidth / 2}
-                    y={marginTop + chartHeight + 18}
-                  >
-                    {bucket.label}
-                  </text>
-                ) : null}
-              </g>
-            );
-          })}
-          </svg>
-
-          {tooltip ? (
-            <div
-              className="pointer-events-none absolute rounded-2xl border border-[#E4E7EC] bg-white px-3 py-2 text-xs shadow-[0_20px_40px_rgba(15,23,42,0.12)]"
-              style={{ left: tooltip.x + 18, top: Math.max(tooltip.y - 20, 8) }}
-            >
-              <p className="font-semibold text-[#101828]">{tooltip.brand}</p>
-              <p className="mt-1 text-[#475467]">Date: {tooltip.bucket}</p>
-              <p className="mt-1 text-[#101828]">Spend: {formatUsd(tooltip.spend)}</p>
-              <p className="text-[#667085]">Period share: {tooltip.share.toFixed(1)}%</p>
-              <p className="text-[#667085]">Period total: {formatUsd(tooltip.periodTotal)}</p>
-            </div>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="grid gap-3 xl:grid-cols-2">
-        {breakdown.slice(0, 8).map((brand) => (
-          <div key={brand.brandId} className="flex items-center justify-between rounded-[1.25rem] border border-[#EEF2F6] bg-[linear-gradient(180deg,#FFFFFF_0%,#FCFCFD_100%)] px-4 py-3">
-            <div className="flex min-w-0 items-center gap-3">
-              <OptionAvatar color={brand.color} label={brand.brandName} logoUrl={brand.logoUrl} />
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-[#101828]">{brand.brandName}</p>
-                <p className="text-xs text-[#667085]">{formatPercent(brand.shareOfTotal)} of filtered spend</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="text-sm font-semibold text-[#101828]">{formatUsd(brand.spend)}</p>
-              <p className={cn("text-xs", brand.changePercent == null ? "text-[#101828]" : brand.changePercent >= 0 ? "text-[#027A48]" : "text-[#B42318]")}>
-                {formatRelativeComparison(brand.changePercent)}
-              </p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
+    <StackedSpendingChartCard
+      title="TV Spending"
+      subtitle="Brand-wise TV spending over time for the selected filters."
+      buckets={data.buckets.map((bucket) => ({
+        key: bucket.key,
+        label: bucket.label,
+        total: bucket.totalSpend,
+        segments: bucket.brands.map((brand) => ({
+          id: brand.brandId,
+          label: brand.brandName,
+          value: brand.spend,
+          color: brand.color,
+          share: brand.shareOfBucket,
+        })),
+      }))}
+      breakdown={breakdown.map((brand) => ({
+        id: brand.brandId,
+        label: brand.brandName,
+        amount: brand.spend,
+        share: brand.shareOfTotal,
+        color: brand.color,
+        note: `${formatPercent(brand.shareOfTotal)} of filtered spend`,
+        secondaryLabel: formatRelativeComparison(brand.changePercent),
+      }))}
+      totalLabel="Current total"
+      totalValue={formatUsd(data.totalSpend)}
+      summaryPills={[`${data.representedBrandCount} brands`, data.granularity, chartRangeLabel]}
+      comparisonValue={data.changePercent == null ? "New" : `${data.changePercent > 0 ? "+" : ""}${data.changePercent.toFixed(1)}%`}
+      comparisonLabel="Compared with the equivalent previous period."
+      emptyLabel="No TV spend found for the selected filters."
+      formatter={formatUsd}
+      compactFormatter={formatCompactUsd}
+      loading={loading}
+    />
   );
 }
 
@@ -955,7 +730,6 @@ function SearchSortToolbar({
 function ActiveCampaignsPanel({ items, loading }: { items: TvOverviewResponse["activeCampaigns"]; loading: boolean }) {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("spend");
-  const [pageSize, setPageSize] = useState(6);
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
     const next = items.filter((item) =>
@@ -971,8 +745,6 @@ function ActiveCampaignsPanel({ items, loading }: { items: TvOverviewResponse["a
     });
     return next;
   }, [items, search, sort]);
-
-  const visible = filtered.slice(0, pageSize);
 
   if (loading && items.length === 0) return <LoadingBars />;
   if (items.length === 0) {
@@ -993,8 +765,8 @@ function ActiveCampaignsPanel({ items, loading }: { items: TvOverviewResponse["a
         ]}
         sortValue={sort}
       />
-      <div className="mt-4 space-y-3">
-        {visible.map((item) => (
+      <div className="mt-4 max-h-[430px] space-y-3 overflow-y-auto pr-1">
+        {filtered.map((item) => (
           <div key={item.id} className="rounded-[1.25rem] border border-[#EEF2F6] bg-[#FCFCFD] p-4">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
@@ -1022,22 +794,12 @@ function ActiveCampaignsPanel({ items, loading }: { items: TvOverviewResponse["a
           </div>
         ))}
       </div>
-      {pageSize < filtered.length ? (
-        <button
-          className="mt-4 inline-flex h-11 items-center justify-center rounded-2xl border border-[#D0D5DD] bg-white px-5 text-sm font-semibold text-[#344054]"
-          onClick={() => setPageSize((current) => current + 6)}
-          type="button"
-        >
-          View more
-        </button>
-      ) : null}
     </div>
   );
 }
 
 function ActiveBrandsPanel({ items, expectedCount, loading }: { items: TvOverviewResponse["activeBrands"]; expectedCount: number; loading: boolean }) {
   const [search, setSearch] = useState("");
-  const [pageSize, setPageSize] = useState(6);
   const filtered = useMemo(
     () => items.filter((item) => item.brandName.toLowerCase().includes(search.trim().toLowerCase())),
     [items, search],
@@ -1057,8 +819,8 @@ function ActiveBrandsPanel({ items, expectedCount, loading }: { items: TvOvervie
         sortOptions={[{ value: "spend", label: "Sorted by spend" }]}
         sortValue="spend"
       />
-      <div className="mt-4 space-y-3">
-        {filtered.slice(0, pageSize).map((item) => (
+      <div className="mt-4 max-h-[430px] space-y-3 overflow-y-auto pr-1">
+        {filtered.map((item) => (
           <div key={item.brandId} className="flex items-center justify-between rounded-[1.25rem] border border-[#EEF2F6] bg-[#FCFCFD] px-4 py-3">
             <div className="flex min-w-0 items-center gap-3">
               <OptionAvatar color={item.brandColor} label={item.brandName} logoUrl={item.logoUrl} />
@@ -1080,15 +842,6 @@ function ActiveBrandsPanel({ items, expectedCount, loading }: { items: TvOvervie
         <p className="text-xs text-[#667085]">
           {filtered.length} of {expectedCount} brands shown
         </p>
-        {pageSize < filtered.length ? (
-          <button
-            className="inline-flex h-11 items-center justify-center rounded-2xl border border-[#D0D5DD] bg-white px-5 text-sm font-semibold text-[#344054]"
-            onClick={() => setPageSize((current) => current + 6)}
-            type="button"
-          >
-            View more
-          </button>
-        ) : null}
       </div>
     </div>
   );

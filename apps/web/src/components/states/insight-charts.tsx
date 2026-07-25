@@ -1,3 +1,7 @@
+"use client";
+
+import { useMemo, useState } from "react";
+
 type TrendDatum = {
   label: string;
   value: number;
@@ -16,6 +20,31 @@ type ShareOfVoiceDatum = {
   note?: string;
   color?: string;
   valueLabel?: string;
+};
+
+type StackedSpendingSegmentDatum = {
+  id: string;
+  label: string;
+  value: number;
+  color?: string;
+  share?: number;
+};
+
+type StackedSpendingBucketDatum = {
+  key: string;
+  label: string;
+  total: number;
+  segments: StackedSpendingSegmentDatum[];
+};
+
+type StackedSpendingBreakdownDatum = {
+  id: string;
+  label: string;
+  amount: number;
+  share: number;
+  color?: string;
+  note?: string;
+  secondaryLabel?: string | null;
 };
 
 const BRAND_COLOR_MAP: Array<{ match: RegExp; color: string }> = [
@@ -57,6 +86,49 @@ function colorForShareLabel(label: string, index: number, explicitColor?: string
   }
 
   return FALLBACK_SOV_COLORS[index % FALLBACK_SOV_COLORS.length];
+}
+
+function buildRoundedStackSegmentPath({
+  x,
+  y,
+  width,
+  height,
+  roundTop,
+  roundBottom,
+  radius = 8,
+}: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  roundTop: boolean;
+  roundBottom: boolean;
+  radius?: number;
+}) {
+  const safeHeight = Math.max(height, 0);
+  if (safeHeight <= 0) return "";
+  const limitedRadius = Math.min(radius, width / 2, safeHeight / 2);
+  const topLeft = roundTop ? limitedRadius : 0;
+  const topRight = roundTop ? limitedRadius : 0;
+  const bottomRight = roundBottom ? limitedRadius : 0;
+  const bottomLeft = roundBottom ? limitedRadius : 0;
+
+  return [
+    `M ${x + topLeft} ${y}`,
+    `H ${x + width - topRight}`,
+    topRight ? `Q ${x + width} ${y} ${x + width} ${y + topRight}` : `L ${x + width} ${y}`,
+    `V ${y + safeHeight - bottomRight}`,
+    bottomRight
+      ? `Q ${x + width} ${y + safeHeight} ${x + width - bottomRight} ${y + safeHeight}`
+      : `L ${x + width} ${y + safeHeight}`,
+    `H ${x + bottomLeft}`,
+    bottomLeft
+      ? `Q ${x} ${y + safeHeight} ${x} ${y + safeHeight - bottomLeft}`
+      : `L ${x} ${y + safeHeight}`,
+    `V ${y + topLeft}`,
+    topLeft ? `Q ${x} ${y} ${x + topLeft} ${y}` : `L ${x} ${y}`,
+    "Z",
+  ].join(" ");
 }
 
 function BottleIllustration({
@@ -271,6 +343,319 @@ export function AreaTrendCard({
             {emptyLabel}
           </div>
         )}
+      </div>
+    </article>
+  );
+}
+
+export function StackedSpendingChartCard({
+  title,
+  subtitle,
+  buckets,
+  breakdown,
+  totalLabel = "Current total",
+  totalValue,
+  summaryPills = [],
+  comparisonValue,
+  comparisonLabel = "Compared with the equivalent previous period.",
+  emptyLabel = "No spend data matched the current filters.",
+  formatter = (value) => value.toLocaleString(),
+  compactFormatter = (value) => value.toLocaleString(),
+  loading = false,
+}: {
+  title: string;
+  subtitle?: string;
+  buckets: StackedSpendingBucketDatum[];
+  breakdown: StackedSpendingBreakdownDatum[];
+  totalLabel?: string;
+  totalValue: string;
+  summaryPills?: string[];
+  comparisonValue?: string | null;
+  comparisonLabel?: string;
+  emptyLabel?: string;
+  formatter?: (value: number) => string;
+  compactFormatter?: (value: number) => string;
+  loading?: boolean;
+}) {
+  const [focusedSegmentId, setFocusedSegmentId] = useState<string | null>(null);
+  const [tooltip, setTooltip] = useState<{
+    x: number;
+    y: number;
+    bucketLabel: string;
+    segmentLabel: string;
+    value: number;
+    share: number;
+    total: number;
+  } | null>(null);
+
+  const primaryBreakdown = useMemo(() => breakdown.slice(0, 6), [breakdown]);
+  const visibleIds = useMemo(() => new Set(primaryBreakdown.map((item) => item.id)), [primaryBreakdown]);
+  const chartBuckets = useMemo(
+    () =>
+      buckets.map((bucket) => {
+        const primarySegments = bucket.segments.filter((segment) => visibleIds.has(segment.id));
+        const otherSegments = bucket.segments.filter((segment) => !visibleIds.has(segment.id));
+        const otherValue = otherSegments.reduce((sum, segment) => sum + segment.value, 0);
+        const otherShare = otherSegments.reduce(
+          (sum, segment) => sum + (segment.share ?? (bucket.total > 0 ? (segment.value / bucket.total) * 100 : 0)),
+          0,
+        );
+
+        return {
+          ...bucket,
+          segments:
+            otherValue > 0
+              ? [
+                  ...primarySegments,
+                  {
+                    id: "others",
+                    label: "Others",
+                    value: otherValue,
+                    color: "#CBD5E1",
+                    share: otherShare,
+                  },
+                ]
+              : primarySegments,
+        };
+      }),
+    [buckets, visibleIds],
+  );
+
+  const legendItems = useMemo(
+    () => [
+      ...primaryBreakdown.map((item) => ({
+        id: item.id,
+        label: item.label,
+        color: colorForShareLabel(item.label, 0, item.color),
+      })),
+      ...(breakdown.length > primaryBreakdown.length ? [{ id: "others", label: "Others", color: "#CBD5E1" }] : []),
+    ],
+    [breakdown.length, primaryBreakdown],
+  );
+
+  if (loading && buckets.length === 0) {
+    return (
+      <article className="overflow-hidden rounded-[1.8rem] border border-border bg-white shadow-[var(--shadow-soft)]">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <div className="space-y-2">
+            <div className="h-5 w-36 animate-pulse rounded bg-panel-soft" />
+            <div className="h-3 w-56 animate-pulse rounded bg-panel-soft" />
+          </div>
+          <div className="h-16 w-32 animate-pulse rounded-[1.2rem] bg-panel-soft" />
+        </div>
+        <div className="space-y-4 p-5">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_auto]">
+            <div className="h-24 animate-pulse rounded-[1.35rem] bg-panel-soft" />
+            <div className="h-24 animate-pulse rounded-[1.35rem] bg-panel-soft" />
+          </div>
+          <div className="h-[320px] animate-pulse rounded-[1.5rem] bg-panel-soft" />
+        </div>
+      </article>
+    );
+  }
+
+  if (buckets.length === 0) {
+    return (
+      <article className="overflow-hidden rounded-[1.8rem] border border-border bg-white shadow-[var(--shadow-soft)]">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <div>
+            <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+            <p className="mt-1 text-sm text-muted-foreground">{subtitle ?? "Brand spend over time."}</p>
+          </div>
+          <div className="rounded-[1.2rem] border border-border bg-panel-soft px-4 py-3 text-right">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{totalLabel}</p>
+            <p className="mt-2 text-xl font-semibold text-foreground">{totalValue}</p>
+          </div>
+        </div>
+        <div className="p-5">
+          <div className="flex min-h-[260px] items-center justify-center rounded-[1.5rem] border border-dashed border-border bg-panel-soft px-4 py-8 text-center text-sm text-muted-foreground">
+            {emptyLabel}
+          </div>
+        </div>
+      </article>
+    );
+  }
+
+  const width = Math.max(860, chartBuckets.length * 32 + 140);
+  const height = 286;
+  const chartHeight = 184;
+  const chartWidth = width - 96;
+  const marginLeft = 68;
+  const marginTop = 14;
+  const columnWidth = chartBuckets.length > 0 ? chartWidth / chartBuckets.length : 0;
+  const maxBucketValue = Math.max(...chartBuckets.map((bucket) => bucket.total), 1);
+  const xLabelStep =
+    chartBuckets.length <= 10 ? 1 : chartBuckets.length <= 18 ? 2 : chartBuckets.length <= 30 ? 3 : 4;
+  const comparisonTone =
+    comparisonValue == null
+      ? "text-foreground"
+      : comparisonValue.startsWith("+")
+        ? "text-success"
+        : comparisonValue.startsWith("-")
+          ? "text-danger"
+          : "text-foreground";
+
+  return (
+    <article className="overflow-hidden rounded-[1.8rem] border border-border bg-white shadow-[var(--shadow-soft)]">
+      <div className="flex items-center justify-between border-b border-border px-5 py-4">
+        <div>
+          <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+          <p className="mt-1 text-sm text-muted-foreground">{subtitle ?? "Brand spend over time."}</p>
+        </div>
+        <div className="rounded-[1.2rem] border border-border bg-panel-soft px-4 py-3 text-right">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{totalLabel}</p>
+          <p className="mt-2 text-xl font-semibold text-foreground">{totalValue}</p>
+        </div>
+      </div>
+
+      <div className="space-y-4 p-5">
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_auto]">
+          <div className="rounded-[1.35rem] border border-border bg-[linear-gradient(135deg,#FFF7F5_0%,#FFFFFF_58%,#F8FAFC_100%)] px-4 py-3.5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Summary</p>
+            <p className="mt-1.5 text-xl font-semibold tracking-tight text-foreground">{totalValue}</p>
+            <div className="mt-2.5 flex flex-wrap gap-2 text-xs text-secondary-foreground">
+              {summaryPills.map((pill) => (
+                <span key={pill} className="rounded-full bg-white px-3 py-1.5">
+                  {pill}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-[1.35rem] border border-border bg-white px-4 py-3.5 text-right">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Previous period</p>
+            <p className={`mt-1.5 text-xl font-semibold tracking-tight ${comparisonTone}`}>{comparisonValue ?? "New"}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{comparisonLabel}</p>
+          </div>
+        </div>
+
+        <div className="rounded-[1.5rem] border border-border bg-[#FDFDFE] p-3.5">
+          <div className="mb-3 flex flex-wrap gap-2">
+            {legendItems.map((brand) => (
+              <button
+                key={brand.id}
+                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                  focusedSegmentId === brand.id
+                    ? "border-[#F04438] bg-[#FFF5F4] text-[#B42318]"
+                    : "border-[#D0D5DD] bg-white text-[#344054]"
+                }`}
+                onClick={() => setFocusedSegmentId((current) => (current === brand.id ? null : brand.id))}
+                type="button"
+              >
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: brand.color }} />
+                {brand.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="relative overflow-x-auto">
+            <svg className="w-full min-w-[760px]" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${title} stacked spending chart`}>
+              {Array.from({ length: 4 }).map((_, index) => {
+                const y = marginTop + chartHeight - (chartHeight / 3) * index;
+                const tickValue = (maxBucketValue / 3) * index;
+                return (
+                  <g key={index}>
+                    <line x1={marginLeft} x2={marginLeft + chartWidth} y1={y} y2={y} stroke="#EEF2F6" strokeWidth={1} />
+                    <text fill="#98A2B3" fontSize={11} textAnchor="end" x={marginLeft - 10} y={y + 4}>
+                      {compactFormatter(tickValue)}
+                    </text>
+                  </g>
+                );
+              })}
+
+              {chartBuckets.map((bucket, index) => {
+                let runningHeight = 0;
+                return (
+                  <g key={bucket.key}>
+                    {bucket.segments.map((segment, segmentIndex) => {
+                      const segmentHeight = bucket.total > 0 ? (segment.value / maxBucketValue) * chartHeight : 0;
+                      const y = marginTop + chartHeight - runningHeight - segmentHeight;
+                      const x = marginLeft + index * columnWidth + 7;
+                      runningHeight += segmentHeight;
+                      const resolvedColor = colorForShareLabel(segment.label, segmentIndex, segment.color);
+                      const dimmed = focusedSegmentId && focusedSegmentId !== segment.id;
+                      const share = segment.share ?? (bucket.total > 0 ? (segment.value / bucket.total) * 100 : 0);
+                      return (
+                        <path
+                          key={`${bucket.key}-${segment.id}`}
+                          d={buildRoundedStackSegmentPath({
+                            x,
+                            y,
+                            width: Math.max(columnWidth - 14, 12),
+                            height: Math.max(segmentHeight, 0),
+                            roundTop: segmentIndex === bucket.segments.length - 1,
+                            roundBottom: segmentIndex === 0,
+                          })}
+                          fill={resolvedColor}
+                          opacity={dimmed ? 0.2 : 0.96}
+                          onClick={() => setFocusedSegmentId((current) => (current === segment.id ? null : segment.id))}
+                          onMouseEnter={(event) => {
+                            const svgRect = event.currentTarget.ownerSVGElement?.getBoundingClientRect();
+                            if (!svgRect) return;
+                            setTooltip({
+                              x: event.clientX - svgRect.left,
+                              y: event.clientY - svgRect.top,
+                              bucketLabel: bucket.label,
+                              segmentLabel: segment.label,
+                              value: segment.value,
+                              share,
+                              total: bucket.total,
+                            });
+                          }}
+                          onMouseLeave={() => setTooltip(null)}
+                        />
+                      );
+                    })}
+                    {index % xLabelStep === 0 || index === chartBuckets.length - 1 ? (
+                      <text
+                        fill="#98A2B3"
+                        fontSize={10}
+                        textAnchor="middle"
+                        x={marginLeft + index * columnWidth + columnWidth / 2}
+                        y={marginTop + chartHeight + 18}
+                      >
+                        {bucket.label}
+                      </text>
+                    ) : null}
+                  </g>
+                );
+              })}
+            </svg>
+
+            {tooltip ? (
+              <div
+                className="pointer-events-none absolute rounded-2xl border border-[#E4E7EC] bg-white px-3 py-2 text-xs shadow-[0_20px_40px_rgba(15,23,42,0.12)]"
+                style={{ left: tooltip.x + 18, top: Math.max(tooltip.y - 20, 8) }}
+              >
+                <p className="font-semibold text-foreground">{tooltip.segmentLabel}</p>
+                <p className="mt-1 text-secondary-foreground">Date: {tooltip.bucketLabel}</p>
+                <p className="mt-1 text-foreground">Spend: {formatter(tooltip.value)}</p>
+                <p className="text-muted-foreground">Period share: {tooltip.share.toFixed(1)}%</p>
+                <p className="text-muted-foreground">Period total: {formatter(tooltip.total)}</p>
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="grid gap-3 xl:grid-cols-2">
+          {breakdown.slice(0, 8).map((item, index) => {
+            const resolvedColor = colorForShareLabel(item.label, index, item.color);
+            return (
+              <div key={item.id} className="flex items-center justify-between rounded-[1.25rem] border border-border bg-[linear-gradient(180deg,#FFFFFF_0%,#FCFCFD_100%)] px-4 py-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="h-10 w-10 rounded-full border border-border" style={{ backgroundColor: `${resolvedColor}20`, color: resolvedColor }} />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-foreground">{item.label}</p>
+                    <p className="text-xs text-muted-foreground">{item.note ?? `${item.share.toFixed(1)}% of filtered spend`}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-semibold text-foreground">{formatter(item.amount)}</p>
+                  {item.secondaryLabel ? <p className="text-xs text-muted-foreground">{item.secondaryLabel}</p> : null}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </article>
   );
