@@ -133,6 +133,21 @@ export type WebAdvertisingScanQueueResult = {
   queuedAt: string;
 };
 
+export type WebAdvertisingScanStatus = {
+  id: string;
+  websiteId: string;
+  websiteName: string | null;
+  websiteDomain: string | null;
+  status: string;
+  queuedAt: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  pagesCrawled: number;
+  adsDetected: number;
+  failureReason: string | null;
+  retryCount: number;
+};
+
 export function isWebAdvertisingRunActiveStatus(status: string | null | undefined) {
   if (!status) {
     return false;
@@ -499,4 +514,95 @@ export async function queueWebAdvertisingScan(websiteId: string): Promise<WebAdv
     deduplicated: false,
     queuedAt: rowString(insertedRun as GenericRow, "started_at", now),
   };
+}
+
+export async function getWebAdvertisingScanStatus(runId: string): Promise<WebAdvertisingScanStatus | null> {
+  const supabase = getOptionalSupabaseAdminClient();
+  if (!supabase) {
+    throw new Error("Supabase admin client is not available.");
+  }
+
+  const { data: run, error } = await supabase
+    .from("website_crawl_runs")
+    .select("id, website_id, status, started_at, completed_at, pages_crawled, ads_detected")
+    .eq("id", runId)
+    .limit(1)
+    .maybeSingle();
+
+  if (error && isMissingTableError(error)) {
+    throw new Error("Web advertising scan tables are not available in the current database.");
+  }
+
+  if (!run) {
+    return null;
+  }
+
+  const websiteId = rowString(run as GenericRow, "website_id");
+  const [{ data: website }, { data: latestError }] = await Promise.all([
+    supabase
+      .from("websites")
+      .select("id, name, domain")
+      .eq("id", websiteId)
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("website_crawl_errors")
+      .select("message, created_at")
+      .eq("crawl_run_id", runId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  const retryCount = await supabase
+    .from("website_crawl_runs")
+    .select("id", { count: "exact", head: true })
+    .eq("website_id", websiteId)
+    .lt("started_at", rowString(run as GenericRow, "started_at", new Date().toISOString()));
+
+  return {
+    id: rowString(run as GenericRow, "id"),
+    websiteId,
+    websiteName: rowNullableString((website ?? {}) as GenericRow, "name"),
+    websiteDomain: rowNullableString((website ?? {}) as GenericRow, "domain"),
+    status: rowString(run as GenericRow, "status", "queued"),
+    queuedAt: rowNullableString(run as GenericRow, "started_at"),
+    startedAt: rowNullableString(run as GenericRow, "started_at"),
+    completedAt: rowNullableString(run as GenericRow, "completed_at"),
+    pagesCrawled: rowNumber(run as GenericRow, "pages_crawled", 0),
+    adsDetected: rowNumber(run as GenericRow, "ads_detected", 0),
+    failureReason: rowNullableString((latestError ?? {}) as GenericRow, "message"),
+    retryCount: retryCount.count ?? 0,
+  };
+}
+
+export async function retryWebAdvertisingScan(runId: string): Promise<WebAdvertisingScanQueueResult | null> {
+  const supabase = getOptionalSupabaseAdminClient();
+  if (!supabase) {
+    throw new Error("Supabase admin client is not available.");
+  }
+
+  const { data: run } = await supabase
+    .from("website_crawl_runs")
+    .select("id, website_id, status")
+    .eq("id", runId)
+    .limit(1)
+    .maybeSingle();
+
+  if (!run) {
+    return null;
+  }
+
+  const status = rowString(run as GenericRow, "status", "queued").toLowerCase();
+  if (isWebAdvertisingRunActiveStatus(status)) {
+    return {
+      runId: rowString(run as GenericRow, "id"),
+      processingJobId: null,
+      status,
+      deduplicated: true,
+      queuedAt: new Date().toISOString(),
+    };
+  }
+
+  return queueWebAdvertisingScan(rowString(run as GenericRow, "website_id"));
 }

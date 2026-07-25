@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 
 import type { TvOverviewResponse, TvFilters, TvDetectedAd } from "@/lib/tv-analytics";
+import type { ConnectedYouTubeTvChannel } from "@/lib/youtube-tv-data";
 import { cn } from "@/lib/utils";
+import { YouTubeTvMonitor } from "@/components/tv/youtube-tv-monitor";
 import {
   BrandIcon,
   CalendarIcon,
@@ -22,6 +24,7 @@ import {
 
 type TvDashboardProps = {
   initialData: TvOverviewResponse;
+  youtubeChannels: ConnectedYouTubeTvChannel[];
 };
 
 type AsyncState = {
@@ -506,11 +509,13 @@ function ActiveBrandsCard({ brands, currency, expectedCount, loading }: { brands
 
 /* ──────────────────── Main Dashboard ───────────────────── */
 
-export function TvDashboard({ initialData }: TvDashboardProps) {
+export function TvDashboard({ initialData, youtubeChannels }: TvDashboardProps) {
   const router = useRouter();
   const pathname = usePathname();
   const latestRequest = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
+  const latestDetectedAdsRequest = useRef(0);
+  const detectedAdsAbortRef = useRef<AbortController | null>(null);
   const [pendingFilters, setPendingFilters] = useState<TvFilters>(initialData.filters);
   const [state, setState] = useState<AsyncState>({ data: initialData, loading: false, error: null });
   const [videoModal, setVideoModal] = useState<{ url: string; title: string } | null>(null);
@@ -518,6 +523,7 @@ export function TvDashboard({ initialData }: TvDashboardProps) {
   const [detectedAds, setDetectedAds] = useState<{ items: TvDetectedAd[]; total: number; hasMore: boolean }>({ items: [], total: 0, hasMore: false });
   const [detectedAdsLoading, setDetectedAdsLoading] = useState(false);
   const [adSearch, setAdSearch] = useState("");
+  const deferredAdSearch = useDeferredValue(adSearch);
   const [adSort, setAdSort] = useState("detected_at");
 
   useEffect(() => {
@@ -528,6 +534,10 @@ export function TvDashboard({ initialData }: TvDashboardProps) {
   const hasDirtyFilters = JSON.stringify(pendingFilters) !== JSON.stringify(state.data.filters);
 
   const loadDetectedAds = useCallback(async (page: number, filters: TvFilters) => {
+    const requestId = ++latestDetectedAdsRequest.current;
+    detectedAdsAbortRef.current?.abort();
+    const controller = new AbortController();
+    detectedAdsAbortRef.current = controller;
     setDetectedAdsLoading(true);
     const query = new URLSearchParams();
     query.set("startDate", filters.startDate);
@@ -535,25 +545,30 @@ export function TvDashboard({ initialData }: TvDashboardProps) {
     query.set("page", String(page));
     query.set("pageSize", "10");
     query.set("sortBy", adSort);
+    query.set("sortDirection", "desc");
     if (filters.brandIds.length) query.set("brands", filters.brandIds.join(","));
+    if (filters.campaignIds.length) query.set("campaigns", filters.campaignIds.join(","));
     if (filters.channelIds.length) query.set("channels", filters.channelIds.join(","));
     if (filters.genres.length) query.set("genres", filters.genres.join(","));
     if (filters.dayparts.length) query.set("dayparts", filters.dayparts.join(","));
     if (filters.languages.length) query.set("languages", filters.languages.join(","));
+    const search = deferredAdSearch.trim();
+    if (search) query.set("search", search);
 
     try {
-      const res = await fetch(`/api/tv/detected-ads?${query.toString()}`);
+      const res = await fetch(`/api/tv/detected-ads?${query.toString()}`, { signal: controller.signal });
       const payload = await res.json();
+      if (latestDetectedAdsRequest.current !== requestId) return;
       if (payload.data) {
         setDetectedAds(payload.data);
         setDetectedAdsPage(page);
       }
-    } catch {
-      // ignore
+    } catch (error) {
+      if ((error as Error).name === "AbortError") return;
     } finally {
-      setDetectedAdsLoading(false);
+      if (latestDetectedAdsRequest.current === requestId) setDetectedAdsLoading(false);
     }
-  }, [adSort]);
+  }, [adSort, deferredAdSearch]);
 
   useEffect(() => {
     if (state.data.filters) {
@@ -647,7 +662,7 @@ export function TvDashboard({ initialData }: TvDashboardProps) {
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/50">TV</p>
-            <h1 className="mt-2 text-2xl font-bold tracking-tight text-white lg:text-3xl">TV Intelligence</h1>
+            <h1 className="mt-2 text-2xl font-bold tracking-tight text-white lg:text-3xl">TV</h1>
             <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-[#AEB5C2]">
               Real-time TV advertising monitoring across Iraqi channels.
             </p>
@@ -662,13 +677,15 @@ export function TvDashboard({ initialData }: TvDashboardProps) {
 
       {/* ─── Filter Bar ─── */}
       <section className="rounded-2xl border border-white/[0.07] bg-[#12151C] p-4 shadow-[0_8px_24px_rgba(0,0,0,0.24)]">
-        <div className="grid gap-2.5 xl:grid-cols-[1.2fr_1fr_1fr_1fr_1fr_auto]">
+        <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
           <DateRangeFilter preset={pendingFilters.preset} startDate={pendingFilters.startDate} endDate={pendingFilters.endDate} onPresetChange={updatePreset} onStartDateChange={(v) => updateDate("startDate", v)} onEndDateChange={(v) => updateDate("endDate", v)} />
           <MultiSelectFilter icon={<BrandIcon className="h-4 w-4" />} label="Brands" options={state.data.filterOptions.brands.map((b) => ({ id: b.id, label: b.name, color: b.color }))} selectedIds={pendingFilters.brandIds} onChange={(ids) => setPendingFilters((prev) => ({ ...prev, brandIds: ids, page: 1 }))} />
           <MultiSelectFilter icon={<CampaignIcon className="h-4 w-4" />} label="Campaigns" options={state.data.filterOptions.campaigns.map((c) => ({ id: c.id, label: c.name, description: c.brandName }))} selectedIds={pendingFilters.campaignIds} onChange={(ids) => setPendingFilters((prev) => ({ ...prev, campaignIds: ids, page: 1 }))} />
           <MultiSelectFilter icon={<TvIcon className="h-4 w-4" />} label="Channels" options={state.data.filterOptions.channels.map((c) => ({ id: c.id, label: c.name }))} selectedIds={pendingFilters.channelIds} onChange={(ids) => setPendingFilters((prev) => ({ ...prev, channelIds: ids, page: 1 }))} />
           <MultiSelectFilter icon={<GlobeIcon className="h-4 w-4" />} label="Genre" options={state.data.filterOptions.genres.map((g) => ({ id: g, label: g }))} selectedIds={pendingFilters.genres} onChange={(ids) => setPendingFilters((prev) => ({ ...prev, genres: ids, page: 1 }))} />
-          <div className="flex items-end gap-2">
+          <MultiSelectFilter icon={<CalendarIcon className="h-4 w-4" />} label="Daypart" options={state.data.filterOptions.dayparts.map((item) => ({ id: item, label: item }))} selectedIds={pendingFilters.dayparts} onChange={(ids) => setPendingFilters((prev) => ({ ...prev, dayparts: ids, page: 1 }))} />
+          <MultiSelectFilter icon={<GlobeIcon className="h-4 w-4" />} label="Language" options={state.data.filterOptions.languages.map((item) => ({ id: item, label: item }))} selectedIds={pendingFilters.languages} onChange={(ids) => setPendingFilters((prev) => ({ ...prev, languages: ids, page: 1 }))} />
+          <div className="flex items-end gap-2 md:col-span-2 xl:col-span-2 2xl:col-span-1">
             <button className="inline-flex h-11 items-center justify-center rounded-xl bg-[#F40009] px-5 text-sm font-semibold text-white transition hover:bg-[#d60008] disabled:cursor-not-allowed disabled:opacity-50" disabled={state.loading || !hasDirtyFilters} onClick={applyFilters} type="button">{state.loading ? "Applying…" : "Apply"}</button>
             <button className="inline-flex h-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] px-4 text-sm font-semibold text-white/70 transition hover:bg-white/10" disabled={state.loading} onClick={resetFilters} type="button">Reset</button>
           </div>
@@ -805,13 +822,7 @@ export function TvDashboard({ initialData }: TvDashboardProps) {
       </section>
 
       {/* ─── YouTube Live at the very end ─── */}
-      <section className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-[0_4px_16px_rgba(0,0,0,0.04)]">
-        <h2 className="text-lg font-semibold text-[#111827]">YouTube Live</h2>
-        <p className="mt-0.5 text-sm text-[#6B7280]">Live YouTube streams for connected TV channels</p>
-        <div className="mt-4 aspect-video w-full max-w-2xl overflow-hidden rounded-xl bg-black">
-          <iframe className="h-full w-full" src="https://www.youtube.com/embed/live_stream?channel=UCkRfArvrzheW2E7b6SVT7vQ" title="YouTube Live" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
-        </div>
-      </section>
+      <YouTubeTvMonitor initialChannels={youtubeChannels} />
     </div>
   );
 }

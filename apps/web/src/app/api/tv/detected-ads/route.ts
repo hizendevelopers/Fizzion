@@ -10,7 +10,10 @@ export async function GET(request: Request) {
 
   try {
     const filters = parseTvFiltersFromSearchParams(searchParams);
-    const payload = await getTvDetectedAds(filters);
+    const payload = await getTvDetectedAds({
+      ...filters,
+      search: searchParams.get("search") ?? undefined,
+    });
 
     return NextResponse.json({
       ok: true,

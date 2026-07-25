@@ -10,7 +10,10 @@ export async function GET(request: Request) {
 
   try {
     const filters = parseWebFiltersFromSearchParams(searchParams);
-    const payload = await getWebDetections(filters);
+    const payload = await getWebDetections({
+      ...filters,
+      search: searchParams.get("search") ?? undefined,
+    });
 
     return NextResponse.json({
       ok: true,

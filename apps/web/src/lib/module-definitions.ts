@@ -25,7 +25,7 @@ export const moduleDefinitions: Record<string, ModuleDefinition> = {
     ],
   },
   tv: {
-    title: "TV Intelligence",
+    title: "TV",
     description:
       "Monitor Iraqi linear television with verified recordings, ad occurrence detection, five-second context clips, review queues, and channel-health monitoring.",
     status: "TV ingestion foundation",
@@ -59,7 +59,7 @@ export const moduleDefinitions: Record<string, ModuleDefinition> = {
     ],
   },
   websites: {
-    title: "Web Advertising",
+    title: "Web",
     description:
       "Run Iraq-local website crawls, detect display units and native ads, preserve screenshot context, and deduplicate creatives while keeping every occurrence.",
     status: "Crawler orchestration shell",

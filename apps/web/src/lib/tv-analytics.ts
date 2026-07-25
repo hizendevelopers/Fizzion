@@ -480,6 +480,33 @@ export async function getTvOverview(rawFilters?: Partial<TvFilters>): Promise<Tv
   const brandsById = new Map(brands.map((b) => [b.id, { ...b, color: getBrandColor(b) }]));
   const channelsById = new Map(channels.map((c) => [c.id, c]));
 
+  const { data: detectionRows } = await client
+    .from("tv_ad_detections")
+    .select("channel_id,campaign_id,brand_id,genre,language,daypart,cost")
+    .eq("organization_id", orgId)
+    .gte("detected_at", filters.startDate)
+    .lte("detected_at", filters.endDate);
+
+  const filteredDetections = ((detectionRows ?? []) as any[]).filter((row: any) => {
+    if (filters.brandIds.length > 0 && row.brand_id && !filters.brandIds.includes(String(row.brand_id))) return false;
+    if (filters.campaignIds.length > 0 && row.campaign_id && !filters.campaignIds.includes(String(row.campaign_id))) return false;
+    if (filters.channelIds.length > 0 && row.channel_id && !filters.channelIds.includes(String(row.channel_id))) return false;
+    if (filters.genres.length > 0 && row.genre && !filters.genres.includes(String(row.genre))) return false;
+    if (filters.dayparts.length > 0 && row.daypart && !filters.dayparts.includes(String(row.daypart))) return false;
+    if (filters.languages.length > 0 && row.language && !filters.languages.includes(String(row.language))) return false;
+    return true;
+  });
+  const hasDetectionScopedFilters =
+    filters.channelIds.length > 0 ||
+    filters.genres.length > 0 ||
+    filters.dayparts.length > 0 ||
+    filters.languages.length > 0;
+  const detectionScopedCampaignIds = new Set(
+    filteredDetections
+      .map((row: any) => (row.campaign_id ? String(row.campaign_id) : null))
+      .filter(Boolean) as string[],
+  );
+
   // Filter campaigns
   const matchingCampaigns = campaigns.filter((c) => {
     if (filters.brandIds.length > 0 && c.brandId && !filters.brandIds.includes(c.brandId)) return false;
@@ -493,6 +520,7 @@ export async function getTvOverview(rawFilters?: Partial<TvFilters>): Promise<Tv
     const cEnd = c.endDate ? endOfDay(new Date(`${c.endDate}T00:00:00`)) : null;
     if (cStart && cStart.getTime() > filters.end.getTime()) return false;
     if (cEnd && cEnd.getTime() < filters.start.getTime()) return false;
+    if (hasDetectionScopedFilters && !detectionScopedCampaignIds.has(c.id)) return false;
     return true;
   });
 
@@ -509,6 +537,7 @@ export async function getTvOverview(rawFilters?: Partial<TvFilters>): Promise<Tv
   const filteredSpend = allSpend.filter((r) => {
     if (filters.brandIds.length > 0 && !filters.brandIds.includes(r.brandId)) return false;
     if (filters.campaignIds.length > 0 && !filters.campaignIds.includes(r.campaignId)) return false;
+    if (hasDetectionScopedFilters && !detectionScopedCampaignIds.has(r.campaignId)) return false;
     return true;
   });
 
@@ -595,15 +624,7 @@ export async function getTvOverview(rawFilters?: Partial<TvFilters>): Promise<Tv
 
   // Channel split
   const spendByChannel = new Map<string, { spend: number; detections: number; campaigns: Set<string> }>();
-  // Use tv_ad_detections for channel-level data
-  const { data: detections } = await client
-    .from("tv_ad_detections")
-    .select("channel_id,campaign_id,cost,currency")
-    .eq("organization_id", orgId)
-    .gte("detected_at", filters.startDate)
-    .lte("detected_at", filters.endDate);
-
-  for (const row of (detections ?? []) as any[]) {
+  for (const row of filteredDetections) {
     const chId = String(row.channel_id);
     const existing = spendByChannel.get(chId) ?? { spend: 0, detections: 0, campaigns: new Set<string>() };
     existing.spend += Number(row.cost ?? 0);
@@ -648,7 +669,7 @@ export async function getTvOverview(rawFilters?: Partial<TvFilters>): Promise<Tv
       endDate: c.endDate,
       channels: linkedChannels,
       totalSpend: spendByCampaign.get(c.id) ?? 0,
-      detectionCount: (detections ?? []).filter((d: any) => String(d.campaign_id) === c.id).length,
+      detectionCount: filteredDetections.filter((d: any) => String(d.campaign_id) === c.id).length,
     };
   });
 
@@ -662,7 +683,7 @@ export async function getTvOverview(rawFilters?: Partial<TvFilters>): Promise<Tv
       if (!b) return null;
       const brandCampaigns = activeCampaigns.filter((c) => c.brandId === bid);
       const brandChannels = new Set(brandCampaigns.flatMap((c) => [...(channelCampaignMap.get(c.id) ?? new Set<string>())]));
-      const brandDetections = (detections ?? []).filter((d: any) => String(d.brand_id) === bid);
+      const brandDetections = filteredDetections.filter((d: any) => String(d.brand_id) === bid);
       return {
         brandId: bid,
         brandName: b.name,
@@ -774,11 +795,14 @@ export async function getTvOverview(rawFilters?: Partial<TvFilters>): Promise<Tv
 
 // ────────────────── Detected Ads ──────────────────
 
-export async function getTvDetectedAds(rawFilters?: Partial<TvFilters>) {
+export async function getTvDetectedAds(rawFilters?: Partial<TvFilters> & { search?: string }) {
   const client = getOptionalSupabaseAdminClient();
   if (!client) throw new Error("Supabase admin client is not configured.");
 
   const filters = normalizeTvFilters(rawFilters);
+  const searchTerm = typeof (rawFilters as { search?: unknown } | undefined)?.search === "string"
+    ? (rawFilters as { search?: string }).search?.trim().toLowerCase() ?? ""
+    : "";
   const orgId = await resolveOrganizationId();
 
   // Build count query by applying filters
@@ -796,9 +820,6 @@ export async function getTvDetectedAds(rawFilters?: Partial<TvFilters>) {
   if (filters.dayparts.length > 0) countQuery = countQuery.in("daypart", filters.dayparts);
   if (filters.languages.length > 0) countQuery = countQuery.in("language", filters.languages);
 
-  // Fetch total count
-  const { count: totalCount } = await countQuery;
-
   // Fetch paginated data - re-apply the same filters since the query builder is terminal
   let dataFilter = client
     .from("tv_ad_detections")
@@ -814,9 +835,11 @@ export async function getTvDetectedAds(rawFilters?: Partial<TvFilters>) {
   if (filters.dayparts.length > 0) dataFilter = dataFilter.in("daypart", filters.dayparts);
   if (filters.languages.length > 0) dataFilter = dataFilter.in("language", filters.languages);
 
-  const { data: rows } = await dataFilter
-    .order(filters.sortBy, { ascending: filters.sortDirection === "asc" })
-    .range((filters.page - 1) * filters.pageSize, filters.page * filters.pageSize - 1);
+  const orderedQuery = dataFilter.order(filters.sortBy, { ascending: filters.sortDirection === "asc" });
+  const { count: totalCount } = searchTerm ? { count: 0 } : await countQuery;
+  const { data: rows } = searchTerm
+    ? await orderedQuery
+    : await orderedQuery.range((filters.page - 1) * filters.pageSize, filters.page * filters.pageSize - 1);
 
   // Resolve brand/channel names
   const brandIds = [...new Set((rows ?? []).map((r: any) => r.brand_id).filter(Boolean))];
@@ -833,7 +856,7 @@ export async function getTvDetectedAds(rawFilters?: Partial<TvFilters>) {
   const channelMap = new Map((channelsRes.data ?? []).map((r: any) => [String(r.id), r]));
   const campaignMap = new Map((campaignsRes.data ?? []).map((r: any) => [String(r.id), r]));
 
-  const ads: TvDetectedAd[] = ((rows ?? []) as any[]).map((r: any) => {
+  let ads: TvDetectedAd[] = ((rows ?? []) as any[]).map((r: any) => {
     const dt = new Date(r.detected_at);
     const ch = channelMap.get(String(r.channel_id));
     const br = r.brand_id ? brandMap.get(String(r.brand_id)) : null;
@@ -864,12 +887,34 @@ export async function getTvDetectedAds(rawFilters?: Partial<TvFilters>) {
     };
   });
 
+  if (searchTerm) {
+    ads = ads.filter((item) =>
+      [
+        item.channelName,
+        item.genre,
+        item.brandName,
+        item.daypart,
+        item.language,
+        item.copyName,
+        item.campaignName,
+        item.reviewStatus,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(searchTerm)),
+    );
+  }
+
+  const total = searchTerm ? ads.length : (totalCount ?? 0);
+  const paginatedItems = searchTerm
+    ? ads.slice((filters.page - 1) * filters.pageSize, filters.page * filters.pageSize)
+    : ads;
+
   return {
-    items: ads,
-    total: totalCount ?? 0,
+    items: paginatedItems,
+    total,
     page: filters.page,
     pageSize: filters.pageSize,
-    hasMore: ((filters.page) * filters.pageSize) < (totalCount ?? 0),
+    hasMore: ((filters.page) * filters.pageSize) < total,
   };
 }
 

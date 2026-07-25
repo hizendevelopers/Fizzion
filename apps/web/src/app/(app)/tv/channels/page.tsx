@@ -173,7 +173,7 @@ export default async function TvChannelsPage() {
       resolutionLabel: "1916×1060 source",
       ingestionLabel: "Manual clip ingestion",
       analysisSummary:
-        "Imported from a user-supplied Tapal Danedar TV spot. The TV Intelligence dashboard now serves this clip directly inside the detected-ad workflow with verified duration, poster frame, and commercial metadata for reporting.",
+        "Imported from a user-supplied Tapal Danedar TV spot. The TV dashboard now serves this clip directly inside the detected-ad workflow with verified duration, poster frame, and commercial metadata for reporting.",
     },
   ];
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 
@@ -141,12 +141,15 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
   const pathname = usePathname();
   const latestRequest = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
+  const latestDetectionsRequest = useRef(0);
+  const detectionsAbortRef = useRef<AbortController | null>(null);
   const [pendingFilters, setPendingFilters] = useState<WebFilters>(initialData.filters);
   const [state, setState] = useState<AsyncState>({ data: initialData, loading: false, error: null });
   const [detectionsPage, setDetectionsPage] = useState(1);
   const [detections, setDetections] = useState<{ items: WebDetection[]; total: number; hasMore: boolean }>({ items: [], total: 0, hasMore: false });
   const [detectionsLoading, setDetectionsLoading] = useState(false);
   const [detSearch, setDetSearch] = useState("");
+  const deferredDetSearch = useDeferredValue(detSearch);
   const [detSort, setDetSort] = useState("detected_at");
   const [screenshotModal, setScreenshotModal] = useState<{ url: string; title: string } | null>(null);
 
@@ -158,6 +161,10 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
   const hasDirtyFilters = JSON.stringify(pendingFilters) !== JSON.stringify(state.data.filters);
 
   const loadDetections = useCallback(async (page: number, filters: WebFilters) => {
+    const requestId = ++latestDetectionsRequest.current;
+    detectionsAbortRef.current?.abort();
+    const controller = new AbortController();
+    detectionsAbortRef.current = controller;
     setDetectionsLoading(true);
     const query = new URLSearchParams();
     query.set("startDate", filters.startDate);
@@ -165,15 +172,27 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
     query.set("page", String(page));
     query.set("pageSize", "12");
     query.set("sortBy", detSort);
+    query.set("sortDirection", "desc");
     if (filters.brandIds.length) query.set("brands", filters.brandIds.join(","));
+    if (filters.campaignIds.length) query.set("campaigns", filters.campaignIds.join(","));
     if (filters.websiteIds.length) query.set("websites", filters.websiteIds.join(","));
+    if (filters.languages.length) query.set("languages", filters.languages.join(","));
     if (filters.adFormats.length) query.set("adFormats", filters.adFormats.join(","));
+    if (filters.pageTypes.length) query.set("pageTypes", filters.pageTypes.join(","));
+    if (filters.statuses.length) query.set("statuses", filters.statuses.join(","));
+    const search = deferredDetSearch.trim();
+    if (search) query.set("search", search);
     try {
-      const res = await fetch(`/api/web/detections?${query.toString()}`);
+      const res = await fetch(`/api/web/detections?${query.toString()}`, { signal: controller.signal });
       const payload = await res.json();
+      if (latestDetectionsRequest.current !== requestId) return;
       if (payload.data) { setDetections(payload.data); setDetectionsPage(page); }
-    } catch { /* ignore */ } finally { setDetectionsLoading(false); }
-  }, [detSort]);
+    } catch (error) {
+      if ((error as Error).name === "AbortError") return;
+    } finally {
+      if (latestDetectionsRequest.current === requestId) setDetectionsLoading(false);
+    }
+  }, [deferredDetSearch, detSort]);
 
   useEffect(() => {
     if (state.data.filters) loadDetections(1, state.data.filters);
@@ -252,7 +271,7 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/50">Web</p>
-            <h1 className="mt-2 text-2xl font-bold tracking-tight text-white lg:text-3xl">Web Intelligence</h1>
+            <h1 className="mt-2 text-2xl font-bold tracking-tight text-white lg:text-3xl">Web</h1>
             <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-[#AEB5C2]">Real-time Web advertising monitoring across Iraqi news websites.</p>
           </div>
           <div className="shrink-0 rounded-xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm leading-relaxed text-[#AEB5C2]">
@@ -265,12 +284,16 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
 
       {/* Filter Bar */}
       <section className="rounded-2xl border border-white/[0.07] bg-[#12151C] p-4 shadow-[0_8px_24px_rgba(0,0,0,0.24)]">
-        <div className="grid gap-2.5 xl:grid-cols-[1.2fr_1fr_1fr_1fr_auto]">
+        <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
           <DateRangeFilter preset={pendingFilters.preset} startDate={pendingFilters.startDate} endDate={pendingFilters.endDate} onPresetChange={updatePreset} onStartDateChange={(v) => updateDate("startDate", v)} onEndDateChange={(v) => updateDate("endDate", v)} />
           <MultiSelectFilter icon={<BrandIcon className="h-4 w-4" />} label="Brands" options={state.data.filterOptions.brands.map((b) => ({ id: b.id, label: b.name, color: b.color }))} selectedIds={pendingFilters.brandIds} onChange={(ids) => setPendingFilters((prev) => ({ ...prev, brandIds: ids, page: 1 }))} />
           <MultiSelectFilter icon={<CampaignIcon className="h-4 w-4" />} label="Campaigns" options={state.data.filterOptions.campaigns.map((c) => ({ id: c.id, label: c.name, description: c.brandName }))} selectedIds={pendingFilters.campaignIds} onChange={(ids) => setPendingFilters((prev) => ({ ...prev, campaignIds: ids, page: 1 }))} />
           <MultiSelectFilter icon={<GlobeIcon className="h-4 w-4" />} label="Websites" options={state.data.filterOptions.websites.map((w) => ({ id: w.id, label: w.name, description: w.domain }))} selectedIds={pendingFilters.websiteIds} onChange={(ids) => setPendingFilters((prev) => ({ ...prev, websiteIds: ids, page: 1 }))} />
-          <div className="flex items-end gap-2">
+          <MultiSelectFilter icon={<GlobeIcon className="h-4 w-4" />} label="Language" options={state.data.filterOptions.languages.map((item) => ({ id: item, label: item }))} selectedIds={pendingFilters.languages} onChange={(ids) => setPendingFilters((prev) => ({ ...prev, languages: ids, page: 1 }))} />
+          <MultiSelectFilter icon={<WebIcon className="h-4 w-4" />} label="Ad Format" options={state.data.filterOptions.adFormats.map((item) => ({ id: item, label: item }))} selectedIds={pendingFilters.adFormats} onChange={(ids) => setPendingFilters((prev) => ({ ...prev, adFormats: ids, page: 1 }))} />
+          <MultiSelectFilter icon={<WebIcon className="h-4 w-4" />} label="Page Type" options={state.data.filterOptions.pageTypes.map((item) => ({ id: item, label: item }))} selectedIds={pendingFilters.pageTypes} onChange={(ids) => setPendingFilters((prev) => ({ ...prev, pageTypes: ids, page: 1 }))} />
+          <MultiSelectFilter icon={<ReportIcon className="h-4 w-4" />} label="Status" options={state.data.filterOptions.statuses.map((item) => ({ id: item, label: item }))} selectedIds={pendingFilters.statuses} onChange={(ids) => setPendingFilters((prev) => ({ ...prev, statuses: ids, page: 1 }))} />
+          <div className="flex items-end gap-2 md:col-span-2 xl:col-span-2 2xl:col-span-1">
             <button className="inline-flex h-11 items-center justify-center rounded-xl bg-[#F40009] px-5 text-sm font-semibold text-white transition hover:bg-[#d60008] disabled:cursor-not-allowed disabled:opacity-50" disabled={state.loading || !hasDirtyFilters} onClick={applyFilters} type="button">{state.loading ? "Applying…" : "Apply"}</button>
             <button className="inline-flex h-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] px-4 text-sm font-semibold text-white/70 transition hover:bg-white/10" disabled={state.loading} onClick={resetFilters} type="button">Reset</button>
           </div>

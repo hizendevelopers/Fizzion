@@ -406,18 +406,61 @@ export async function getWebOverview(rawFilters?: Partial<WebFilters>): Promise<
 
   const brandsById = new Map(brands.map((b) => [b.id, { ...b, color: getBrandColor(b) }]));
   const websitesById = new Map(websites.map((w) => [w.id, w]));
+  const hasWebsiteScopedFilters =
+    filters.websiteIds.length > 0 ||
+    filters.languages.length > 0 ||
+    filters.pageTypes.length > 0;
+  const matchingWebsiteIds = new Set(
+    websites
+      .filter((website) => {
+        if (filters.websiteIds.length > 0 && !filters.websiteIds.includes(website.id)) return false;
+        if (filters.languages.length > 0 && !filters.languages.includes(website.language)) return false;
+        if (filters.pageTypes.length > 0 && !filters.pageTypes.includes(website.category)) return false;
+        return true;
+      })
+      .map((website) => website.id),
+  );
+
+  const { data: webDetectionRows } = await client
+    .from("web_ad_detections")
+    .select("website_id,campaign_id,brand_id,ad_format,review_status,spend_amount")
+    .eq("organization_id", orgId)
+    .gte("detected_at", filters.startDate)
+    .lte("detected_at", filters.endDate);
+
+  const filteredDetections = ((webDetectionRows ?? []) as any[]).filter((row: any) => {
+    const websiteId = String(row.website_id);
+    if (hasWebsiteScopedFilters && !matchingWebsiteIds.has(websiteId)) return false;
+    if (filters.brandIds.length > 0 && row.brand_id && !filters.brandIds.includes(String(row.brand_id))) return false;
+    if (filters.campaignIds.length > 0 && row.campaign_id && !filters.campaignIds.includes(String(row.campaign_id))) return false;
+    if (filters.adFormats.length > 0 && row.ad_format && !filters.adFormats.includes(String(row.ad_format))) return false;
+    if (filters.statuses.length > 0 && row.review_status && !filters.statuses.includes(String(row.review_status))) return false;
+    return true;
+  });
+  const hasDetectionScopedFilters =
+    filters.languages.length > 0 ||
+    filters.pageTypes.length > 0 ||
+    filters.adFormats.length > 0 ||
+    filters.statuses.length > 0 ||
+    filters.websiteIds.length > 0;
+  const detectionScopedCampaignIds = new Set(
+    filteredDetections
+      .map((row: any) => (row.campaign_id ? String(row.campaign_id) : null))
+      .filter(Boolean) as string[],
+  );
 
   const matchingCampaigns = campaigns.filter((c) => {
     if (filters.brandIds.length > 0 && c.brandId && !filters.brandIds.includes(c.brandId)) return false;
     if (filters.campaignIds.length > 0 && !filters.campaignIds.includes(c.id)) return false;
-    if (filters.websiteIds.length > 0) {
+    if (hasWebsiteScopedFilters) {
       const linked = websiteCampaignMap.get(c.id) ?? new Set<string>();
-      if (!filters.websiteIds.some((w) => linked.has(w))) return false;
+      if (![...matchingWebsiteIds].some((w) => linked.has(w))) return false;
     }
     const cStart = c.startDate ? new Date(`${c.startDate}T00:00:00`) : null;
     const cEnd = c.endDate ? endOfDay(new Date(`${c.endDate}T00:00:00`)) : null;
     if (cStart && cStart.getTime() > filters.end.getTime()) return false;
     if (cEnd && cEnd.getTime() < filters.start.getTime()) return false;
+    if (hasDetectionScopedFilters && !detectionScopedCampaignIds.has(c.id)) return false;
     return true;
   });
 
@@ -429,6 +472,7 @@ export async function getWebOverview(rawFilters?: Partial<WebFilters>): Promise<
   const filteredSpend = allSpend.filter((r) => {
     if (filters.brandIds.length > 0 && !filters.brandIds.includes(r.brandId)) return false;
     if (filters.campaignIds.length > 0 && !filters.campaignIds.includes(r.campaignId)) return false;
+    if (hasDetectionScopedFilters && !detectionScopedCampaignIds.has(r.campaignId)) return false;
     return true;
   });
 
@@ -488,15 +532,8 @@ export async function getWebOverview(rawFilters?: Partial<WebFilters>): Promise<
   }));
 
   // Website split
-  const { data: webDetections } = await client
-    .from("web_ad_detections")
-    .select("website_id,campaign_id,spend_amount,currency")
-    .eq("organization_id", orgId)
-    .gte("detected_at", filters.startDate)
-    .lte("detected_at", filters.endDate);
-
   const spendByWebsite = new Map<string, { spend: number; detections: number; campaigns: Set<string> }>();
-  for (const row of (webDetections ?? []) as any[]) {
+  for (const row of filteredDetections) {
     const wId = String(row.website_id);
     const existing = spendByWebsite.get(wId) ?? { spend: 0, detections: 0, campaigns: new Set<string>() };
     existing.spend += Number(row.spend_amount ?? 0);
@@ -525,7 +562,7 @@ export async function getWebOverview(rawFilters?: Partial<WebFilters>): Promise<
       brandColor: b?.color ?? "#64748B", brandLogo: b?.logoUrl ?? null, status: c.status,
       startDate: c.startDate, endDate: c.endDate, websites: linkedWebsites,
       totalSpend: spendByCampaign.get(c.id) ?? 0,
-      screenshotCount: 0, detectionCount: (webDetections ?? []).filter((d: any) => String(d.campaign_id) === c.id).length,
+      screenshotCount: 0, detectionCount: filteredDetections.filter((d: any) => String(d.campaign_id) === c.id).length,
     };
   });
   const sortedCampaigns = [...campaignItems].sort((a, b) => b.totalSpend - a.totalSpend);
@@ -538,7 +575,7 @@ export async function getWebOverview(rawFilters?: Partial<WebFilters>): Promise<
       if (!b) return null;
       const bc = activeCampaigns.filter((c) => c.brandId === bid);
       const bw = new Set(bc.flatMap((c) => [...(websiteCampaignMap.get(c.id) ?? new Set<string>())]));
-      const bd = (webDetections ?? []).filter((d: any) => String(d.brand_id) === bid);
+      const bd = filteredDetections.filter((d: any) => String(d.brand_id) === bid);
       return { brandId: bid, brandName: b.name, brandColor: b.color, logoUrl: b.logoUrl, activeCampaignCount: bc.length, totalSpend: spendByBrand.get(bid) ?? 0, websiteCount: bw.size, detectionCount: bd.length, status: "Active" as const };
     })
     .filter(Boolean)
@@ -547,16 +584,22 @@ export async function getWebOverview(rawFilters?: Partial<WebFilters>): Promise<
   // Scan stats
   const { data: scanRuns } = await client
     .from("web_screenshots")
-    .select("status")
+    .select("status,website_id,captured_at")
     .eq("organization_id", orgId)
     .gte("captured_at", filters.startDate)
     .lte("captured_at", filters.endDate);
 
   const scanStats = { completed: 0, failed: 0, total: 0, lastScanAt: null as string | null };
   if (scanRuns) {
-    scanStats.total = scanRuns.length;
-    scanStats.completed = scanRuns.filter((r: any) => r.status === "completed").length;
-    scanStats.failed = scanRuns.filter((r: any) => r.status === "failed").length;
+    const filteredScans = (scanRuns as any[]).filter((scan) => !hasWebsiteScopedFilters || matchingWebsiteIds.has(String(scan.website_id)));
+    scanStats.total = filteredScans.length;
+    scanStats.completed = filteredScans.filter((r: any) => r.status === "completed").length;
+    scanStats.failed = filteredScans.filter((r: any) => r.status === "failed").length;
+    scanStats.lastScanAt = filteredScans
+      .map((r: any) => (typeof r.captured_at === "string" ? r.captured_at : null))
+      .filter(Boolean)
+      .sort()
+      .at(-1) ?? null;
   }
 
   return {
@@ -567,9 +610,9 @@ export async function getWebOverview(rawFilters?: Partial<WebFilters>): Promise<
       campaigns: matchingCampaigns.map((c) => { const b = c.brandId ? brandsById.get(c.brandId) : null; return { id: c.id, name: c.name, brandId: c.brandId, brandName: b?.name ?? "Unassigned", status: c.status }; }),
       websites: websites.map((w) => ({ id: w.id, name: w.name, domain: w.domain, logoUrl: w.logoUrl, language: w.language, category: w.category })),
       languages: [...new Set(websites.map((w) => w.language))].sort(),
-      adFormats: ["Display Banner", "Native Ad", "Video Ad", "Interstitial", "Sidebar Ad", "Header Banner", "Sponsored Content", "In-Article Ad"],
-      pageTypes: ["Homepage", "Article", "Category", "Sports", "Business", "Politics", "Entertainment"],
-      statuses: ["confirmed", "needs-review", "pending"],
+      adFormats: [...new Set(filteredDetections.map((row: any) => String(row.ad_format ?? "")).filter(Boolean))],
+      pageTypes: [...new Set(websites.map((w) => w.category).filter(Boolean))].sort(),
+      statuses: [...new Set(filteredDetections.map((row: any) => String(row.review_status ?? "")).filter(Boolean))],
       presets: [{ id: "last7", label: "Last 7 Days" }, { id: "last30", label: "Last 30 Days" }, { id: "last90", label: "Last 90 Days" }, { id: "thisMonth", label: "This Month" }, { id: "previousMonth", label: "Previous Month" }, { id: "custom", label: "Custom Range" }],
     },
     kpis: {
@@ -588,11 +631,34 @@ export async function getWebOverview(rawFilters?: Partial<WebFilters>): Promise<
 
 // ────────────────── Detections ──────────────────
 
-export async function getWebDetections(rawFilters?: Partial<WebFilters>) {
+export async function getWebDetections(rawFilters?: Partial<WebFilters> & { search?: string }) {
   const client = getOptionalSupabaseAdminClient();
   if (!client) throw new Error("Supabase admin client is not configured.");
   const filters = normalizeWebFilters(rawFilters);
+  const searchTerm = typeof (rawFilters as { search?: unknown } | undefined)?.search === "string"
+    ? (rawFilters as { search?: string }).search?.trim().toLowerCase() ?? ""
+    : "";
   const orgId = await resolveOrganizationId();
+  const { data: websites } = await client
+    .from("websites")
+    .select("id,primary_language,category")
+    .eq("organization_id", orgId)
+    .eq("is_active", true);
+
+  const hasWebsiteScopedFilters =
+    filters.websiteIds.length > 0 ||
+    filters.languages.length > 0 ||
+    filters.pageTypes.length > 0;
+  const matchingWebsiteIds = new Set(
+    ((websites ?? []) as any[])
+      .filter((website: any) => {
+        if (filters.websiteIds.length > 0 && !filters.websiteIds.includes(String(website.id))) return false;
+        if (filters.languages.length > 0 && !filters.languages.includes(String(website.primary_language ?? "Arabic"))) return false;
+        if (filters.pageTypes.length > 0 && !filters.pageTypes.includes(String(website.category ?? "News"))) return false;
+        return true;
+      })
+      .map((website: any) => String(website.id)),
+  );
 
     // Build count query
   let countQuery = client
@@ -604,11 +670,9 @@ export async function getWebDetections(rawFilters?: Partial<WebFilters>) {
 
   if (filters.brandIds.length > 0) countQuery = countQuery.in("brand_id", filters.brandIds);
   if (filters.campaignIds.length > 0) countQuery = countQuery.in("campaign_id", filters.campaignIds);
-  if (filters.websiteIds.length > 0) countQuery = countQuery.in("website_id", filters.websiteIds);
+  if (hasWebsiteScopedFilters) countQuery = countQuery.in("website_id", [...matchingWebsiteIds]);
   if (filters.adFormats.length > 0) countQuery = countQuery.in("ad_format", filters.adFormats);
   if (filters.statuses.length > 0) countQuery = countQuery.in("review_status", filters.statuses);
-
-  const { count: totalCount } = await countQuery;
 
   // Build data query
   let dataQuery = client
@@ -620,13 +684,15 @@ export async function getWebDetections(rawFilters?: Partial<WebFilters>) {
 
   if (filters.brandIds.length > 0) dataQuery = dataQuery.in("brand_id", filters.brandIds);
   if (filters.campaignIds.length > 0) dataQuery = dataQuery.in("campaign_id", filters.campaignIds);
-  if (filters.websiteIds.length > 0) dataQuery = dataQuery.in("website_id", filters.websiteIds);
+  if (hasWebsiteScopedFilters) dataQuery = dataQuery.in("website_id", [...matchingWebsiteIds]);
   if (filters.adFormats.length > 0) dataQuery = dataQuery.in("ad_format", filters.adFormats);
   if (filters.statuses.length > 0) dataQuery = dataQuery.in("review_status", filters.statuses);
 
-  const { data: rows } = await dataQuery
-    .order(filters.sortBy, { ascending: filters.sortDirection === "asc" })
-    .range((filters.page - 1) * filters.pageSize, filters.page * filters.pageSize - 1);
+  const orderedQuery = dataQuery.order(filters.sortBy, { ascending: filters.sortDirection === "asc" });
+  const { count: totalCount } = searchTerm ? { count: 0 } : await countQuery;
+  const { data: rows } = searchTerm
+    ? await orderedQuery
+    : await orderedQuery.range((filters.page - 1) * filters.pageSize, filters.page * filters.pageSize - 1);
 
   const brandIds = [...new Set((rows ?? []).map((r: any) => r.brand_id).filter(Boolean))];
   const websiteIds = [...new Set((rows ?? []).map((r: any) => r.website_id).filter(Boolean))];
@@ -647,7 +713,7 @@ export async function getWebDetections(rawFilters?: Partial<WebFilters>) {
     screenshotMap.set(s.website_id, s);
   }
 
-  const detections: WebDetection[] = ((rows ?? []) as any[]).map((r: any) => {
+  let detections: WebDetection[] = ((rows ?? []) as any[]).map((r: any) => {
     const dt = new Date(r.detected_at);
     const ws = websiteMap.get(String(r.website_id));
     const br = r.brand_id ? brandMap.get(String(r.brand_id)) : null;
@@ -667,5 +733,28 @@ export async function getWebDetections(rawFilters?: Partial<WebFilters>) {
     };
   });
 
-  return { items: detections, total: totalCount ?? 0, page: filters.page, pageSize: filters.pageSize, hasMore: (filters.page * filters.pageSize) < (totalCount ?? 0) };
+  if (searchTerm) {
+    detections = detections.filter((d) =>
+      [
+        d.websiteName,
+        d.domain,
+        d.pageUrl,
+        d.brandName,
+        d.campaignName,
+        d.adFormat,
+        d.position,
+        d.reviewStatus,
+        d.destinationUrl,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(searchTerm)),
+    );
+  }
+
+  const total = searchTerm ? detections.length : (totalCount ?? 0);
+  const paginatedItems = searchTerm
+    ? detections.slice((filters.page - 1) * filters.pageSize, filters.page * filters.pageSize)
+    : detections;
+
+  return { items: paginatedItems, total, page: filters.page, pageSize: filters.pageSize, hasMore: (filters.page * filters.pageSize) < total };
 }

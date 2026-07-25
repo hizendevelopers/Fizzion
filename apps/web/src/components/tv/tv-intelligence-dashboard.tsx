@@ -330,7 +330,7 @@ export function TvIntelligenceDashboard({
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-red">Media Monitoring</p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground">TV Intelligence</h1>
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground">TV</h1>
             <p className="mt-3 max-w-4xl text-sm leading-7 text-muted-foreground">
               Monitor linear news channels, review detected advertisements, and watch connected YouTube live feeds
               from one clean intelligence surface without leaving the platform.
