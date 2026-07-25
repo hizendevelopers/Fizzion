@@ -170,7 +170,7 @@ function BottleIllustration({
   );
 
   return (
-    <svg className="h-[410px] w-full max-w-[210px] mx-auto" fill="none" viewBox="0 0 220 360">
+    <svg className="mx-auto h-[410px] w-full max-w-[240px]" fill="none" viewBox="0 0 220 360">
       <defs>
         <linearGradient id={shellId} x1="48" x2="172" y1="42" y2="318">
           <stop offset="0%" stopColor="#fbfbfc" />
@@ -203,22 +203,22 @@ function BottleIllustration({
           <stop offset="100%" stopColor="rgba(255,255,255,0)" />
         </linearGradient>
         <clipPath id={clipId}>
-          <path d="M76 42 H144 C155 42 164 51 164 62 V286 C164 302 151 316 135 316 H85 C69 316 56 302 56 286 V62 C56 51 65 42 76 42 Z" />
+          <path d="M70 42 H150 C161 42 170 51 170 62 V286 C170 302 157 316 141 316 H79 C63 316 50 302 50 286 V62 C50 51 59 42 70 42 Z" />
         </clipPath>
       </defs>
 
-      <ellipse cx="110" cy="334" fill={`url(#${shadowId})`} rx="72" ry="14" />
+      <ellipse cx="110" cy="334" fill={`url(#${shadowId})`} rx="78" ry="14" />
       <path d="M96 4 H124 C128 4 131 7 131 11 V26 H89 V11 C89 7 92 4 96 4 Z" fill={`url(#${metalId})`} />
       <ellipse cx="110" cy="12" rx="13" ry="7" fill="#ededed" />
       <ellipse cx="110" cy="12" rx="5.5" ry="3" fill="#bdbdbd" />
       <path d="M98 8 H122 C124.2 8 126 9.8 126 12 V21 C126 23.2 124.2 25 122 25 H98 C95.8 25 94 23.2 94 21 V12 C94 9.8 95.8 8 98 8 Z" fill={`url(#${tabId})`} />
-      <path d="M76 42 H144 C155 42 164 51 164 62 V286 C164 302 151 316 135 316 H85 C69 316 56 302 56 286 V62 C56 51 65 42 76 42 Z" fill={`url(#${shellId})`} stroke="#d3ceca" strokeWidth="4" />
-      <rect x="73" y="30" width="74" height="7" rx="3.5" fill={`url(#${rimId})`} />
+      <path d="M70 42 H150 C161 42 170 51 170 62 V286 C170 302 157 316 141 316 H79 C63 316 50 302 50 286 V62 C50 51 59 42 70 42 Z" fill={`url(#${shellId})`} stroke="#d3ceca" strokeWidth="4" />
+      <rect x="67" y="30" width="86" height="7" rx="3.5" fill={`url(#${rimId})`} />
       <g clipPath={`url(#${clipId})`}>
-        <rect x="56" y="42" width="108" height="274" fill="rgba(255,255,255,0.04)" />
+        <rect x="50" y="42" width="120" height="274" fill="rgba(255,255,255,0.04)" />
         {renderedSegments.map((segment) => (
           <g key={segment.key}>
-            <rect x="56" y={segment.y} width="108" height={segment.height} fill={segment.color} />
+            <rect x="50" y={segment.y} width="120" height={segment.height} fill={segment.color} />
             {segment.height >= 24 ? (
               <text
                 x="110"
@@ -234,11 +234,11 @@ function BottleIllustration({
             ) : null}
           </g>
         ))}
-        <path d="M74 60 C69 100 68 236 78 300" stroke={`url(#${highlightId})`} strokeLinecap="round" strokeWidth="10" />
-        <path d="M148 60 C152 112 152 226 146 296" stroke="rgba(255,255,255,0.12)" strokeLinecap="round" strokeWidth="5" />
+        <path d="M66 60 C61 100 60 236 71 300" stroke={`url(#${highlightId})`} strokeLinecap="round" strokeWidth="11" />
+        <path d="M154 60 C159 112 159 226 151 296" stroke="rgba(255,255,255,0.12)" strokeLinecap="round" strokeWidth="5" />
       </g>
-      <path d="M76 42 H144 C155 42 164 51 164 62 V286 C164 302 151 316 135 316 H85 C69 316 56 302 56 286 V62 C56 51 65 42 76 42 Z" stroke="rgba(255,255,255,0.76)" strokeWidth="1.2" />
-      <rect x="78" y="314" width="64" height="4" rx="2" fill="rgba(78,85,101,0.24)" />
+      <path d="M70 42 H150 C161 42 170 51 170 62 V286 C170 302 157 316 141 316 H79 C63 316 50 302 50 286 V62 C50 51 59 42 70 42 Z" stroke="rgba(255,255,255,0.76)" strokeWidth="1.2" />
+      <rect x="74" y="314" width="72" height="4" rx="2" fill="rgba(78,85,101,0.24)" />
       <text x="110" y="347" fill="#667085" fontFamily="Arial, sans-serif" fontSize="11" fontWeight="700" textAnchor="middle">
         {Math.round(normalizedTotal * 100)}
       </text>
