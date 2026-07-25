@@ -393,15 +393,15 @@ begin
     from (
       values
       ('Al Sumaria', 'alsumaria.tv', 'https://www.alsumaria.tv', 'Arabic', 'News'),
-      ('Rudaw', 'rudaw.net', 'https://www.rudaw.net', 'Kurdish', 'News'),
-      ('Shafaq News', 'shafaq.com', 'https://www.shafaq.com', 'Arabic', 'News'),
+      ('Rudaw', 'rudaw.net', 'https://www.rudaw.net/english', 'Kurdish', 'News'),
+      ('Shafaq News', 'shafaq.com', 'https://www.shafaq.com/en', 'Arabic', 'News'),
       ('Baghdad Today', 'baghdadtoday.news', 'https://baghdadtoday.news', 'Arabic', 'News'),
-      ('Alghadeer TV', 'alghadeer.tv', 'https://alghadeer.tv', 'Arabic', 'News'),
-      ('Kirkuk Now', 'kirkuknow.com', 'https://www.kirkuknow.com', 'Kurdish', 'News'),
-      ('NRT News', 'nrtnews.net', 'https://www.nrtnews.net', 'Kurdish', 'News'),
-      ('URA News', 'uranews.com', 'https://uranews.com', 'Arabic', 'News'),
-      ('Al Mirbad', 'almirbad.com', 'https://almirbad.com', 'Arabic', 'News'),
-      ('Iraqi News Agency', 'ina.iq', 'https://ina.iq', 'Arabic', 'News')
+      ('Iraqi News Agency', 'ina.iq', 'https://ina.iq/eng', 'Arabic', 'News'),
+      ('NRT', 'nrttv.com', 'https://www.nrttv.com', 'Kurdish', 'News'),
+      ('BasNews', 'basnews.com', 'https://www.basnews.com/en', 'Kurdish', 'News'),
+      ('964media', '964media.com', 'https://www.964media.com', 'Arabic', 'News'),
+      ('Iraq Business News', 'iraq-businessnews.com', 'https://iraq-businessnews.com', 'English', 'Business'),
+      ('Al Forat News', 'alforatnews.iq', 'https://alforatnews.iq', 'Arabic', 'News')
     ) as t(name, domain, homepage_url, lang, category)
   loop
     insert into public.websites (

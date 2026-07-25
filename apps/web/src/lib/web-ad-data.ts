@@ -28,6 +28,44 @@ function rowBoolean(row: GenericRow, key: string, fallback = false) {
   return typeof value === "boolean" ? value : fallback;
 }
 
+function normalizeDomain(value: string) {
+  return value.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+}
+
+function isPrivateHostname(hostname: string) {
+  const lower = hostname.trim().toLowerCase();
+  if (lower === "localhost" || lower.endsWith(".local")) return true;
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(lower)) {
+    const [a, b] = lower.split(".").map(Number);
+    if (a === 10 || a === 127) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 169 && b === 254) return true;
+  }
+  return false;
+}
+
+function buildHomepageUrl(row: GenericRow) {
+  const homepageUrl = rowNullableString(row, "homepage_url");
+  if (homepageUrl) return homepageUrl;
+  const domain = normalizeDomain(rowString(row, "domain"));
+  return `https://www.${domain}`;
+}
+
+function isAllowedWebsiteUrl(url: string, websiteDomain: string) {
+  try {
+    const parsed = new URL(url);
+    if (!["http:", "https:"].includes(parsed.protocol)) return false;
+    if (parsed.username || parsed.password) return false;
+    const hostname = parsed.hostname.toLowerCase();
+    if (isPrivateHostname(hostname)) return false;
+    const allowedDomain = normalizeDomain(websiteDomain);
+    return hostname === allowedDomain || hostname === `www.${allowedDomain}` || hostname.endsWith(`.${allowedDomain}`);
+  } catch {
+    return false;
+  }
+}
+
 function isMissingTableError(error: unknown) {
   return error instanceof Error && /could not find the table|relation .* does not exist/i.test(error.message);
 }
@@ -156,6 +194,80 @@ export function isWebAdvertisingRunActiveStatus(status: string | null | undefine
   return ACTIVE_WEB_SCAN_STATUSES.has(status.trim().toLowerCase());
 }
 
+async function ensureLegacyWebsiteMonitoringSetup(
+  supabase: NonNullable<ReturnType<typeof getOptionalSupabaseAdminClient>>,
+  website: GenericRow,
+) {
+  const websiteId = rowString(website, "id");
+  const organizationId = rowString(website, "organization_id");
+  const domain = rowString(website, "domain");
+  const homepageUrl = buildHomepageUrl(website);
+
+  if (!isAllowedWebsiteUrl(homepageUrl, domain)) {
+    throw new Error(`Website ${domain} does not have a safe public homepage URL for crawling.`);
+  }
+
+  await supabase
+    .from("website_pages")
+    .upsert({
+      organization_id: organizationId,
+      website_id: websiteId,
+      url: homepageUrl,
+      page_type: "homepage",
+      title: rowString(website, "name"),
+    }, { onConflict: "website_id,url" });
+
+  const { data: crawlConfig } = await supabase
+    .from("website_crawl_configs")
+    .select("id, browser_profile_id, max_pages, crawl_depth, interval_minutes")
+    .eq("website_id", websiteId)
+    .eq("is_active", true)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!crawlConfig) {
+    const intervalMinutes = rowNumber(website, "scan_interval_minutes", 120);
+    await supabase
+      .from("website_crawl_configs")
+      .insert({
+        organization_id: organizationId,
+        website_id: websiteId,
+        interval_minutes: intervalMinutes,
+        crawl_depth: 2,
+        max_pages: 5,
+        homepage_enabled: true,
+        section_pages_enabled: true,
+        article_pages_enabled: false,
+        mobile_enabled: false,
+        desktop_enabled: true,
+        url_patterns: [homepageUrl],
+        is_active: true,
+      });
+  }
+}
+
+export async function syncLegacyWebsiteMonitoringSources() {
+  const supabase = getOptionalSupabaseAdminClient();
+  if (!supabase) {
+    return { synced: 0 };
+  }
+
+  const { data: websites } = await supabase
+    .from("websites")
+    .select("id, organization_id, name, domain, homepage_url, scan_interval_minutes, is_active, monitoring_enabled")
+    .eq("is_active", true)
+    .eq("monitoring_enabled", true);
+
+  let synced = 0;
+  for (const website of (websites ?? []) as GenericRow[]) {
+    await ensureLegacyWebsiteMonitoringSetup(supabase, website);
+    synced += 1;
+  }
+
+  return { synced };
+}
+
 export async function listWebAdvertisingWebsites() {
   const supabase = getOptionalSupabaseAdminClient();
   if (!supabase) {
@@ -168,6 +280,11 @@ export async function listWebAdvertisingWebsites() {
   }
 
   const websites = (websitesRes.data ?? []) as GenericRow[];
+  await Promise.all(
+    websites
+      .filter((row) => rowBoolean(row, "is_active", true) && rowBoolean(row, "monitoring_enabled", false))
+      .map((row) => ensureLegacyWebsiteMonitoringSetup(supabase, row)),
+  );
   const websiteIds = websites.map((row) => rowString(row, "id"));
 
   const [pagesRes, runsRes, adsRes] = await Promise.all([
@@ -401,7 +518,7 @@ export async function queueWebAdvertisingScan(websiteId: string): Promise<WebAdv
 
   const { data: website, error: websiteError } = await supabase
     .from("websites")
-    .select("id, organization_id, name, domain, country")
+    .select("id, organization_id, name, domain, country, homepage_url, scan_interval_minutes")
     .eq("id", websiteId)
     .limit(1)
     .maybeSingle();
@@ -413,6 +530,8 @@ export async function queueWebAdvertisingScan(websiteId: string): Promise<WebAdv
   if (!website) {
     return null;
   }
+
+  await ensureLegacyWebsiteMonitoringSetup(supabase, website as GenericRow);
 
   const { data: latestRun } = await supabase
     .from("website_crawl_runs")
