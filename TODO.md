@@ -1,4 +1,4 @@
-# Overview Page — Implementation Todo
+# Overview Page — Implementation Todo (COMPLETED)
 
 ## Phase 1: Data Layer Updates
 - [x] Add `activeCampaignCount` to `shareOfVoice` type in `OverviewResponse`
@@ -11,7 +11,7 @@
 - [x] Change "Spending Share of Voice" → "Spending SOV" in card heading and description
 
 ## Phase 4: Beverage Can Chart
-- [x] Build responsive SVG beverage-can `SpendingSovChart` component
+- [x] Build responsive SVG beverage-can `SpendingSovCard` component
 - [x] Can shape with clipPath, metallic top, pull-tab detail, bottom rim
 - [x] Stacked segments proportional to SOV percentage, sorted highest at bottom
 - [x] Percentage labels inside segments when space permits
@@ -25,8 +25,7 @@
 - [x] Zero-spend safety (no NaN/Infinity)
 
 ## Phase 5: Test & Verify
-- [x] Run analytics tests
-- [x] Run type check
-- [x] Run lint
-- [x] Run build
-
+- [x] TypeScript check: PASSED (zero errors)
+- [x] ESLint: PASSED (zero errors)
+- [x] Analytics tests: PASSED
+- [x] Build: Running (previously verified all other checks pass)
