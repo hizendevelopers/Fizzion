@@ -2,15 +2,10 @@
 
 import Image from "next/image";
 
-type TopbarProps = {
-  // No locale/timezone/copy needed — controls moved to separate row
-};
-
-export function Topbar(_props: TopbarProps) {
+export function Topbar() {
   return (
     <header className="bg-[#12151C]/96 backdrop-blur-xl">
       <div className="flex items-center justify-between px-4 py-4 lg:px-8">
-        {/* Left: Title */}
         <h2
           className="text-[22px] font-semibold tracking-tight text-[#F7F8FA]"
           style={{ fontWeight: 650 }}
@@ -18,15 +13,13 @@ export function Topbar(_props: TopbarProps) {
           Media Monitoring
         </h2>
 
-        {/* Right: Co-branding */}
         <div className="flex items-center justify-end gap-3">
           <Image
             alt="Hizen logo"
             className="h-9 w-auto object-contain"
             height={38}
-            onError={(e) => {
-              const target = e.currentTarget;
-              target.style.display = "none";
+            onError={(event) => {
+              event.currentTarget.style.display = "none";
             }}
             src="/assets/hizen-logo.png"
             width={100}
@@ -41,9 +34,8 @@ export function Topbar(_props: TopbarProps) {
             alt="Coca-Cola logo"
             className="h-9 w-auto object-contain"
             height={38}
-            onError={(e) => {
-              const target = e.currentTarget;
-              target.style.display = "none";
+            onError={(event) => {
+              event.currentTarget.style.display = "none";
             }}
             src="/assets/coca-cola-logo.png"
             width={122}

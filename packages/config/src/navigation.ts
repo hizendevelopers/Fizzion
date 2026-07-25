@@ -6,7 +6,7 @@ export type NavItem = {
 
 export const primaryNavigation: NavItem[] = [
   { href: "/executive-overview", key: "overview" },
-  { href: "/tv/channels", key: "tv" },
+  { href: "/tv", key: "tv" },
   { href: "/social-intelligence", key: "social" },
   { href: "/web-advertising", key: "web" },
   { href: "/ooh-intelligence", key: "ooh" },

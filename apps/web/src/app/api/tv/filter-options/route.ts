@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 
-import {
-  getTvDetectedAds,
-  parseDetectedAdsFiltersFromSearchParams,
-} from "@/lib/tv-analytics";
+import { getTvFilterOptions, parseTvFiltersFromSearchParams } from "@/lib/tv-analytics";
 import { makeRequestId, tvApiError } from "@/lib/tv-api";
 
 export async function GET(request: Request) {
@@ -12,8 +9,8 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
 
   try {
-    const filters = parseDetectedAdsFiltersFromSearchParams(searchParams);
-    const payload = await getTvDetectedAds(filters);
+    const filters = parseTvFiltersFromSearchParams(searchParams);
+    const payload = await getTvFilterOptions(filters);
 
     return NextResponse.json({
       ok: true,
@@ -23,16 +20,16 @@ export async function GET(request: Request) {
   } catch (error) {
     if (error instanceof ZodError) {
       return tvApiError(
-        "TV_DETECTED_ADS_VALIDATION_FAILED",
-        error.issues[0]?.message ?? "Detected ads filters are invalid.",
+        "TV_FILTER_OPTIONS_VALIDATION_FAILED",
+        error.issues[0]?.message ?? "TV filter options could not be resolved.",
         400,
         requestId,
       );
     }
 
     return tvApiError(
-      "TV_DETECTED_ADS_FAILED",
-      error instanceof Error ? error.message : "Detected ads could not be loaded.",
+      "TV_FILTER_OPTIONS_FAILED",
+      error instanceof Error ? error.message : "TV filter options could not be loaded.",
       500,
       requestId,
     );
