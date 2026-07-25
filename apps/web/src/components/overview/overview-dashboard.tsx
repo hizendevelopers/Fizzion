@@ -369,18 +369,20 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
           plotHeight={228}
         />
 
-        <SpendingSovCard
-          data={state.data.shareOfVoice}
-          currency={state.data.summary.currency}
-          loading={state.loading}
-          error={state.error}
-          onRetry={() => void loadData(pendingFilters)}
-        />
+        <div className="grid gap-5 xl:grid-cols-2">
+          <SpendingSovCard
+            data={state.data.shareOfVoice}
+            currency={state.data.summary.currency}
+            loading={state.loading}
+            error={state.error}
+            onRetry={() => void loadData(pendingFilters)}
+          />
+          <PlatformSplitCard data={state.data.platformSplit} currency={state.data.summary.currency} />
+        </div>
       </section>
 
       {/* ─── Platform Split + Active Campaigns + Active Brands ─── */}
-      <section className="grid gap-5 lg:grid-cols-2 xl:grid-cols-[1.1fr_1.4fr_1fr]">
-        <PlatformSplitCard data={state.data.platformSplit} currency={state.data.summary.currency} />
+      <section className="grid gap-5 lg:grid-cols-2 xl:grid-cols-[1.4fr_1fr]">
         <CampaignListCard
           campaigns={state.data.activeCampaigns}
           currency={state.data.summary.currency}
