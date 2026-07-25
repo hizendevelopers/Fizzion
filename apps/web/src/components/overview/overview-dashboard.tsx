@@ -437,7 +437,7 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
           plotHeight={228}
         />
 
-        <div className="grid gap-5 xl:grid-cols-2">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)] xl:items-start">
           {state.error ? (
             <SpendingSovCard
               data={state.data.shareOfVoice}
