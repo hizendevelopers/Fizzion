@@ -274,6 +274,53 @@ function endOfDay(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
 }
 
+async function fetchOverviewSpendRecords({
+  client,
+  organizationId,
+  allowedPlatformIds,
+  fromDate,
+  toDate,
+}: {
+  client: NonNullable<ReturnType<typeof getOptionalSupabaseAdminClient>>;
+  organizationId: string;
+  allowedPlatformIds: string[];
+  fromDate: string;
+  toDate: string;
+}) {
+  const pageSize = 1000;
+  const records: OverviewSpendRecord[] = [];
+
+  for (let offset = 0; ; offset += pageSize) {
+    const response = await client
+      .from("spend_records")
+      .select("brand_id,campaign_id,platform_id,spend_date,amount,currency")
+      .eq("organization_id", organizationId)
+      .in("platform_id", allowedPlatformIds)
+      .gte("spend_date", fromDate)
+      .lte("spend_date", toDate)
+      .order("spend_date", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+
+    if (response.error) {
+      throw response.error;
+    }
+
+    const chunk = ((response.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+      brandId: String(row.brand_id),
+      campaignId: String(row.campaign_id),
+      platformId: String(row.platform_id),
+      spendDate: String(row.spend_date),
+      amount: Number(row.amount ?? 0),
+      currency: String(row.currency ?? "USD"),
+    }));
+
+    records.push(...chunk);
+    if (chunk.length < pageSize) break;
+  }
+
+  return records;
+}
+
 function formatIsoDate(date: Date) {
   return [
     date.getFullYear(),
@@ -959,24 +1006,13 @@ export async function getOverviewAnalytics(rawFilters?: OverviewFilterInput) {
     });
   }
 
-  const spendRes = await client
-    .from("spend_records")
-    .select("brand_id,campaign_id,platform_id,spend_date,amount,currency")
-    .eq("organization_id", organizationId)
-    .in("platform_id", allowedPlatformIds)
-    .gte("spend_date", formatIsoDate(previousStart))
-    .lte("spend_date", filters.endDate);
-
-  if (spendRes.error) throw spendRes.error;
-
-  const spendRecords = ((spendRes.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
-    brandId: String(row.brand_id),
-    campaignId: String(row.campaign_id),
-    platformId: String(row.platform_id),
-    spendDate: String(row.spend_date),
-    amount: Number(row.amount ?? 0),
-    currency: String(row.currency ?? "USD"),
-  }));
+  const spendRecords = await fetchOverviewSpendRecords({
+    client,
+    organizationId,
+    allowedPlatformIds,
+    fromDate: formatIsoDate(previousStart),
+    toDate: filters.endDate,
+  });
 
   const relevantBrandIds = Array.from(new Set(spendRecords.map((record) => record.brandId)));
   const relevantCampaignIds = Array.from(new Set(spendRecords.map((record) => record.campaignId)));
