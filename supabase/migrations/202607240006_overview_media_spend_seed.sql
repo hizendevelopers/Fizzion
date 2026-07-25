@@ -5,12 +5,12 @@ with org as (
 ),
 brand_seed(name, slug, competitor_group, color, logo_url) as (
   values
-    ('Coca-Cola', 'coca-cola', 'owned', '#F40009', '/brand-logos/coca-cola.svg'),
-    ('Pepsi', 'pepsi', 'competitor', '#005CB4', '/brand-logos/pepsi.svg'),
-    ('7UP', '7up', 'competitor', '#16A34A', '/brand-logos/7up.svg'),
-    ('Mountain Dew', 'mountain-dew', 'competitor', '#78BE20', '/brand-logos/mountain-dew.svg'),
-    ('RC Cola', 'rc-cola', 'competitor', '#7A1F2B', '/brand-logos/rc-cola.svg'),
-    ('Mirinda', 'mirinda', 'competitor', '#F58220', '/brand-logos/mirinda.svg')
+    ('Coca-Cola', 'coca-cola', 'owned', '#F40009', '/assets/brands/coca-cola.svg'),
+    ('Pepsi', 'pepsi', 'competitor', '#005CB4', '/assets/brands/pepsi.svg'),
+    ('7UP', '7up', 'competitor', '#16A34A', '/assets/brands/7up.svg'),
+    ('Mountain Dew', 'mountain-dew', 'competitor', '#78BE20', '/assets/brands/mountain-dew.svg'),
+    ('RC Cola', 'rc-cola', 'competitor', '#7A1F2B', '/assets/brands/rc-cola.svg'),
+    ('Mirinda', 'mirinda', 'competitor', '#F58220', '/assets/brands/mirinda.svg')
 )
 insert into public.brands (
   organization_id,
