@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import {
   calculateDetectedAdSov,
@@ -103,4 +105,29 @@ test("getPreviousPeriodRange returns an equivalent preceding window", () => {
 test("calculateDetectedAdSov protects against division by zero", () => {
   assert.equal(calculateDetectedAdSov(250, 0), 0);
   assert.equal(calculateDetectedAdSov(250, 1000), 25);
+});
+
+test("TV page source removes legacy filter heading copy and duplicate date-range actions", () => {
+  const source = readFileSync(join(process.cwd(), "src/components/tv/tv-dashboard.tsx"), "utf8");
+
+  assert.equal(source.includes("Global filters"), false);
+  assert.equal(source.includes("Every section on this page uses the same TV filter scope."), false);
+  assert.equal(source.includes("No extra filters applied."), false);
+
+  const dateRangeStart = source.indexOf("function DateRangeFilter");
+  const dateRangeEnd = source.indexOf("function FilterActions");
+  const dateRangeSource = source.slice(dateRangeStart, dateRangeEnd);
+
+  assert.equal(dateRangeSource.includes(">Apply<"), false);
+  assert.equal(dateRangeSource.includes(">Clear<"), false);
+});
+
+test("TV spending chart source keeps stacked bar and polished tooltip contract", () => {
+  const source = readFileSync(join(process.cwd(), "src/components/tv/tv-dashboard.tsx"), "utf8");
+
+  assert.equal(source.includes('aria-label="TV spending stacked chart"'), true);
+  assert.equal(source.includes("buildRoundedSegmentPath"), true);
+  assert.equal(source.includes("Period total:"), true);
+  assert.equal(source.includes("Period share:"), true);
+  assert.equal(source.includes('Date: {tooltip.bucket}'), true);
 });

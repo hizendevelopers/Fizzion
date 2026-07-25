@@ -62,7 +62,7 @@ const en: CopyTree = {
     socialAccounts: "Social Accounts",
     socialComparison: "Social Comparison",
     web: "Web",
-    ooh: "OOH Intelligence",
+    ooh: "OOH",
     oohMap: "OOH Map",
     oohLocations: "OOH Locations",
     oohAddLocation: "Add OOH Location",

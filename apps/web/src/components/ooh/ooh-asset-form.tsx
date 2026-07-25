@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import type { OohAreaItem, OohAssetDetail, OohBrandItem } from "@/lib/ooh/ooh-data";
@@ -120,6 +120,19 @@ function formatMoney(value: number | null | undefined, currency: string | null |
   return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value)} ${currency ?? ""}`.trim();
 }
 
+function normalizeExternalImageUrl(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith("/")) return trimmed;
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
 export function OohAssetForm({ mode, areas, brands, initialAsset, initialMediaType }: OohAssetFormProps) {
   const router = useRouter();
   const [form, setForm] = useState<OohAssetCreateInput>(() => buildDefaultFormValue(initialAsset, initialMediaType));
@@ -154,6 +167,37 @@ export function OohAssetForm({ mode, areas, brands, initialAsset, initialMediaTy
     setForm((current) => ({ ...current, [key]: value }));
   }
 
+  const appendImages = useCallback((
+    uploadedImages: OohAssetCreateInput["images"],
+    imageType: "SITE_PHOTO" | "CREATIVE" | "PROOF_OF_PLAY",
+  ) => {
+    setForm((current) => {
+      const nextImages = [...current.images, ...uploadedImages];
+      const latestSitePhoto = [...uploadedImages].reverse().find((image) => image.imageType === "SITE_PHOTO") ?? null;
+      const latestCreative = [...uploadedImages].reverse().find((image) => image.imageType === "CREATIVE") ?? null;
+      const latestProof = [...uploadedImages].reverse().find((image) => image.imageType === "PROOF_OF_PLAY") ?? null;
+      const normalizedImages = nextImages.map((image, index) => ({
+        ...image,
+        isPrimary: latestSitePhoto
+          ? image.imageUrl === latestSitePhoto.imageUrl
+          : image.isPrimary || index === 0,
+      }));
+
+      return {
+        ...current,
+        images: normalizedImages,
+        creativeImageUrl:
+          imageType === "CREATIVE"
+            ? latestCreative?.imageUrl ?? current.creativeImageUrl
+            : current.creativeImageUrl,
+        proofOfPlayUrl:
+          imageType === "PROOF_OF_PLAY"
+            ? latestProof?.imageUrl ?? current.proofOfPlayUrl
+            : current.proofOfPlayUrl,
+      };
+    });
+  }, []);
+
   async function uploadImages(files: FileList | null, imageType: "SITE_PHOTO" | "CREATIVE" | "PROOF_OF_PLAY") {
     if (!files || files.length === 0) return;
     setBusy(true);
@@ -180,31 +224,33 @@ export function OohAssetForm({ mode, areas, brands, initialAsset, initialMediaTy
           isPrimary: form.images.length === 0 && imageType === "SITE_PHOTO",
         });
       }
-      setForm((current) => {
-        const nextImages = [...current.images, ...uploadedImages];
-        const latestSitePhoto = [...uploadedImages].reverse().find((image) => image.imageType === "SITE_PHOTO") ?? null;
-        const latestCreative = [...uploadedImages].reverse().find((image) => image.imageType === "CREATIVE") ?? null;
-        const latestProof = [...uploadedImages].reverse().find((image) => image.imageType === "PROOF_OF_PLAY") ?? null;
-        const normalizedImages = nextImages.map((image, index) => ({
-          ...image,
-          isPrimary: latestSitePhoto
-            ? image.imageUrl === latestSitePhoto.imageUrl
-            : image.isPrimary || index === 0,
-        }));
-
-        return {
-          ...current,
-          images: normalizedImages,
-          creativeImageUrl: latestCreative?.imageUrl ?? current.creativeImageUrl,
-          proofOfPlayUrl: latestProof?.imageUrl ?? current.proofOfPlayUrl,
-        };
-      });
+      appendImages(uploadedImages, imageType);
       setStatus(`${uploadedImages.length} image${uploadedImages.length > 1 ? "s" : ""} uploaded successfully.`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Image upload failed.");
     } finally {
       setBusy(false);
     }
+  }
+
+  function addImageUrl(imageUrl: string, imageType: "SITE_PHOTO" | "CREATIVE" | "PROOF_OF_PLAY") {
+    const normalized = normalizeExternalImageUrl(imageUrl);
+    if (!normalized) {
+      setStatus("Enter a valid image URL or root-relative media path.");
+      return false;
+    }
+
+    appendImages([
+      {
+        imageUrl: normalized,
+        imageType,
+        altText: `${form.locationName || form.assetCode || "OOH asset"} ${imageType.toLowerCase().replaceAll("_", " ")}`,
+        sortOrder: form.images.length,
+        isPrimary: form.images.length === 0 && imageType === "SITE_PHOTO",
+      },
+    ], imageType);
+    setStatus("Image URL added successfully.");
+    return true;
   }
 
   async function submit() {
@@ -431,9 +477,24 @@ export function OohAssetForm({ mode, areas, brands, initialAsset, initialMediaTy
           <FormSection title="Image upload">
             <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
               <div className="space-y-4">
-                <UploadField label="Site photos" onChange={(files) => uploadImages(files, "SITE_PHOTO")} disabled={busy} />
-                <UploadField label="Creative images" onChange={(files) => uploadImages(files, "CREATIVE")} disabled={busy} />
-                <UploadField label="Proof of play" onChange={(files) => uploadImages(files, "PROOF_OF_PLAY")} disabled={busy} />
+                <UploadField
+                  label="Site photos"
+                  disabled={busy}
+                  onChange={(files) => uploadImages(files, "SITE_PHOTO")}
+                  onAddUrl={(url) => addImageUrl(url, "SITE_PHOTO")}
+                />
+                <UploadField
+                  label="Creative images"
+                  disabled={busy}
+                  onChange={(files) => uploadImages(files, "CREATIVE")}
+                  onAddUrl={(url) => addImageUrl(url, "CREATIVE")}
+                />
+                <UploadField
+                  label="Proof of play"
+                  disabled={busy}
+                  onChange={(files) => uploadImages(files, "PROOF_OF_PLAY")}
+                  onAddUrl={(url) => addImageUrl(url, "PROOF_OF_PLAY")}
+                />
                 <TextField label="Notes" value={form.notes ?? ""} onChange={(value) => updateField("notes", value || null)} />
               </div>
               <div className="grid gap-3 md:grid-cols-2">
@@ -615,23 +676,69 @@ function SelectField({
 function UploadField({
   label,
   onChange,
+  onAddUrl,
   disabled,
 }: {
   label: string;
   onChange: (files: FileList | null) => void;
+  onAddUrl: (url: string) => boolean;
   disabled: boolean;
 }) {
+  const [isDragging, setIsDragging] = useState(false);
+  const [url, setUrl] = useState("");
+
   return (
-    <label className="grid gap-2 text-sm">
+    <div className="grid gap-2 text-sm">
       <span className="font-medium text-foreground">{label}</span>
-      <input
-        type="file"
-        accept=".jpg,.jpeg,.png,.webp,.svg,image/jpeg,image/png,image/webp,image/svg+xml"
-        multiple
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.files)}
-        className="rounded-2xl border border-border bg-panel-soft px-4 py-3 text-sm file:mr-3 file:rounded-full file:border-0 file:bg-white file:px-3 file:py-2 file:text-sm"
-      />
-    </label>
+      <label
+        className={`rounded-2xl border border-dashed px-4 py-4 transition ${isDragging ? "border-brand-red bg-brand-red-soft/40" : "border-border bg-panel-soft"}`}
+        onDragOver={(event) => {
+          event.preventDefault();
+          if (!disabled) setIsDragging(true);
+        }}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={(event) => {
+          event.preventDefault();
+          setIsDragging(false);
+          if (disabled) return;
+          onChange(event.dataTransfer.files);
+        }}
+      >
+        <input
+          type="file"
+          accept=".jpg,.jpeg,.png,.webp,.svg,image/jpeg,image/png,image/webp,image/svg+xml"
+          multiple
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.files)}
+          className="hidden"
+        />
+        <div className="flex flex-col gap-2">
+          <span className="text-sm font-medium text-foreground">Drag and drop images here</span>
+          <span className="text-xs text-muted-foreground">Or click this area to browse and upload JPG, PNG, WEBP, or SVG files.</span>
+        </div>
+      </label>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <input
+          type="url"
+          value={url}
+          disabled={disabled}
+          placeholder="Paste image URL or /media/path"
+          onChange={(event) => setUrl(event.target.value)}
+          className="min-w-0 flex-1 rounded-2xl border border-border bg-panel-soft px-4 py-3 text-sm"
+        />
+        <button
+          type="button"
+          disabled={disabled || url.trim().length === 0}
+          onClick={() => {
+            if (onAddUrl(url)) {
+              setUrl("");
+            }
+          }}
+          className="rounded-full border border-border bg-white px-4 py-3 text-sm font-medium text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          Add URL
+        </button>
+      </div>
+    </div>
   );
 }

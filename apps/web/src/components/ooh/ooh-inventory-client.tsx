@@ -75,13 +75,15 @@ export function OohInventoryClient({
   const regionData = useMemo(() => toCategoryData(analytics.assetsByRegion, "assets"), [analytics.assetsByRegion]);
   const cityCoverageData = useMemo(() => toCategoryData(analytics.assetsByCity, "assets"), [analytics.assetsByCity]);
   const effectiveActiveBrands = Math.max(analytics.activeBrands, brands.length, 10);
-  const groupedAssets = useMemo(() => {
-    const groups = new Map<string, OohAssetListItem[]>();
-    for (const asset of assets) {
-      const key = asset.assetTypeLabel;
-      groups.set(key, [...(groups.get(key) ?? []), asset]);
-    }
-    return Array.from(groups.entries());
+  const editableAssetGroups = useMemo(() => {
+    const billboards = assets.filter((asset) => asset.mediaType === "BILLBOARD");
+    const digitalScreens = assets.filter((asset) => asset.mediaType === "DIGITAL_SCREEN");
+    const otherAssets = assets.filter((asset) => asset.mediaType !== "BILLBOARD" && asset.mediaType !== "DIGITAL_SCREEN");
+    return [
+      { key: "Billboards", description: "Static billboard locations you can update directly", items: billboards },
+      { key: "Digital Screens", description: "Digital screen inventory with editable details and images", items: digitalScreens },
+      { key: "Other Assets", description: "Other outdoor inventory currently in scope", items: otherAssets },
+    ].filter((group) => group.items.length > 0);
   }, [assets]);
 
   return (
@@ -93,7 +95,7 @@ export function OohInventoryClient({
               <span className="inline-flex rounded-full bg-brand-red-soft px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-brand-red">
                 Inventory + map intelligence
               </span>
-              <h1 className="mt-4 text-3xl font-semibold tracking-tight text-foreground">OOH Intelligence</h1>
+              <h1 className="mt-4 text-3xl font-semibold tracking-tight text-foreground">OOH</h1>
               <p className="mt-3 text-sm leading-7 text-muted-foreground">
                 Monitor real outdoor inventory, track mapped spend, review brand coverage, and keep billboard plus
                 digital-screen assets organized in one clean operational dashboard.
@@ -398,19 +400,18 @@ export function OohInventoryClient({
                     </div>
                   ) : null}
 
-                  {groupedAssets.map(([groupLabel, groupAssets]) => (
-                    <div key={groupLabel} className="space-y-3">
+                  {editableAssetGroups.map((group) => (
+                    <div key={group.key} className="space-y-3">
                       <div className="sticky top-0 z-10 rounded-2xl border border-border bg-panel-soft px-4 py-3">
-                        <p className="text-sm font-semibold text-foreground">{groupLabel}</p>
-                        <p className="text-xs text-muted-foreground">{groupAssets.length} assets in the current filter scope</p>
+                        <p className="text-sm font-semibold text-foreground">{group.key}</p>
+                        <p className="text-xs text-muted-foreground">{group.description} • {group.items.length} assets in the current filter scope</p>
                       </div>
 
-                      {groupAssets.map((asset) => (
-                        <Link
+                      {group.items.map((asset) => (
+                        <div
                           key={asset.id}
-                          href={`/ooh-intelligence/assets/${asset.id}`}
                           id={`ooh-result-${asset.id}`}
-                          className={`block rounded-[1.5rem] border px-4 py-4 transition ${
+                          className={`rounded-[1.5rem] border px-4 py-4 transition ${
                             highlightedAssetId === asset.id
                               ? "border-brand-red bg-brand-red-soft/50 shadow-[var(--shadow-soft)]"
                               : "border-border bg-white hover:border-brand-red-glow"
@@ -428,21 +429,37 @@ export function OohInventoryClient({
                               )}
                             </div>
                             <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-sm font-semibold text-foreground">{asset.assetCode}</span>
-                                <Badge tone={asset.mediaType === "DIGITAL_SCREEN" ? "info" : "brand"}>{asset.assetTypeLabel}</Badge>
-                                <Badge
-                                  tone={
-                                    asset.status === "AVAILABLE"
-                                      ? "success"
-                                      : asset.status === "ACTIVE"
-                                        ? "brand"
-                                        : "warning"
-                                  }
-                                >
-                                  {asset.status}
-                                </Badge>
-                                {asset.region ? <Badge tone="warning">{asset.region}</Badge> : null}
+                              <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                                  <span className="text-sm font-semibold text-foreground">{asset.assetCode}</span>
+                                  <Badge tone={asset.mediaType === "DIGITAL_SCREEN" ? "info" : "brand"}>{asset.assetTypeLabel}</Badge>
+                                  <Badge
+                                    tone={
+                                      asset.status === "AVAILABLE"
+                                        ? "success"
+                                        : asset.status === "ACTIVE"
+                                          ? "brand"
+                                          : "warning"
+                                    }
+                                  >
+                                    {asset.status}
+                                  </Badge>
+                                  {asset.region ? <Badge tone="warning">{asset.region}</Badge> : null}
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  <Link
+                                    href={`/ooh-intelligence/assets/${asset.id}`}
+                                    className="rounded-full border border-border bg-white px-3 py-1.5 text-[11px] font-semibold text-foreground"
+                                  >
+                                    View
+                                  </Link>
+                                  <Link
+                                    href={`/ooh-intelligence/assets/${asset.id}/edit`}
+                                    className="rounded-full bg-brand-red px-3 py-1.5 text-[11px] font-semibold text-white shadow-[var(--shadow-soft)]"
+                                  >
+                                    Edit
+                                  </Link>
+                                </div>
                               </div>
                               <p className="mt-2 text-sm font-medium text-foreground">{asset.locationName}</p>
                               <p className="mt-1 text-xs text-muted-foreground">
@@ -458,7 +475,7 @@ export function OohInventoryClient({
                               </div>
                             </div>
                           </div>
-                        </Link>
+                        </div>
                       ))}
                     </div>
                   ))}

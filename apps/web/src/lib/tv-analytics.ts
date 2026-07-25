@@ -396,30 +396,36 @@ function getInitials(name: string) {
 }
 
 function getBrandColor(brand: Pick<BrandRecord, "slug" | "color">) {
+  const fallbackMap: Record<string, string> = {
+    "zain-iraq": "#7C3AED",
+    asiacell: "#F59E0B",
+    "korek-telecom": "#E11D48",
+    pepsi: "#2563EB",
+    "coca-cola": "#DC2626",
+    samsung: "#1D4ED8",
+    lg: "#C026D3",
+    toyota: "#EA580C",
+    kia: "#B45309",
+    hyundai: "#0F766E",
+    nestle: "#0891B2",
+    unilever: "#4F46E5",
+    huawei: "#BE123C",
+    careem: "#16A34A",
+    talabat: "#F97316",
+    carrefour: "#0284C7",
+    visa: "#1E3A8A",
+    mastercard: "#D97706",
+    tapal: "#92400E",
+    lifebuoy: "#047857",
+    bonus: "#EAB308",
+  };
+  if (brand.slug && fallbackMap[brand.slug]) {
+    return fallbackMap[brand.slug];
+  }
   if (brand.color.trim().length > 0) {
     return brand.color;
   }
-  const fallbackMap: Record<string, string> = {
-    "zain-iraq": "#7B2CBF",
-    asiacell: "#F59E0B",
-    "korek-telecom": "#111827",
-    pepsi: "#005CB4",
-    "coca-cola": "#F40009",
-    samsung: "#1428A0",
-    lg: "#A50034",
-    toyota: "#DC2626",
-    kia: "#9A3412",
-    hyundai: "#1D4ED8",
-    nestle: "#0F766E",
-    unilever: "#1E40AF",
-    huawei: "#B91C1C",
-    careem: "#16A34A",
-    talabat: "#F97316",
-    carrefour: "#2563EB",
-    visa: "#1D4ED8",
-    mastercard: "#F59E0B",
-  };
-  return brand.slug ? (fallbackMap[brand.slug] ?? "#EF4444") : "#EF4444";
+  return "#EF4444";
 }
 
 function formatRangeLabel(startDate: string, endDate: string) {

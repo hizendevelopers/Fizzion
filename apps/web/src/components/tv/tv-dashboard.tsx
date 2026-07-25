@@ -44,18 +44,25 @@ const FILTER_PRESETS: Array<{ id: FilterState["preset"]; label: string }> = [
   { id: "last2y", label: "Last 2 years" },
 ];
 
-function formatPkr(value: number) {
-  return `${new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 0,
-  }).format(Math.round(value))} PKR`;
+const USD_PKR_RATE = 277.69;
+
+function convertPkrToUsd(value: number) {
+  return value / USD_PKR_RATE;
 }
 
-function formatCompactPkr(value: number) {
-  if (value === 0) return "0";
+function formatUsd(value: number) {
+  return `${new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 0,
+  }).format(Math.round(convertPkrToUsd(value)))} USD`;
+}
+
+function formatCompactUsd(value: number) {
+  const converted = convertPkrToUsd(value);
+  if (converted === 0) return "0";
   return new Intl.NumberFormat("en-US", {
     notation: "compact",
-    maximumFractionDigits: value >= 1_000_000 ? 1 : 0,
-  }).format(value);
+    maximumFractionDigits: converted >= 1_000_000 ? 1 : 0,
+  }).format(converted);
 }
 
 function formatPercent(value: number) {
@@ -105,6 +112,44 @@ function defaultRangeForPreset(preset: FilterState["preset"]) {
   };
 }
 
+function buildRoundedSegmentPath({
+  x,
+  y,
+  width,
+  height,
+  roundTop,
+  roundBottom,
+  radius = 6,
+}: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  roundTop: boolean;
+  roundBottom: boolean;
+  radius?: number;
+}) {
+  if (height <= 0 || width <= 0) return "";
+  const r = Math.min(radius, width / 2, height / 2);
+  const topLeft = roundTop ? r : 0;
+  const topRight = roundTop ? r : 0;
+  const bottomRight = roundBottom ? r : 0;
+  const bottomLeft = roundBottom ? r : 0;
+
+  return [
+    `M ${x + bottomLeft} ${y + height}`,
+    `L ${x + width - bottomRight} ${y + height}`,
+    bottomRight ? `Q ${x + width} ${y + height} ${x + width} ${y + height - bottomRight}` : `L ${x + width} ${y + height}`,
+    `L ${x + width} ${y + topRight}`,
+    topRight ? `Q ${x + width} ${y} ${x + width - topRight} ${y}` : `L ${x + width} ${y}`,
+    `L ${x + topLeft} ${y}`,
+    topLeft ? `Q ${x} ${y} ${x} ${y + topLeft}` : `L ${x} ${y}`,
+    `L ${x} ${y + height - bottomLeft}`,
+    bottomLeft ? `Q ${x} ${y + height} ${x + bottomLeft} ${y + height}` : `L ${x} ${y + height}`,
+    "Z",
+  ].join(" ");
+}
+
 function EmptyPanel({
   title,
   body,
@@ -135,15 +180,15 @@ function SectionShell({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-[1.75rem] border border-[#E4E7EC] bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)] md:p-6">
-      <div className="flex flex-col gap-3 border-b border-[#EEF2F6] pb-4 md:flex-row md:items-end md:justify-between">
+    <section className="rounded-[1.6rem] border border-[#E4E7EC] bg-white p-4 shadow-[0_14px_32px_rgba(15,23,42,0.05)] md:p-5">
+      <div className="flex flex-col gap-3 border-b border-[#EEF2F6] pb-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h2 className="text-lg font-semibold tracking-tight text-[#101828]">{title}</h2>
           <p className="mt-1 text-sm text-[#667085]">{subtitle}</p>
         </div>
         {rightSlot}
       </div>
-      <div className="mt-5">{children}</div>
+      <div className="mt-4">{children}</div>
     </section>
   );
 }
@@ -174,20 +219,20 @@ function KpiCard({
   loading: boolean;
 }) {
   return (
-    <article className="rounded-[1.5rem] border border-[#E4E7EC] bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
+    <article className="rounded-[1.4rem] border border-[#E4E7EC] bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#98A2B3]">{label}</p>
-          <div className="mt-3 text-3xl font-semibold tracking-tight text-[#101828]">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#98A2B3]">{label}</p>
+          <div className="mt-2.5 text-[2rem] font-semibold tracking-tight text-[#101828]">
             {loading ? <div className="h-10 w-28 animate-pulse rounded-xl bg-[#EEF2F6]" /> : value}
           </div>
-          <p className="mt-3 text-sm text-[#667085]">{description}</p>
+          <p className="mt-2.5 text-sm text-[#667085]">{description}</p>
         </div>
-        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#FEF3F2,#FDE7E7)] text-[#D92D20]">
+        <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#FEF3F2,#FDE7E7)] text-[#D92D20]">
           {icon}
         </span>
       </div>
-      <div className="mt-4 flex items-center justify-between rounded-2xl bg-[#F8FAFC] px-3 py-2 text-xs text-[#667085]">
+      <div className="mt-3.5 flex items-center justify-between rounded-2xl bg-[#F8FAFC] px-3 py-2 text-xs text-[#667085]">
         <span>Previous period</span>
         <span
           className={cn(
@@ -216,9 +261,7 @@ function FilterChip({
       type="button"
     >
       {label}
-      <span aria-hidden="true" className="text-[#98A2B3]">
-        ×
-      </span>
+      <span aria-hidden="true" className="text-[#98A2B3]">x</span>
     </button>
   );
 }
@@ -305,18 +348,18 @@ function MultiSelectFilter({
     <div className="relative">
       <button
         className={cn(
-          "flex min-h-[104px] w-full items-center justify-between rounded-[1.5rem] border bg-[linear-gradient(180deg,#FFFFFF_0%,#FBFCFE_100%)] px-4 py-4 text-left text-sm shadow-[0_10px_28px_rgba(15,23,42,0.05)] transition",
+          "flex min-h-[88px] w-full items-center justify-between rounded-[1.35rem] border bg-[linear-gradient(180deg,#FFFFFF_0%,#FBFCFE_100%)] px-3.5 py-3 text-left text-sm shadow-[0_8px_24px_rgba(15,23,42,0.04)] transition",
           isOpen ? "border-[#F04438] shadow-[0_14px_32px_rgba(240,68,56,0.10)]" : "border-[#E4E7EC]",
         )}
         onClick={() => setIsOpen((current) => !current)}
         type="button"
       >
         <span className="flex min-w-0 items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#FFF1EE] text-[#D92D20]">
+          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#FFF1EE] text-[#D92D20]">
             {icon}
           </span>
           <span className="min-w-0">
-            <span className="block text-xs font-semibold uppercase tracking-[0.18em] text-[#98A2B3]">{label}</span>
+            <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#98A2B3]">{label}</span>
             <span className="mt-1 block truncate text-sm font-medium text-[#101828]">
               {selectedIds.length > 0 ? `${selectedIds.length} selected` : `All ${label.toLowerCase()}`}
             </span>
@@ -388,40 +431,36 @@ function DateRangeFilter({
   latestDate,
   validationMessage,
   onChange,
-  onApply,
-  onClear,
 }: {
   value: FilterState;
   latestDate: string | null;
   validationMessage: string | null;
   onChange: (next: Partial<FilterState>) => void;
-  onApply: () => void;
-  onClear: () => void;
 }) {
   return (
-    <div className="rounded-[1.5rem] border border-[#E4E7EC] bg-[linear-gradient(180deg,#FFFFFF_0%,#FBFCFE_100%)] p-4 shadow-[0_10px_28px_rgba(15,23,42,0.05)]">
+    <div className="flex h-full min-h-[88px] flex-col justify-between rounded-[1.35rem] border border-[#E4E7EC] bg-[linear-gradient(180deg,#FFFFFF_0%,#FBFCFE_100%)] p-3.5 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
       <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#FFF1EE] text-[#D92D20]">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#FFF1EE] text-[#D92D20]">
             <CalendarIcon className="h-4 w-4" />
           </span>
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#98A2B3]">Date range</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#98A2B3]">Date range</p>
             <p className="truncate text-sm font-medium text-[#101828]">
               {formatDateLabel(value.startDate)} to {formatDateLabel(value.endDate)}
             </p>
           </div>
         </div>
-        <span className="rounded-full border border-[#EAECF0] bg-white px-3 py-1 text-xs font-semibold text-[#475467]">
+        <span className="rounded-full border border-[#EAECF0] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#475467]">
           {FILTER_PRESETS.find((preset) => preset.id === value.preset)?.label ?? "Custom"}
         </span>
       </div>
 
-      <div className="mt-4 grid gap-3 xl:grid-cols-[1.15fr_1fr_1fr]">
+      <div className="mt-3 grid gap-2 md:grid-cols-3">
         <label className="text-sm">
-          <span className="mb-1.5 block font-medium text-[#344054]">Preset</span>
+          <span className="mb-1 block text-[11px] font-medium text-[#667085]">Preset</span>
           <select
-            className="h-11 w-full rounded-2xl border border-[#D0D5DD] bg-white px-3 text-sm text-[#101828] outline-none transition focus:border-[#F04438]"
+            className="h-10 w-full rounded-xl border border-[#D0D5DD] bg-white px-3 text-sm text-[#101828] outline-none transition focus:border-[#F04438]"
             onChange={(event) => {
               const preset = event.target.value as FilterState["preset"];
               const nextRange = defaultRangeForPreset(preset);
@@ -438,9 +477,9 @@ function DateRangeFilter({
         </label>
 
         <label className="text-sm">
-          <span className="mb-1.5 block font-medium text-[#344054]">Start date</span>
+          <span className="mb-1 block text-[11px] font-medium text-[#667085]">Start date</span>
           <input
-            className="h-11 w-full rounded-2xl border border-[#D0D5DD] bg-white px-3 text-sm text-[#101828] outline-none transition focus:border-[#F04438]"
+            className="h-10 w-full rounded-xl border border-[#D0D5DD] bg-white px-3 text-sm text-[#101828] outline-none transition focus:border-[#F04438]"
             max={value.endDate}
             onChange={(event) => onChange({ preset: "custom", startDate: event.target.value })}
             type="date"
@@ -449,9 +488,9 @@ function DateRangeFilter({
         </label>
 
         <label className="text-sm">
-          <span className="mb-1.5 block font-medium text-[#344054]">End date</span>
+          <span className="mb-1 block text-[11px] font-medium text-[#667085]">End date</span>
           <input
-            className="h-11 w-full rounded-2xl border border-[#D0D5DD] bg-white px-3 text-sm text-[#101828] outline-none transition focus:border-[#F04438]"
+            className="h-10 w-full rounded-xl border border-[#D0D5DD] bg-white px-3 text-sm text-[#101828] outline-none transition focus:border-[#F04438]"
             max={latestDate ?? undefined}
             min={value.startDate}
             onChange={(event) => onChange({ preset: "custom", endDate: event.target.value })}
@@ -461,22 +500,49 @@ function DateRangeFilter({
         </label>
       </div>
 
-      {validationMessage ? <p className="mt-3 text-sm text-[#B42318]">{validationMessage}</p> : null}
+      {validationMessage ? <p className="mt-2 text-xs text-[#B42318]">{validationMessage}</p> : null}
+    </div>
+  );
+}
 
-      <div className="mt-4 flex flex-wrap gap-2">
+function FilterActions({
+  activeFilterCount,
+  hasPendingChanges,
+  validationMessage,
+  loading,
+  onApply,
+  onClear,
+}: {
+  activeFilterCount: number;
+  hasPendingChanges: boolean;
+  validationMessage: string | null;
+  loading: boolean;
+  onApply: () => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="flex h-full min-h-[88px] flex-col justify-between rounded-[1.35rem] border border-[#E4E7EC] bg-white p-3.5 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#98A2B3]">Actions</p>
+        <span className="rounded-full border border-[#EAECF0] bg-[#F8FAFC] px-2.5 py-1 text-[11px] font-semibold text-[#475467]">
+          {activeFilterCount} active
+        </span>
+      </div>
+      <div className="mt-3 flex items-center gap-2">
         <button
-          className="inline-flex h-11 items-center justify-center rounded-2xl bg-[#F04438] px-5 text-sm font-semibold text-white transition hover:bg-[#D92D20]"
+          className="inline-flex h-10 flex-1 items-center justify-center rounded-xl bg-[#F04438] px-4 text-sm font-semibold text-white transition hover:bg-[#D92D20] disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={!hasPendingChanges || Boolean(validationMessage) || loading}
           onClick={onApply}
           type="button"
         >
-          Apply
+          {loading ? "Refreshing..." : "Apply"}
         </button>
         <button
-          className="inline-flex h-11 items-center justify-center rounded-2xl border border-[#D0D5DD] bg-white px-5 text-sm font-semibold text-[#344054] transition hover:border-[#98A2B3]"
+          className="inline-flex h-10 items-center justify-center rounded-xl border border-[#D0D5DD] bg-white px-3.5 text-sm font-semibold text-[#344054] transition hover:border-[#98A2B3]"
           onClick={onClear}
           type="button"
         >
-          Clear
+          Clear all
         </button>
       </div>
     </div>
@@ -500,6 +566,7 @@ function SpendingChart({
     bucket: string;
     spend: number;
     share: number;
+    periodTotal: number;
   } | null>(null);
 
   const primaryBrands = useMemo(() => breakdown.slice(0, 6), [breakdown]);
@@ -533,11 +600,11 @@ function SpendingChart({
   );
 
   const width = 860;
-  const height = 340;
-  const chartHeight = 232;
-  const chartWidth = 756;
-  const marginLeft = 72;
-  const marginTop = 18;
+  const height = 286;
+  const chartHeight = 184;
+  const chartWidth = 764;
+  const marginLeft = 68;
+  const marginTop = 14;
   const columnWidth = chartBuckets.length > 0 ? chartWidth / chartBuckets.length : 0;
   const maxBucketSpend = Math.max(...chartBuckets.map((bucket) => bucket.totalSpend), 1);
   const xLabelStep = chartBuckets.length <= 10 ? 1 : chartBuckets.length <= 18 ? 2 : chartBuckets.length <= 30 ? 3 : 4;
@@ -560,22 +627,22 @@ function SpendingChart({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_auto]">
-        <div className="rounded-[1.5rem] border border-[#EEF2F6] bg-[linear-gradient(135deg,#FFF7F5_0%,#FFFFFF_58%,#F8FAFC_100%)] px-5 py-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#98A2B3]">Summary</p>
-          <p className="mt-2 text-2xl font-semibold tracking-tight text-[#101828]">{formatPkr(data.totalSpend)}</p>
-          <div className="mt-3 flex flex-wrap gap-2 text-xs text-[#475467]">
+        <div className="rounded-[1.35rem] border border-[#EEF2F6] bg-[linear-gradient(135deg,#FFF7F5_0%,#FFFFFF_58%,#F8FAFC_100%)] px-4 py-3.5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#98A2B3]">Summary</p>
+          <p className="mt-1.5 text-xl font-semibold tracking-tight text-[#101828]">{formatUsd(data.totalSpend)}</p>
+          <div className="mt-2.5 flex flex-wrap gap-2 text-xs text-[#475467]">
             <span className="rounded-full bg-white px-3 py-1.5">{data.representedBrandCount} brands</span>
             <span className="rounded-full bg-white px-3 py-1.5">{data.granularity}</span>
             <span className="rounded-full bg-white px-3 py-1.5">{chartRangeLabel}</span>
           </div>
         </div>
-        <div className="rounded-[1.5rem] border border-[#EEF2F6] bg-white px-5 py-4 text-right">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#98A2B3]">Previous period</p>
+        <div className="rounded-[1.35rem] border border-[#EEF2F6] bg-white px-4 py-3.5 text-right">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#98A2B3]">Previous period</p>
           <p
             className={cn(
-              "mt-2 text-2xl font-semibold tracking-tight",
+              "mt-1.5 text-xl font-semibold tracking-tight",
               data.changePercent == null ? "text-[#101828]" : data.changePercent >= 0 ? "text-[#027A48]" : "text-[#B42318]",
             )}
           >
@@ -585,8 +652,8 @@ function SpendingChart({
         </div>
       </div>
 
-      <div className="rounded-[1.75rem] border border-[#EEF2F6] bg-[#FDFDFE] p-4">
-        <div className="mb-4 flex flex-wrap gap-2">
+      <div className="rounded-[1.5rem] border border-[#EEF2F6] bg-[#FDFDFE] p-3.5">
+        <div className="mb-3 flex flex-wrap gap-2">
           {[
             ...primaryBrands,
             ...(breakdown.length > primaryBrands.length ? [{ brandId: "others", brandName: "Others", color: "#CBD5E1" }] : []),
@@ -609,15 +676,15 @@ function SpendingChart({
         </div>
 
         <div className="relative overflow-x-auto">
-          <svg className="min-w-[820px] w-full" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="TV spending stacked chart">
-          {Array.from({ length: 5 }).map((_, index) => {
-            const y = marginTop + chartHeight - (chartHeight / 4) * index;
-            const tickValue = (maxBucketSpend / 4) * index;
+          <svg className="min-w-[760px] w-full" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="TV spending stacked chart">
+          {Array.from({ length: 4 }).map((_, index) => {
+            const y = marginTop + chartHeight - (chartHeight / 3) * index;
+            const tickValue = (maxBucketSpend / 3) * index;
             return (
               <g key={index}>
-                <line x1={marginLeft} x2={marginLeft + chartWidth} y1={y} y2={y} stroke="#EAECF0" strokeWidth={1} />
+                <line x1={marginLeft} x2={marginLeft + chartWidth} y1={y} y2={y} stroke="#EEF2F6" strokeWidth={1} />
                 <text fill="#98A2B3" fontSize={11} textAnchor="end" x={marginLeft - 10} y={y + 4}>
-                  {formatCompactPkr(tickValue)}
+                  {formatCompactUsd(tickValue)}
                 </text>
               </g>
             );
@@ -630,14 +697,22 @@ function SpendingChart({
                 {bucket.brands.map((brand) => {
                   const segmentHeight = bucket.totalSpend > 0 ? (brand.spend / maxBucketSpend) * chartHeight : 0;
                   const y = marginTop + chartHeight - runningHeight - segmentHeight;
-                  const x = marginLeft + index * columnWidth + 6;
+                  const x = marginLeft + index * columnWidth + 7;
                   runningHeight += segmentHeight;
                   const dimmed = focusedBrandId && focusedBrandId !== brand.brandId;
+                  const segmentIndex = bucket.brands.findIndex((item) => item.brandId === brand.brandId);
                   return (
-                    <rect
+                    <path
                       key={`${bucket.key}-${brand.brandId}`}
+                      d={buildRoundedSegmentPath({
+                        x,
+                        y,
+                        width: Math.max(columnWidth - 14, 12),
+                        height: Math.max(segmentHeight, 0),
+                        roundTop: segmentIndex === bucket.brands.length - 1,
+                        roundBottom: segmentIndex === 0,
+                      })}
                       fill={brand.color}
-                      height={Math.max(segmentHeight, 0)}
                       onClick={() =>
                         setFocusedBrandId((current) => (current === brand.brandId ? null : brand.brandId))
                       }
@@ -651,24 +726,21 @@ function SpendingChart({
                           bucket: bucket.label,
                           spend: brand.spend,
                           share: brand.shareOfBucket,
+                          periodTotal: bucket.totalSpend,
                         });
                       }}
                       onMouseLeave={() => setTooltip(null)}
                       opacity={dimmed ? 0.2 : 0.95}
-                      rx={6}
-                      width={Math.max(columnWidth - 12, 14)}
-                      x={x}
-                      y={y}
                     />
                   );
                 })}
                 {index % xLabelStep === 0 || index === chartBuckets.length - 1 ? (
                   <text
                     fill="#98A2B3"
-                    fontSize={11}
+                    fontSize={10}
                     textAnchor="middle"
                     x={marginLeft + index * columnWidth + columnWidth / 2}
-                    y={marginTop + chartHeight + 22}
+                    y={marginTop + chartHeight + 18}
                   >
                     {bucket.label}
                   </text>
@@ -684,9 +756,10 @@ function SpendingChart({
               style={{ left: tooltip.x + 18, top: Math.max(tooltip.y - 20, 8) }}
             >
               <p className="font-semibold text-[#101828]">{tooltip.brand}</p>
-              <p className="mt-1 text-[#475467]">{tooltip.bucket}</p>
-              <p className="mt-1 text-[#101828]">{formatPkr(tooltip.spend)}</p>
-              <p className="text-[#667085]">{tooltip.share.toFixed(1)}% of period spend</p>
+              <p className="mt-1 text-[#475467]">Date: {tooltip.bucket}</p>
+              <p className="mt-1 text-[#101828]">Spend: {formatUsd(tooltip.spend)}</p>
+              <p className="text-[#667085]">Period share: {tooltip.share.toFixed(1)}%</p>
+              <p className="text-[#667085]">Period total: {formatUsd(tooltip.periodTotal)}</p>
             </div>
           ) : null}
         </div>
@@ -703,7 +776,7 @@ function SpendingChart({
               </div>
             </div>
             <div className="text-right">
-              <p className="text-sm font-semibold text-[#101828]">{formatPkr(brand.spend)}</p>
+              <p className="text-sm font-semibold text-[#101828]">{formatUsd(brand.spend)}</p>
               <p className={cn("text-xs", brand.changePercent == null ? "text-[#101828]" : brand.changePercent >= 0 ? "text-[#027A48]" : "text-[#B42318]")}>
                 {formatRelativeComparison(brand.changePercent)}
               </p>
@@ -762,7 +835,7 @@ function SovPanel({ items, loading }: { items: TvOverviewResponse["brandSov"]; l
               <span className="h-3 w-3 rounded-full" style={{ backgroundColor: item.color }} />
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-[#101828]">{item.brandName}</p>
-                <p className="text-xs text-[#667085]">{formatPkr(item.spend)}</p>
+                <p className="text-xs text-[#667085]">{formatUsd(item.spend)}</p>
               </div>
             </div>
             <span className="text-sm font-semibold text-[#101828]">{item.displayPercentage.toFixed(1)}%</span>
@@ -834,7 +907,7 @@ function ChannelSplitPanel({ items, loading }: { items: TvOverviewResponse["chan
             />
           ))}
           <text fill="#101828" fontSize="16" fontWeight="700" textAnchor="middle" x="50%" y="48%">
-            {formatPkr(items.reduce((sum, item) => sum + item.spend, 0))}
+            {formatUsd(items.reduce((sum, item) => sum + item.spend, 0))}
           </text>
           <text fill="#667085" fontSize="11" textAnchor="middle" x="50%" y="58%">
             Total filtered spend
@@ -852,7 +925,7 @@ function ChannelSplitPanel({ items, loading }: { items: TvOverviewResponse["chan
                   <p className="truncate text-sm font-semibold text-[#101828]">{item.channelName}</p>
                 </div>
                 <p className="mt-1 text-xs text-[#667085]">
-                  {formatPkr(item.spend)} • {item.detectedAdsCount} detected ads
+                  {formatUsd(item.spend)} - {item.detectedAdsCount} detected ads
                 </p>
               </div>
               <span className="text-sm font-semibold text-[#101828]">{item.displayPercentage.toFixed(1)}%</span>
@@ -964,11 +1037,11 @@ function ActiveCampaignsPanel({ items, loading }: { items: TvOverviewResponse["a
                   </span>
                 </div>
                 <p className="mt-3 text-xs text-[#667085]">
-                  {item.connectedChannelCount} TV channels • {item.detectedAdsCount} detected ads
+                  {item.connectedChannelCount} TV channels - {item.detectedAdsCount} detected ads
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-sm font-semibold text-[#101828]">{formatPkr(item.totalSpend)}</p>
+                <p className="text-sm font-semibold text-[#101828]">{formatUsd(item.totalSpend)}</p>
               </div>
             </div>
           </div>
@@ -1017,12 +1090,12 @@ function ActiveBrandsPanel({ items, expectedCount, loading }: { items: TvOvervie
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-[#101828]">{item.brandName}</p>
                 <p className="text-xs text-[#667085]">
-                  {item.activeCampaignCount} active campaigns • {item.connectedChannelCount} TV channels
+                  {item.activeCampaignCount} active campaigns - {item.connectedChannelCount} TV channels
                 </p>
               </div>
             </div>
             <div className="text-right">
-              <p className="text-sm font-semibold text-[#101828]">{formatPkr(item.totalSpend)}</p>
+              <p className="text-sm font-semibold text-[#101828]">{formatUsd(item.totalSpend)}</p>
               <p className="text-xs text-[#027A48]">{item.status}</p>
             </div>
           </div>
@@ -1064,7 +1137,7 @@ function TableHeaderButton({
       type="button"
     >
       {label}
-      <span className="text-[10px]">{active ? (direction === "asc" ? "↑" : "↓") : "↕"}</span>
+      <span className="text-[10px]">{active ? (direction === "asc" ? "^" : "v") : "+/-"}</span>
     </button>
   );
 }
@@ -1140,7 +1213,7 @@ function AdPreviewModal({
           <div>
             <h3 className="text-lg font-semibold text-[#101828]">{ad.copyName}</h3>
             <p className="mt-1 text-sm text-[#667085]">
-              {ad.brandName} • {ad.channelName} • {ad.date} {ad.time}
+              {ad.brandName} - {ad.channelName} - {ad.date} {ad.time}
             </p>
           </div>
           <button
@@ -1166,7 +1239,7 @@ function AdPreviewModal({
               <p><span className="font-semibold text-[#101828]">Genre:</span> {ad.genre}</p>
               <p><span className="font-semibold text-[#101828]">Daypart:</span> {ad.daypart}</p>
               <p><span className="font-semibold text-[#101828]">Duration:</span> {ad.durationSeconds} sec</p>
-              <p><span className="font-semibold text-[#101828]">Cost:</span> {formatPkr(ad.cost)}</p>
+              <p><span className="font-semibold text-[#101828]">Cost:</span> {formatUsd(ad.cost)}</p>
               <p><span className="font-semibold text-[#101828]">SOV:</span> {formatPercent(ad.sovPercentage)}</p>
               <p>
                 <span className="font-semibold text-[#101828]">Media source:</span>{" "}
@@ -1422,12 +1495,10 @@ export function TvDashboard({ initialData }: TvDashboardProps) {
   const filterOptions = state.data.filterOptions;
 
   const filterBar = (
-    <div className="grid gap-4 xl:grid-cols-[1.35fr_1fr_1fr_1fr]">
+    <>
       <DateRangeFilter
         latestDate={state.data.summary.latestDataDate}
-        onApply={applyFilters}
         onChange={(next) => setPendingFilters((current) => ({ ...current, ...next }))}
-        onClear={clearFilters}
         validationMessage={validationMessage}
         value={pendingFilters}
       />
@@ -1450,7 +1521,7 @@ export function TvDashboard({ initialData }: TvDashboardProps) {
         options={filterOptions.campaigns.map((item) => ({
           id: item.id,
           label: item.name,
-          description: `${item.brandName}${item.selectedButUnavailable ? " • outside current brand scope" : ""}`,
+          description: `${item.brandName}${item.selectedButUnavailable ? " - outside current brand scope" : ""}`,
           muted: Boolean(item.selectedButUnavailable),
         }))}
         selectedIds={pendingFilters.campaignIds}
@@ -1462,39 +1533,39 @@ export function TvDashboard({ initialData }: TvDashboardProps) {
         options={filterOptions.channels.map((item) => ({
           id: item.id,
           label: item.name,
-          description: `${item.genre} • ${item.language}`,
+          description: `${item.genre} - ${item.language}`,
         }))}
         selectedIds={pendingFilters.channelIds}
       />
-    </div>
+    </>
   );
 
   return (
     <div className="space-y-6">
       <AdPreviewModal ad={previewAd} onClose={() => setPreviewAd(null)} />
 
-      <section className="rounded-[1.9rem] border border-[#E4E7EC] bg-[radial-gradient(circle_at_top_left,#FFF5F4_0%,#FFFFFF_46%,#F8FAFC_100%)] p-5 shadow-[0_18px_48px_rgba(15,23,42,0.06)] md:p-6">
+      <section className="rounded-[1.8rem] border border-[#E4E7EC] bg-[radial-gradient(circle_at_top_left,#FFF5F4_0%,#FFFFFF_46%,#F8FAFC_100%)] p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] md:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#98A2B3]">
+            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#98A2B3]">
               <span>Overview</span>
               <span>/</span>
               <span className="text-[#101828]">TV</span>
             </div>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[#101828] md:text-[2.2rem]">TV</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-7 text-[#667085]">
+            <h1 className="mt-2 text-[2rem] font-semibold tracking-tight text-[#101828] md:text-[2.1rem]">TV</h1>
+            <p className="mt-1.5 max-w-3xl text-sm leading-6 text-[#667085]">
               Monitor TV advertising performance, active brands, campaigns, channels, spend, and detected creatives.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-3 text-sm text-[#475467]">
-            <span className="rounded-full bg-white px-3 py-2 shadow-[0_4px_14px_rgba(15,23,42,0.04)]">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-[#475467]">
+            <span className="rounded-full bg-white px-3 py-1.5 shadow-[0_4px_14px_rgba(15,23,42,0.04)]">
               {state.data.summary.rangeLabel}
             </span>
-            <span className="rounded-full bg-white px-3 py-2 shadow-[0_4px_14px_rgba(15,23,42,0.04)]">
+            <span className="rounded-full bg-white px-3 py-1.5 shadow-[0_4px_14px_rgba(15,23,42,0.04)]">
               Last updated {formatLastUpdated(state.data.summary.lastUpdatedAt)}
             </span>
             <button
-              className="inline-flex h-11 items-center justify-center rounded-2xl border border-[#D0D5DD] bg-white px-4 text-sm font-semibold text-[#344054]"
+              className="inline-flex h-10 items-center justify-center rounded-xl border border-[#D0D5DD] bg-white px-4 text-sm font-semibold text-[#344054]"
               onClick={() => void loadAnalytics(state.data.filters)}
               type="button"
             >
@@ -1504,25 +1575,49 @@ export function TvDashboard({ initialData }: TvDashboardProps) {
         </div>
       </section>
 
-      <section className="rounded-[1.75rem] border border-[#E4E7EC] bg-[linear-gradient(180deg,#FFFFFF_0%,#F8FAFC_100%)] p-4 shadow-[0_16px_40px_rgba(15,23,42,0.05)] md:p-5">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-[#101828]">Global filters</p>
-            <p className="text-sm text-[#667085]">Every section on this page uses the same TV filter scope.</p>
+      <section className="rounded-[1.6rem] border border-[#E4E7EC] bg-[linear-gradient(180deg,#FFFFFF_0%,#F8FAFC_100%)] p-3 shadow-[0_14px_32px_rgba(15,23,42,0.05)] md:p-4">
+        <div className="hidden xl:grid xl:grid-cols-[1.55fr_1fr_1fr_1fr_auto] xl:items-stretch xl:gap-3">
+          {filterBar}
+          <FilterActions
+            activeFilterCount={state.data.summary.activeFilterCount}
+            hasPendingChanges={hasPendingChanges}
+            loading={state.loading}
+            onApply={applyFilters}
+            onClear={clearFilters}
+            validationMessage={validationMessage}
+          />
+        </div>
+
+        <div className="hidden gap-3 md:grid md:grid-cols-2 xl:hidden">
+          {filterBar}
+          <div className="md:col-span-2">
+            <FilterActions
+              activeFilterCount={state.data.summary.activeFilterCount}
+              hasPendingChanges={hasPendingChanges}
+              loading={state.loading}
+              onApply={applyFilters}
+              onClear={clearFilters}
+              validationMessage={validationMessage}
+            />
           </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 md:hidden">
+          <span className="rounded-full border border-[#EAECF0] bg-white px-3 py-1.5 text-xs font-semibold text-[#475467]">
+            {state.data.summary.activeFilterCount} active
+          </span>
           <div className="flex items-center gap-2">
-            <span className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-[#344054]">
-              {state.data.summary.activeFilterCount} active filters
-            </span>
+            {state.data.summary.activeFilterCount > 0 ? (
+              <button
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-[#D0D5DD] bg-white px-3.5 text-sm font-semibold text-[#344054]"
+                onClick={clearFilters}
+                type="button"
+              >
+                Clear all
+              </button>
+            ) : null}
             <button
-              className="hidden h-11 items-center justify-center rounded-2xl border border-[#D0D5DD] bg-white px-4 text-sm font-semibold text-[#344054] lg:inline-flex"
-              onClick={clearFilters}
-              type="button"
-            >
-              Clear all
-            </button>
-            <button
-              className="inline-flex h-11 items-center justify-center rounded-2xl border border-[#D0D5DD] bg-white px-4 text-sm font-semibold text-[#344054] lg:hidden"
+              className="inline-flex h-10 items-center justify-center rounded-xl border border-[#D0D5DD] bg-white px-4 text-sm font-semibold text-[#344054]"
               onClick={() => setMobileFiltersOpen(true)}
               type="button"
             >
@@ -1531,30 +1626,13 @@ export function TvDashboard({ initialData }: TvDashboardProps) {
           </div>
         </div>
 
-        <div className="hidden lg:block">{filterBar}</div>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {filterChips.map((chip) => (
-            <FilterChip key={chip.key} label={chip.label} onRemove={chip.onRemove} />
-          ))}
-          {filterChips.length === 0 ? <span className="text-sm text-[#667085]">No extra filters applied.</span> : null}
-        </div>
-        <div className="mt-5 hidden gap-2 border-t border-[#EEF2F6] pt-4 lg:flex">
-          <button
-            className="inline-flex h-11 items-center justify-center rounded-2xl bg-[#F04438] px-5 text-sm font-semibold text-white transition hover:bg-[#D92D20] disabled:opacity-50"
-            disabled={!hasPendingChanges || Boolean(validationMessage) || state.loading}
-            onClick={applyFilters}
-            type="button"
-          >
-            {state.loading ? "Refreshing..." : "Apply filters"}
-          </button>
-          <button
-            className="inline-flex h-11 items-center justify-center rounded-2xl border border-[#D0D5DD] bg-white px-5 text-sm font-semibold text-[#344054]"
-            onClick={clearFilters}
-            type="button"
-          >
-            Clear all
-          </button>
-        </div>
+        {filterChips.length > 0 ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {filterChips.map((chip) => (
+              <FilterChip key={chip.key} label={chip.label} onRemove={chip.onRemove} />
+            ))}
+          </div>
+        ) : null}
       </section>
 
       {mobileFiltersOpen ? (
@@ -1563,7 +1641,6 @@ export function TvDashboard({ initialData }: TvDashboardProps) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-semibold text-[#101828]">TV filters</p>
-                <p className="text-sm text-[#667085]">Update the entire TV page scope.</p>
               </div>
               <button
                 className="rounded-full border border-[#D0D5DD] px-3 py-1.5 text-sm font-semibold text-[#344054]"
@@ -1573,7 +1650,17 @@ export function TvDashboard({ initialData }: TvDashboardProps) {
                 Close
               </button>
             </div>
-            <div className="mt-4">{filterBar}</div>
+            <div className="mt-4 grid gap-3">{filterBar}</div>
+            <div className="mt-4 border-t border-[#EEF2F6] pt-4">
+              <FilterActions
+                activeFilterCount={state.data.summary.activeFilterCount}
+                hasPendingChanges={hasPendingChanges}
+                loading={state.loading}
+                onApply={applyFilters}
+                onClear={clearFilters}
+                validationMessage={validationMessage}
+              />
+            </div>
           </div>
         </div>
       ) : null}
@@ -1596,14 +1683,14 @@ export function TvDashboard({ initialData }: TvDashboardProps) {
         <KpiCard comparison={state.data.kpis.activeBrands.changePercent} description="Unique brands active on TV" icon={<BrandIcon className="h-5 w-5" />} label="Active Brands" loading={state.loading} value={String(state.data.kpis.activeBrands.value)} />
         <KpiCard comparison={state.data.kpis.activeCampaigns.changePercent} description="TV campaigns active in the selected period" icon={<CampaignIcon className="h-5 w-5" />} label="Active Campaigns" loading={state.loading} value={String(state.data.kpis.activeCampaigns.value)} />
         <KpiCard comparison={state.data.kpis.activeChannels.changePercent} description="TV channels with monitored activity" icon={<TvIcon className="h-5 w-5" />} label="Active Channels" loading={state.loading} value={String(state.data.kpis.activeChannels.value)} />
-        <KpiCard comparison={state.data.kpis.totalSpend.changePercent} description="Combined filtered TV media spend" icon={<ReportIcon className="h-5 w-5" />} label="Total Spend" loading={state.loading} value={formatPkr(state.data.kpis.totalSpend.value)} />
+        <KpiCard comparison={state.data.kpis.totalSpend.changePercent} description="Combined filtered TV media spend" icon={<ReportIcon className="h-5 w-5" />} label="Total Spend" loading={state.loading} value={formatUsd(state.data.kpis.totalSpend.value)} />
       </section>
 
       <SectionShell
         rightSlot={
           <div className="rounded-2xl bg-[#F8FAFC] px-4 py-3 text-right">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#98A2B3]">Reconciled total</p>
-            <p className="mt-1 text-lg font-semibold text-[#101828]">{formatPkr(state.data.reconciliation.totalSpend)}</p>
+            <p className="mt-1 text-lg font-semibold text-[#101828]">{formatUsd(state.data.reconciliation.totalSpend)}</p>
           </div>
         }
         subtitle="Brand-wise TV spending over time for the selected filters."
@@ -1768,7 +1855,7 @@ export function TvDashboard({ initialData }: TvDashboardProps) {
                       <td className="px-3 py-3 text-[#475467]">{item.language}</td>
                       <td className="px-3 py-3 text-[#475467]">{item.durationSeconds} sec</td>
                       <td className="px-3 py-3 text-[#475467]">{item.copyName}</td>
-                      <td className="px-3 py-3 font-semibold text-[#101828]">{formatPkr(item.cost)}</td>
+                      <td className="px-3 py-3 font-semibold text-[#101828]">{formatUsd(item.cost)}</td>
                       <td className="px-3 py-3 text-[#475467]" title="Row SOV = detected ad cost / total filtered detected ad cost × 100">
                         {formatPercent(item.sovPercentage)}
                       </td>
@@ -1822,3 +1909,4 @@ export function TvDashboard({ initialData }: TvDashboardProps) {
     </div>
   );
 }
+

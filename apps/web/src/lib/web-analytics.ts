@@ -123,6 +123,7 @@ export type WebDetection = {
   reviewStatus: string;
   spendAmount: number;
   currency: string;
+  size: string | null;
   screenshotUrl: string | null;
 };
 
@@ -204,6 +205,45 @@ function daysBetweenInclusive(start: Date, end: Date): number {
 function safePercentChange(current: number, previous: number): number | null {
   if (previous === 0) return current === 0 ? 0 : null;
   return ((current - previous) / previous) * 100;
+}
+
+function normalizeDimensionLabel(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const matched = trimmed.match(/(\d{2,5})\s*[x×]\s*(\d{2,5})/i);
+  if (!matched) return trimmed;
+  return `${matched[1]} × ${matched[2]}`;
+}
+
+function readSizeFromUnknown(value: unknown): string | null {
+  if (!value) return null;
+  if (typeof value === "string") return normalizeDimensionLabel(value);
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const width = typeof record.width === "number" ? record.width : typeof record.w === "number" ? record.w : null;
+    const height = typeof record.height === "number" ? record.height : typeof record.h === "number" ? record.h : null;
+    if (width && height) return `${Math.round(width)} × ${Math.round(height)}`;
+    for (const key of ["dimensions", "size", "adSize", "creativeSize"] as const) {
+      const nested = readSizeFromUnknown(record[key]);
+      if (nested) return nested;
+    }
+  }
+  return null;
+}
+
+export function inferWebDetectionSize(row: Record<string, unknown>): string | null {
+  for (const key of ["dimensions", "size", "ad_size", "creative_size"] as const) {
+    const direct = readSizeFromUnknown(row[key]);
+    if (direct) return direct;
+  }
+  for (const key of ["bounding_box", "boundingBox", "placement_box", "placementBox", "metadata", "media_metadata"] as const) {
+    const derived = readSizeFromUnknown(row[key]);
+    if (derived) return derived;
+  }
+  const width = typeof row.width === "number" ? row.width : null;
+  const height = typeof row.height === "number" ? row.height : null;
+  if (width && height) return `${Math.round(width)} × ${Math.round(height)}`;
+  return null;
 }
 
 function sumAmounts(records: Array<{ amount: number }>): number {
@@ -730,6 +770,7 @@ export async function getWebDetections(rawFilters?: Partial<WebFilters> & { sear
       destinationUrl: r.destination_url ? String(r.destination_url) : null,
       confidenceScore: Number(r.confidence_score ?? 0), reviewStatus: String(r.review_status ?? "pending"),
       spendAmount: Number(r.spend_amount ?? 0), currency: String(r.currency ?? "USD"),
+      size: inferWebDetectionSize(r as Record<string, unknown>),
       screenshotUrl: ss?.screenshot_url ? String(ss.screenshot_url) : null,
     };
   });

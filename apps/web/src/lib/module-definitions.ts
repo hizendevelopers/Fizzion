@@ -76,7 +76,7 @@ export const moduleDefinitions: Record<string, ModuleDefinition> = {
     ],
   },
   ooh: {
-    title: "OOH Intelligence",
+    title: "OOH",
     description:
       "Manage manual OOH inventory, location mapping, vendor assignments, verification visits, and proof-of-display evidence.",
     status: "Manual inventory workflow",

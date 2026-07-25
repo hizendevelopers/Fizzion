@@ -389,6 +389,12 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
                   </div>
                   {d.brandName && <span className="shrink-0 rounded-full bg-[#F3F4F6] px-2 py-0.5 text-[10px] font-medium text-[#374151]">{d.brandName}</span>}
                 </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg border border-[#EEF2F7] bg-white px-3 py-2.5 text-[11px]">
+                  <MetaField label="Brand Name" value={d.brandName ?? "Unassigned"} />
+                  <MetaField label="Date" value={d.date} />
+                  <MetaField label="Time" value={d.time} />
+                  <MetaField label="Size" value={d.size ?? "Not available"} />
+                </div>
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-[#6B7280]">
                   <span>{d.date}</span>
                   <span className="text-[#D1D5DB]">•</span>
@@ -404,6 +410,15 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
           <button className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-lg border border-[#E5E7EB] text-xs font-semibold text-[#374151] transition hover:bg-[#F9FAFB] disabled:opacity-50" disabled={detectionsLoading} onClick={() => loadDetections(detectionsPage + 1, state.data.filters)} type="button">View More</button>
         )}
       </section>
+    </div>
+  );
+}
+
+function MetaField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-[#9CA3AF]">{label}</p>
+      <p className="mt-1 truncate text-[11px] font-semibold text-[#111827]">{value}</p>
     </div>
   );
 }
