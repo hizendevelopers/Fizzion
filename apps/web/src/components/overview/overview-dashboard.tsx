@@ -223,7 +223,7 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
       sortCampaigns: "spend" as const,
       campaignSearch: "",
       page: 1,
-      pageSize: 8,
+      pageSize: 50,
       activeFilterCount: 0,
     };
     setPendingFilters(defaults);
@@ -462,11 +462,6 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
               onSearchChange={(v) => setPendingFilters((prev) => ({ ...prev, campaignSearch: v, page: 1 }))}
               onSortChange={(v) => setPendingFilters((prev) => ({ ...prev, sortCampaigns: v, page: 1 }))}
               onApplySearch={applyFilters}
-              onViewMore={() => {
-                const next = { ...pendingFilters, page: pendingFilters.page + 1 };
-                setPendingFilters(next);
-                void loadData(next);
-              }}
             />
           </div>
           <div className="grid gap-3">
@@ -1216,12 +1211,12 @@ function PlatformSplitCard({ data, currency }: { data: OverviewResponse["platfor
 
 function CampaignListCard({
   campaigns, currency, activeSearch, sort,
-  onSearchChange, onSortChange, onApplySearch, onViewMore, loading,
+  onSearchChange, onSortChange, onApplySearch, loading: _loading,
 }: {
   campaigns: OverviewResponse["activeCampaigns"];
   currency: string; activeSearch: string; sort: OverviewFilters["sortCampaigns"];
   onSearchChange: (v: string) => void; onSortChange: (v: OverviewFilters["sortCampaigns"]) => void;
-  onApplySearch: () => void; onViewMore: () => void; loading: boolean;
+  onApplySearch: () => void; loading: boolean;
 }) {
   return (
     <article className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-[0_4px_16px_rgba(0,0,0,0.04)]">
@@ -1246,7 +1241,7 @@ function CampaignListCard({
         </select>
         <button className="inline-flex h-9 items-center justify-center rounded-lg bg-[#111827] px-3 text-xs font-semibold text-white transition hover:bg-[#1F2937]" onClick={onApplySearch} type="button">Go</button>
       </div>
-      <div className="mt-3 space-y-2">
+      <div className="mt-3 max-h-[36rem] space-y-2 overflow-y-auto pe-1">
         {campaigns.items.length === 0
           ? <EmptyState title="No campaigns" description="No active campaigns matched." />
           : campaigns.items.map((c) => (
@@ -1277,10 +1272,7 @@ function CampaignListCard({
             </div>
           ))}
       </div>
-      {campaigns.hasMore && (
-        <button className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-lg border border-[#E5E7EB] text-xs font-semibold text-[#374151] transition hover:bg-[#F9FAFB] disabled:opacity-50"
-          disabled={loading} onClick={onViewMore} type="button">View More</button>
-      )}
+      {campaigns.total > campaigns.items.length ? <p className="mt-3 text-center text-[11px] text-[#9CA3AF]">Showing {campaigns.items.length} of {campaigns.total} campaigns</p> : null}
     </article>
   );
 }
