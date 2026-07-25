@@ -452,12 +452,20 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
               currency={state.data.summary.currency}
             />
           )}
-          <PlatformSplitCard data={state.data.platformSplit} currency={state.data.summary.currency} />
+          <div className="grid gap-3">
+            <PlatformSplitCard data={state.data.platformSplit} currency={state.data.summary.currency} />
+            <ActiveBrandsCard
+              brands={state.data.activeBrands}
+              currency={state.data.summary.currency}
+              expectedCount={state.data.kpis.activeBrands.value}
+              loading={state.loading}
+            />
+          </div>
         </div>
       </section>
 
-      {/* ─── Platform Split + Active Campaigns + Active Brands ─── */}
-      <section className="grid gap-4 lg:grid-cols-2 xl:grid-cols-[1.4fr_1fr]">
+      {/* ─── Active Campaigns ─── */}
+      <section>
         <CampaignListCard
           campaigns={state.data.activeCampaigns}
           currency={state.data.summary.currency}
@@ -472,12 +480,6 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
             setPendingFilters(next);
             void loadData(next);
           }}
-        />
-        <ActiveBrandsCard
-          brands={state.data.activeBrands}
-          currency={state.data.summary.currency}
-          expectedCount={state.data.kpis.activeBrands.value}
-          loading={state.loading}
         />
       </section>
     </div>
