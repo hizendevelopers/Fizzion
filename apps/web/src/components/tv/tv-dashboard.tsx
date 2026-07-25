@@ -59,11 +59,18 @@ function getPresetDates(preset: string) {
   const start = new Date(end);
   if (preset === "last7") start.setDate(start.getDate() - 6);
   else if (preset === "last90") start.setDate(start.getDate() - 89);
+  else if (preset === "last6m") start.setDate(start.getDate() - 182);
+  else if (preset === "last12m") start.setDate(start.getDate() - 364);
+  else if (preset === "last2y") start.setDate(start.getDate() - 729);
   else if (preset === "thisMonth") start.setDate(1);
   else if (preset === "previousMonth") { start.setMonth(start.getMonth() - 1, 1); end.setDate(0); }
   else if (preset === "custom") return { startDate: "", endDate: "" };
   else start.setDate(start.getDate() - 29);
   return { startDate: toIsoDate(start), endDate: toIsoDate(end) };
+}
+
+function isYoutubeEmbed(url: string) {
+  return /youtube\.com\/embed\//i.test(url) || /youtu\.be\//i.test(url);
 }
 
 function getTextColorForBg(bgColor: string) {
@@ -190,6 +197,9 @@ function DateRangeFilter({ preset, startDate, endDate, onPresetChange, onStartDa
           <option value="last7">Last 7 Days</option>
           <option value="last30">Last 30 Days</option>
           <option value="last90">Last 90 Days</option>
+          <option value="last6m">Last 6 Months</option>
+          <option value="last12m">Last 12 Months</option>
+          <option value="last2y">Last 2 Years</option>
           <option value="thisMonth">This Month</option>
           <option value="previousMonth">Previous Month</option>
           <option value="custom">Custom</option>
@@ -650,9 +660,19 @@ export function TvDashboard({ initialData, youtubeChannels }: TvDashboardProps) 
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setVideoModal(null)} role="dialog" aria-modal="true" aria-label="Video preview">
           <div className="relative w-full max-w-3xl overflow-hidden rounded-2xl bg-black" onClick={(e) => e.stopPropagation()}>
             <button className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/40" onClick={() => setVideoModal(null)} type="button" aria-label="Close preview">&times;</button>
-            <video className="w-full aspect-video" controls autoPlay src={videoModal.url} title={videoModal.title}>
-              <p>Your browser does not support the video tag.</p>
-            </video>
+            {isYoutubeEmbed(videoModal.url) ? (
+              <iframe
+                className="aspect-video w-full"
+                src={videoModal.url}
+                title={videoModal.title}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              />
+            ) : (
+              <video className="w-full aspect-video" controls autoPlay src={videoModal.url} title={videoModal.title}>
+                <p>Your browser does not support the video tag.</p>
+              </video>
+            )}
           </div>
         </div>
       )}
@@ -703,9 +723,10 @@ export function TvDashboard({ initialData, youtubeChannels }: TvDashboardProps) 
       {state.error && <ErrorBanner message={state.error} onRetry={() => void loadData(pendingFilters)} />}
 
       {/* ─── KPI Cards ─── */}
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard color="#35C76F" icon={<BrandIcon className="h-5 w-5" />} title="Active Brands" value={String(state.data.kpis.activeBrands.value)} delta={state.data.kpis.activeBrands.changePercent} trend={state.data.kpis.activeBrands.trend} loading={state.loading} tooltip="Unique brands with active TV campaigns" />
         <KpiCard color="#FF3340" icon={<CampaignIcon className="h-5 w-5" />} title="Active Campaigns" value={String(state.data.kpis.activeCampaigns.value)} delta={state.data.kpis.activeCampaigns.changePercent} trend={state.data.kpis.activeCampaigns.trend} loading={state.loading} tooltip="Unique active TV campaigns deduplicated across channels" />
+        <KpiCard color="#0EA5E9" icon={<TvIcon className="h-5 w-5" />} title="Active Channels" value={String(state.data.kpis.activeChannels.value)} delta={state.data.kpis.activeChannels.changePercent} trend={state.data.kpis.activeChannels.trend} loading={state.loading} tooltip="TV channels with monitored activity in the selected period" />
         <KpiCard color="#F40009" icon={<ReportIcon className="h-5 w-5" />} title="Total Spending" value={formatCurrency(state.data.kpis.totalSpending.value, state.data.summary.currency)} delta={state.data.kpis.totalSpending.changePercent} trend={state.data.kpis.totalSpending.trend} loading={state.loading} tooltip="Total TV advertising spend" />
       </section>
 
@@ -771,23 +792,29 @@ export function TvDashboard({ initialData, youtubeChannels }: TvDashboardProps) 
           </div>
         ) : (
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[700px] text-left text-sm">
+            <table className="w-full min-w-[1280px] text-left text-sm">
               <thead>
-                <tr className="border-b border-[#F1F3F5] text-xs font-semibold uppercase tracking-wider text-[#9CA3AF]">
+                <tr className="sticky top-0 border-b border-[#F1F3F5] bg-white text-xs font-semibold uppercase tracking-wider text-[#9CA3AF]">
                   <th className="px-3 py-3">Channel</th>
+                  <th className="px-3 py-3">Genre</th>
                   <th className="px-3 py-3">Brand</th>
                   <th className="px-3 py-3">Date</th>
                   <th className="px-3 py-3">Time</th>
+                  <th className="px-3 py-3">Month</th>
                   <th className="px-3 py-3">Daypart</th>
+                  <th className="px-3 py-3">Language</th>
                   <th className="px-3 py-3">Duration</th>
+                  <th className="px-3 py-3">Copy Name</th>
                   <th className="px-3 py-3">Cost</th>
-                  <th className="px-3 py-3">Preview</th>
+                  <th className="px-3 py-3">SOV</th>
+                  <th className="px-3 py-3">Creative Ad / Hyperlink</th>
                 </tr>
               </thead>
               <tbody>
                 {detectedAds.items.map((ad) => (
                   <tr key={ad.id} className="border-b border-[#F9FAFB] hover:bg-[#F9FAFB]">
                     <td className="px-3 py-3 text-[#374151]">{ad.channelName}</td>
+                    <td className="px-3 py-3 text-[#6B7280]">{ad.genre}</td>
                     <td className="px-3 py-3">
                       <span className="inline-flex items-center gap-1 rounded-full bg-[#F3F4F6] px-2 py-0.5 text-xs font-medium text-[#374151]">
                         {ad.brandName ?? "Unknown"}
@@ -795,15 +822,19 @@ export function TvDashboard({ initialData, youtubeChannels }: TvDashboardProps) 
                     </td>
                     <td className="px-3 py-3 text-[#6B7280]">{ad.date}</td>
                     <td className="px-3 py-3 text-[#6B7280]">{ad.time}</td>
+                    <td className="px-3 py-3 text-[#6B7280]">{ad.month}</td>
                     <td className="px-3 py-3">
                       <span className="rounded-full bg-[#F3F4F6] px-2 py-0.5 text-[10px] text-[#6B7280]">{ad.daypart}</span>
                     </td>
+                    <td className="px-3 py-3 text-[#6B7280]">{ad.language}</td>
                     <td className="px-3 py-3 text-[#6B7280]">{ad.durationSeconds}s</td>
+                    <td className="px-3 py-3 text-[#374151]">{ad.copyName ?? "Untitled creative"}</td>
                     <td className="px-3 py-3 font-semibold text-[#111827]">{formatCurrency(ad.cost, ad.currency)}</td>
+                    <td className="px-3 py-3 text-[#6B7280]">{ad.sovPercentage.toFixed(1)}%</td>
                     <td className="px-3 py-3">
                       {ad.creativeUrl ? (
                         <button className="inline-flex items-center gap-1 rounded-lg bg-[#F40009] px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-[#d60008]" onClick={() => setVideoModal({ url: ad.creativeUrl!, title: ad.copyName ?? ad.brandName ?? "Ad Preview" })} type="button">
-                          <PlayIcon className="h-3 w-3" /> Play
+                          <PlayIcon className="h-3 w-3" /> Ad Preview
                         </button>
                       ) : (
                         <span className="text-xs text-[#9CA3AF]">No clip</span>

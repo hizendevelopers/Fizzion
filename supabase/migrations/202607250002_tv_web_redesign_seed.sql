@@ -15,7 +15,7 @@ declare
   website_ids uuid[] := '{}';
   campaign_map jsonb := '{}'::jsonb;
   brand_map jsonb := '{}'::jsonb;
-  spend_date date;
+  spend_day date;
   base_amount numeric;
   platform_tv_id uuid;
   platform_web_id uuid;
@@ -136,17 +136,17 @@ begin
     select *
     from (
       values
-      ('Coca-Cola', 'Coca-Cola TV Ramadan', '2026-03-01', '2026-05-15', 'completed', 'tv'),
-      ('Coca-Cola', 'Coke Studio TV', '2026-05-20', null, 'active', 'tv'),
-      ('Pepsi', 'Pepsi TV Summer', '2026-04-01', '2026-08-31', 'active', 'tv'),
-      ('Pepsi', 'Pepsi TV Winter', '2026-01-01', '2026-03-15', 'completed', 'tv'),
-      ('7UP', '7UP TV Fresh', '2026-05-01', '2026-09-30', 'active', 'tv'),
-      ('Mountain Dew', 'Mountain Dew TV Energy', '2026-04-15', '2026-07-20', 'completed', 'tv'),
-      ('RC Cola', 'RC Cola TV Value', '2026-06-01', '2026-10-31', 'active', 'tv'),
-      ('Mirinda', 'Mirinda TV Colorful', '2026-05-10', '2026-09-15', 'active', 'tv'),
-      ('Tapal', 'Tapal TV Tea Time', '2026-04-01', '2026-10-31', 'active', 'tv'),
-      ('Lifebuoy', 'Lifebuoy TV Health', '2026-04-01', '2026-09-30', 'active', 'tv'),
-      ('Bonus', 'Bonus TV Laundry', '2026-04-01', '2026-08-31', 'active', 'tv')
+      ('Coca-Cola', 'Coca-Cola TV Ramadan', '2025-03-01', '2025-05-15', 'completed', 'tv'),
+      ('Coca-Cola', 'Coke Studio TV', '2025-05-20', null, 'active', 'tv'),
+      ('Pepsi', 'Pepsi TV Summer', '2024-04-01', '2026-08-31', 'active', 'tv'),
+      ('Pepsi', 'Pepsi TV Winter', '2024-11-01', '2025-03-15', 'completed', 'tv'),
+      ('7UP', '7UP TV Fresh', '2025-05-01', '2026-09-30', 'active', 'tv'),
+      ('Mountain Dew', 'Mountain Dew TV Energy', '2024-04-15', '2025-07-20', 'completed', 'tv'),
+      ('RC Cola', 'RC Cola TV Value', '2025-06-01', '2026-10-31', 'active', 'tv'),
+      ('Mirinda', 'Mirinda TV Colorful', '2025-05-10', '2026-09-15', 'active', 'tv'),
+      ('Tapal', 'Tapal TV Tea Time', '2024-04-01', '2026-10-31', 'active', 'tv'),
+      ('Lifebuoy', 'Lifebuoy TV Health', '2024-04-01', '2026-09-30', 'active', 'tv'),
+      ('Bonus', 'Bonus TV Laundry', '2024-04-01', '2026-08-31', 'active', 'tv')
     ) as t(brand_name, campaign_name, start_date, end_date, status, medium)
   loop
     insert into public.campaigns (
@@ -237,10 +237,10 @@ begin
   end loop;
 
   -- ==========================================================
-  -- TV SPEND RECORDS (90 days of daily data)
+  -- TV SPEND RECORDS (2 years of daily data)
   -- ==========================================================
-  for spend_date in
-    select generate_series(current_date - interval '90 days', current_date, interval '1 day')::date
+  for spend_day in
+    select generate_series(current_date - interval '730 days', current_date, interval '1 day')::date
   loop
     -- Coca-Cola TV campaigns
     for campaign_rec in
@@ -248,6 +248,8 @@ begin
       from public.campaigns c
       join public.brands b on b.id = c.brand_id
       where c.organization_id = org_id and c.medium = 'tv' and c.status = 'active'
+        and c.start_date <= spend_day
+        and (c.end_date is null or c.end_date >= spend_day)
     loop
       base_amount := case campaign_rec.brand_name
         when 'Coca-Cola' then 4200 when 'Pepsi' then 3600
@@ -267,9 +269,9 @@ begin
         (brand_map->>campaign_rec.brand_name)::uuid,
         campaign_rec.id,
         platform_tv_id,
-        spend_date,
-        round((base_amount * (1 + ((extract(doy from spend_date)::int % 7) * 0.03)))::numeric, 2),
-        'USD'
+        spend_day,
+        round((base_amount * (1 + ((extract(doy from spend_day)::int % 7) * 0.03)))::numeric, 2),
+        'PKR'
       )
       on conflict (organization_id, campaign_id, platform_id, spend_date) do update set
         amount = excluded.amount;
@@ -280,16 +282,16 @@ begin
   -- TV AD DETECTIONS
   -- ==========================================================
   -- Generate daily detections for active campaigns
-  for spend_date in
-    select generate_series(current_date - interval '90 days', current_date, interval '1 day')::date
+  for spend_day in
+    select generate_series(current_date - interval '730 days', current_date, interval '1 day')::date
   loop
     for campaign_rec in
       select c.id, c.name, b.name as brand_name
       from public.campaigns c
       join public.brands b on b.id = c.brand_id
       where c.organization_id = org_id and c.medium = 'tv'
-        and (c.end_date is null or c.end_date >= spend_date)
-        and c.start_date <= spend_date
+        and (c.end_date is null or c.end_date >= spend_day)
+        and c.start_date <= spend_day
     loop
       -- Pick a channel for this detection
       for channel_rec in
@@ -310,7 +312,7 @@ begin
           channel_rec.channel_id,
           campaign_rec.id,
           (brand_map->>campaign_rec.brand_name)::uuid,
-          (spend_date::timestamp + time '08:00:00' + (random() * interval '12 hours')),
+          (spend_day::timestamp + time '08:00:00' + (random() * interval '12 hours')),
           channel_rec.genre,
           channel_rec.primary_language,
           case floor(random() * 8)
@@ -322,7 +324,7 @@ begin
           15 + floor(random() * 46),
           campaign_rec.name || ' Ad',
           round((random() * 500 + 50)::numeric, 2),
-          'USD',
+          'PKR',
           round((random() * 20)::numeric, 2),
           round((0.7 + random() * 0.3)::numeric, 2),
           case when random() > 0.2 then 'confirmed' else 'pending' end
@@ -346,9 +348,9 @@ begin
     values (
       org_id, ary_news_id, tapal_id,
       (select id from public.campaigns where organization_id = org_id and name = 'Tapal TV Tea Time' limit 1),
-      (current_date - interval '5 days' + time '15:23:00')::timestamptz,
+      '2026-07-24 15:23:00+05'::timestamptz,
       'News', 'Urdu', 'Afternoon',
-      30, 'Tapal Danedar Strong Taste', 350.00, 'USD', 4.5,
+      30, 'Tapal Danedar Strong Taste', 350.00, 'PKR', 4.5,
       'https://www.youtube.com/embed/dQw4w9WgXcQ', 0.95, 'confirmed'
     );
 
@@ -362,9 +364,9 @@ begin
     values (
       org_id, ary_news_id, lifebuoy_id,
       (select id from public.campaigns where organization_id = org_id and name = 'Lifebuoy TV Health' limit 1),
-      (current_date - interval '5 days' + time '15:23:00')::timestamptz,
+      '2026-07-24 15:23:00+05'::timestamptz,
       'News', 'Urdu', 'Afternoon',
-      25, 'Lifebuoy Germ Protection', 280.00, 'USD', 3.6,
+      25, 'Lifebuoy Germ Protection', 280.00, 'PKR', 3.6,
       'https://www.youtube.com/embed/dQw4w9WgXcQ', 0.92, 'confirmed'
     );
 
@@ -378,9 +380,9 @@ begin
     values (
       org_id, ary_news_id, bonus_id,
       (select id from public.campaigns where organization_id = org_id and name = 'Bonus TV Laundry' limit 1),
-      (current_date - interval '5 days' + time '15:23:00')::timestamptz,
+      '2026-07-24 15:23:00+05'::timestamptz,
       'News', 'Urdu', 'Afternoon',
-      20, 'Bonus Surf', 220.00, 'USD', 2.8,
+      20, 'Bonus Surf', 220.00, 'PKR', 2.8,
       'https://www.youtube.com/embed/dQw4w9WgXcQ', 0.88, 'confirmed'
     );
   end if;
@@ -488,7 +490,7 @@ begin
   -- ==========================================================
   -- WEB SPEND RECORDS (90 days)
   -- ==========================================================
-  for spend_date in
+  for spend_day in
     select generate_series(current_date - interval '90 days', current_date, interval '1 day')::date
   loop
     for campaign_rec in
@@ -512,8 +514,8 @@ begin
         (brand_map->>campaign_rec.brand_name)::uuid,
         campaign_rec.id,
         platform_web_id,
-        spend_date,
-        round((base_amount * (1 + ((extract(doy from spend_date)::int % 5) * 0.02)))::numeric, 2),
+        spend_day,
+        round((base_amount * (1 + ((extract(doy from spend_day)::int % 5) * 0.02)))::numeric, 2),
         'USD'
       )
       on conflict (organization_id, campaign_id, platform_id, spend_date) do update set

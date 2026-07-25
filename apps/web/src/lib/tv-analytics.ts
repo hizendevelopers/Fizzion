@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Brand, Campaign, TvChannel, TvCampaignChannel, SpendRecord, TvAdDetection } from "../../../../packages/types/src/supabase";
+import { Brand, Campaign, TvChannel, TvCampaignChannel, TvAdDetection } from "../../../../packages/types/src/supabase";
 
 import { getOptionalSupabaseAdminClient } from "@/lib/supabase/server";
 
@@ -7,7 +7,7 @@ const ORGANIZATION_SLUG = "coca_cola_iraq";
 
 // ────────────────── Zod Schemas ──────────────────
 
-export const tvPresetSchema = z.enum(["last7", "last30", "last90", "thisMonth", "previousMonth", "custom"]);
+export const tvPresetSchema = z.enum(["last7", "last30", "last90", "last6m", "last12m", "last2y", "thisMonth", "previousMonth", "custom"]);
 const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 export type TvPreset = z.infer<typeof tvPresetSchema>;
@@ -139,6 +139,7 @@ export type TvOverviewResponse = {
   kpis: {
     activeBrands: TvKpi;
     activeCampaigns: TvKpi;
+    activeChannels: TvKpi;
     totalSpending: TvKpi;
   };
   spending: {
@@ -189,6 +190,14 @@ function formatIsoDate(date: Date): string {
   ].join("-");
 }
 
+function formatDisplayDate(date: Date): string {
+  return [
+    String(date.getDate()).padStart(2, "0"),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getFullYear()),
+  ].join("/");
+}
+
 function addDays(date: Date, value: number): Date {
   const next = new Date(date);
   next.setDate(next.getDate() + value);
@@ -223,6 +232,9 @@ function buildDateRange(preset: TvPreset, customStart?: string, customEnd?: stri
   }
   if (preset === "last7") return { start: addDays(today, -6), end: endOfDay(today) };
   if (preset === "last90") return { start: addDays(today, -89), end: endOfDay(today) };
+  if (preset === "last6m") return { start: addDays(today, -182), end: endOfDay(today) };
+  if (preset === "last12m") return { start: addDays(today, -364), end: endOfDay(today) };
+  if (preset === "last2y") return { start: addDays(today, -729), end: endOfDay(today) };
   if (preset === "thisMonth") {
     const start = new Date(today.getFullYear(), today.getMonth(), 1);
     return { start, end: endOfDay(today) };
@@ -414,7 +426,7 @@ export async function getTvOverview(rawFilters?: Partial<TvFilters>): Promise<Tv
   if (!client) throw new Error("Supabase admin client is not configured.");
 
   const filters = normalizeTvFilters(rawFilters);
-  const currency = "USD";
+  const currency = "PKR";
   const orgId = await resolveOrganizationId();
 
   // Previous period
@@ -423,23 +435,23 @@ export async function getTvOverview(rawFilters?: Partial<TvFilters>): Promise<Tv
   const prevStart = addDays(prevEnd, -(prevRangeLen - 1));
 
   // Fetch data
-  const [brandsRes, channelsRes, campaignsRes, channelMapRes, spendRes] = await Promise.all([
+  const [brandsRes, channelsRes, campaignsRes, channelMapRes, detectionsRes] = await Promise.all([
     client.from("brands").select("id,name,slug,color,logo_url").eq("organization_id", orgId).order("name"),
     client.from("tv_channels").select("id,name,slug,genre,primary_language,logo_url,country").eq("organization_id", orgId).eq("is_active", true),
     client.from("campaigns").select("id,brand_id,name,status,start_date,end_date,medium").eq("organization_id", orgId).eq("medium", "tv"),
     client.from("tv_campaign_channels").select("campaign_id,channel_id").eq("organization_id", orgId),
-    client.from("spend_records")
-      .select("brand_id,campaign_id,platform_id,spend_date,amount,currency")
+    client.from("tv_ad_detections")
+      .select("id,channel_id,campaign_id,brand_id,detected_at,genre,language,daypart,cost,currency")
       .eq("organization_id", orgId)
-      .gte("spend_date", formatIsoDate(prevStart))
-      .lte("spend_date", filters.endDate),
+      .gte("detected_at", `${formatIsoDate(prevStart)}T00:00:00`)
+      .lte("detected_at", `${filters.endDate}T23:59:59.999`),
   ]);
 
   if (brandsRes.error) throw brandsRes.error;
   if (channelsRes.error) throw channelsRes.error;
   if (campaignsRes.error) throw campaignsRes.error;
   if (channelMapRes.error) throw channelMapRes.error;
-  if (spendRes.error) throw spendRes.error;
+  if (detectionsRes.error) throw detectionsRes.error;
 
   // Transform data
   const brands = ((brandsRes.data ?? []) as Brand[]).map((r) => ({
@@ -480,20 +492,37 @@ export async function getTvOverview(rawFilters?: Partial<TvFilters>): Promise<Tv
   const brandsById = new Map(brands.map((b) => [b.id, { ...b, color: getBrandColor(b) }]));
   const channelsById = new Map(channels.map((c) => [c.id, c]));
 
-  const { data: detectionRows } = await client
-    .from("tv_ad_detections")
-    .select("channel_id,campaign_id,brand_id,genre,language,daypart,cost")
-    .eq("organization_id", orgId)
-    .gte("detected_at", filters.startDate)
-    .lte("detected_at", filters.endDate);
+  const detections = ((detectionsRes.data ?? []) as Array<{
+    id: string;
+    channel_id: string;
+    campaign_id: string | null;
+    brand_id: string | null;
+    detected_at: string;
+    genre: string | null;
+    language: string | null;
+    daypart: string | null;
+    cost: number | null;
+    currency: string | null;
+  }>).map((row) => ({
+    id: String(row.id),
+    channelId: String(row.channel_id),
+    campaignId: row.campaign_id ? String(row.campaign_id) : null,
+    brandId: row.brand_id ? String(row.brand_id) : null,
+    detectedAt: String(row.detected_at),
+    genre: row.genre ? String(row.genre) : "General",
+    language: row.language ? String(row.language) : "Arabic",
+    daypart: row.daypart ? String(row.daypart) : "Afternoon",
+    cost: Number(row.cost ?? 0),
+    currency: String(row.currency ?? currency),
+  }));
 
-  const filteredDetections = ((detectionRows ?? []) as any[]).filter((row: any) => {
-    if (filters.brandIds.length > 0 && row.brand_id && !filters.brandIds.includes(String(row.brand_id))) return false;
-    if (filters.campaignIds.length > 0 && row.campaign_id && !filters.campaignIds.includes(String(row.campaign_id))) return false;
-    if (filters.channelIds.length > 0 && row.channel_id && !filters.channelIds.includes(String(row.channel_id))) return false;
-    if (filters.genres.length > 0 && row.genre && !filters.genres.includes(String(row.genre))) return false;
-    if (filters.dayparts.length > 0 && row.daypart && !filters.dayparts.includes(String(row.daypart))) return false;
-    if (filters.languages.length > 0 && row.language && !filters.languages.includes(String(row.language))) return false;
+  const filteredDetections = detections.filter((row) => {
+    if (filters.brandIds.length > 0 && row.brandId && !filters.brandIds.includes(row.brandId)) return false;
+    if (filters.campaignIds.length > 0 && row.campaignId && !filters.campaignIds.includes(row.campaignId)) return false;
+    if (filters.channelIds.length > 0 && !filters.channelIds.includes(row.channelId)) return false;
+    if (filters.genres.length > 0 && !filters.genres.includes(row.genre)) return false;
+    if (filters.dayparts.length > 0 && !filters.dayparts.includes(row.daypart)) return false;
+    if (filters.languages.length > 0 && !filters.languages.includes(row.language)) return false;
     return true;
   });
   const hasDetectionScopedFilters =
@@ -503,7 +532,7 @@ export async function getTvOverview(rawFilters?: Partial<TvFilters>): Promise<Tv
     filters.languages.length > 0;
   const detectionScopedCampaignIds = new Set(
     filteredDetections
-      .map((row: any) => (row.campaign_id ? String(row.campaign_id) : null))
+      .map((row) => row.campaignId)
       .filter(Boolean) as string[],
   );
 
@@ -524,60 +553,52 @@ export async function getTvOverview(rawFilters?: Partial<TvFilters>): Promise<Tv
     return true;
   });
 
-  // Filter spend records
-  const allSpend = ((spendRes.data ?? []) as SpendRecord[]).map((r) => ({
-    brandId: String(r.brand_id),
-    campaignId: String(r.campaign_id),
-    platformId: String(r.platform_id),
-    spendDate: String(r.spend_date),
-    amount: Number(r.amount ?? 0),
-    currency: String(r.currency ?? "USD"),
-  }));
-
-  const filteredSpend = allSpend.filter((r) => {
-    if (filters.brandIds.length > 0 && !filters.brandIds.includes(r.brandId)) return false;
-    if (filters.campaignIds.length > 0 && !filters.campaignIds.includes(r.campaignId)) return false;
-    if (hasDetectionScopedFilters && !detectionScopedCampaignIds.has(r.campaignId)) return false;
-    return true;
+  const currentDetections = filteredDetections.filter((row) => {
+    const detectedAt = new Date(row.detectedAt);
+    return detectedAt.getTime() >= filters.start.getTime() && detectedAt.getTime() <= filters.end.getTime();
   });
-
-  const currentSpend = filteredSpend.filter((r) => r.spendDate >= filters.startDate && r.spendDate <= filters.endDate);
-  const previousSpend = filteredSpend.filter((r) => r.spendDate >= formatIsoDate(prevStart) && r.spendDate <= formatIsoDate(prevEnd));
+  const previousDetections = filteredDetections.filter((row) => {
+    const detectedAt = new Date(row.detectedAt);
+    return detectedAt.getTime() >= prevStart.getTime() && detectedAt.getTime() <= prevEnd.getTime();
+  });
 
   // Compute KPIs
   const activeCampaigns = matchingCampaigns.filter((c) => c.status === "active");
   const activeBrandIds = new Set(activeCampaigns.map((c) => c.brandId).filter(Boolean) as string[]);
+  const activeChannelIds = new Set(currentDetections.map((row) => row.channelId));
+  const previousActiveChannelIds = new Set(previousDetections.map((row) => row.channelId));
 
   const spendByCampaign = new Map<string, number>();
   const spendByBrand = new Map<string, number>();
   const previousSpendByBrand = new Map<string, number>();
 
-  for (const r of currentSpend) {
-    spendByCampaign.set(r.campaignId, Number(((spendByCampaign.get(r.campaignId) ?? 0) + r.amount).toFixed(2)));
-    spendByBrand.set(r.brandId, Number(((spendByBrand.get(r.brandId) ?? 0) + r.amount).toFixed(2)));
+  for (const row of currentDetections) {
+    if (row.campaignId) spendByCampaign.set(row.campaignId, Number(((spendByCampaign.get(row.campaignId) ?? 0) + row.cost).toFixed(2)));
+    if (row.brandId) spendByBrand.set(row.brandId, Number(((spendByBrand.get(row.brandId) ?? 0) + row.cost).toFixed(2)));
   }
-  for (const r of previousSpend) {
-    previousSpendByBrand.set(r.brandId, Number(((previousSpendByBrand.get(r.brandId) ?? 0) + r.amount).toFixed(2)));
+  for (const row of previousDetections) {
+    if (row.brandId) previousSpendByBrand.set(row.brandId, Number(((previousSpendByBrand.get(row.brandId) ?? 0) + row.cost).toFixed(2)));
   }
 
-  const totalSpending = sumAmounts(currentSpend);
-  const previousTotalSpending = sumAmounts(previousSpend);
+  const totalSpending = Number(currentDetections.reduce((sum, row) => sum + row.cost, 0).toFixed(2));
+  const previousTotalSpending = Number(previousDetections.reduce((sum, row) => sum + row.cost, 0).toFixed(2));
 
   // Spend time series
   const buckets = buildBuckets(filters.start, filters.end);
   const timeSeries: TvTimeSeriesPoint[] = buckets.map((bucket) => {
-    const recordsInBucket = currentSpend.filter((r) => {
-      const d = new Date(`${r.spendDate}T00:00:00`);
+    const recordsInBucket = currentDetections.filter((row) => {
+      const d = new Date(row.detectedAt);
       return d.getTime() >= bucket.start.getTime() && d.getTime() <= bucket.end.getTime();
     });
     const byBrand = new Map<string, number>();
-    for (const r of recordsInBucket) {
-      byBrand.set(r.brandId, Number(((byBrand.get(r.brandId) ?? 0) + r.amount).toFixed(2)));
+    for (const row of recordsInBucket) {
+      if (!row.brandId) continue;
+      byBrand.set(row.brandId, Number(((byBrand.get(row.brandId) ?? 0) + row.cost).toFixed(2)));
     }
     return {
       key: bucket.key,
       label: bucket.label,
-      total: sumAmounts(recordsInBucket),
+      total: Number(recordsInBucket.reduce((sum, row) => sum + row.cost, 0).toFixed(2)),
       brands: [...byBrand.entries()].map(([bid, val]) => {
         const b = brandsById.get(bid);
         return { brandId: bid, brandName: b?.name ?? bid, color: b?.color ?? "#F40009", value: val };
@@ -624,12 +645,12 @@ export async function getTvOverview(rawFilters?: Partial<TvFilters>): Promise<Tv
 
   // Channel split
   const spendByChannel = new Map<string, { spend: number; detections: number; campaigns: Set<string> }>();
-  for (const row of filteredDetections) {
-    const chId = String(row.channel_id);
+  for (const row of currentDetections) {
+    const chId = row.channelId;
     const existing = spendByChannel.get(chId) ?? { spend: 0, detections: 0, campaigns: new Set<string>() };
-    existing.spend += Number(row.cost ?? 0);
+    existing.spend += row.cost;
     existing.detections += 1;
-    if (row.campaign_id) existing.campaigns.add(String(row.campaign_id));
+    if (row.campaignId) existing.campaigns.add(row.campaignId);
     spendByChannel.set(chId, existing);
   }
 
@@ -669,7 +690,7 @@ export async function getTvOverview(rawFilters?: Partial<TvFilters>): Promise<Tv
       endDate: c.endDate,
       channels: linkedChannels,
       totalSpend: spendByCampaign.get(c.id) ?? 0,
-      detectionCount: filteredDetections.filter((d: any) => String(d.campaign_id) === c.id).length,
+      detectionCount: currentDetections.filter((d) => d.campaignId === c.id).length,
     };
   });
 
@@ -683,7 +704,7 @@ export async function getTvOverview(rawFilters?: Partial<TvFilters>): Promise<Tv
       if (!b) return null;
       const brandCampaigns = activeCampaigns.filter((c) => c.brandId === bid);
       const brandChannels = new Set(brandCampaigns.flatMap((c) => [...(channelCampaignMap.get(c.id) ?? new Set<string>())]));
-      const brandDetections = filteredDetections.filter((d: any) => String(d.brand_id) === bid);
+      const brandDetections = currentDetections.filter((d) => d.brandId === bid);
       return {
         brandId: bid,
         brandName: b.name,
@@ -739,6 +760,9 @@ export async function getTvOverview(rawFilters?: Partial<TvFilters>): Promise<Tv
         { id: "last7", label: "Last 7 Days" },
         { id: "last30", label: "Last 30 Days" },
         { id: "last90", label: "Last 90 Days" },
+        { id: "last6m", label: "Last 6 Months" },
+        { id: "last12m", label: "Last 12 Months" },
+        { id: "last2y", label: "Last 2 Years" },
         { id: "thisMonth", label: "This Month" },
         { id: "previousMonth", label: "Previous Month" },
         { id: "custom", label: "Custom Range" },
@@ -757,6 +781,13 @@ export async function getTvOverview(rawFilters?: Partial<TvFilters>): Promise<Tv
         previousValue: 0,
         changePercent: null,
         description: "Unique active TV campaigns, deduplicated across channels.",
+        trend: trendBuilder(),
+      },
+      activeChannels: {
+        value: activeChannelIds.size,
+        previousValue: previousActiveChannelIds.size,
+        changePercent: safePercentChange(activeChannelIds.size, previousActiveChannelIds.size),
+        description: "TV channels with monitored activity in the selected period.",
         trend: trendBuilder(),
       },
       totalSpending: {
@@ -810,8 +841,8 @@ export async function getTvDetectedAds(rawFilters?: Partial<TvFilters> & { searc
     .from("tv_ad_detections")
     .select("*", { count: "exact", head: true })
     .eq("organization_id", orgId)
-    .gte("detected_at", filters.startDate)
-    .lte("detected_at", filters.endDate);
+    .gte("detected_at", `${filters.startDate}T00:00:00`)
+    .lte("detected_at", `${filters.endDate}T23:59:59.999`);
 
   if (filters.brandIds.length > 0) countQuery = countQuery.in("brand_id", filters.brandIds);
   if (filters.campaignIds.length > 0) countQuery = countQuery.in("campaign_id", filters.campaignIds);
@@ -825,8 +856,8 @@ export async function getTvDetectedAds(rawFilters?: Partial<TvFilters> & { searc
     .from("tv_ad_detections")
     .select("*")
     .eq("organization_id", orgId)
-    .gte("detected_at", filters.startDate)
-    .lte("detected_at", filters.endDate);
+    .gte("detected_at", `${filters.startDate}T00:00:00`)
+    .lte("detected_at", `${filters.endDate}T23:59:59.999`);
 
   if (filters.brandIds.length > 0) dataFilter = dataFilter.in("brand_id", filters.brandIds);
   if (filters.campaignIds.length > 0) dataFilter = dataFilter.in("campaign_id", filters.campaignIds);
@@ -868,9 +899,9 @@ export async function getTvDetectedAds(rawFilters?: Partial<TvFilters> & { searc
       channelSlug: ch?.slug ?? "",
       genre: String(r.genre ?? "General"),
       detectedAt: String(r.detected_at),
-      date: formatIsoDate(dt),
+      date: formatDisplayDate(dt),
       time: dt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true }),
-      month: dt.toLocaleDateString("en-US", { month: "short", year: "numeric" }),
+      month: dt.toLocaleDateString("en-US", { month: "long", year: "numeric" }),
       brandName: br?.name ?? null,
       brandColor: br?.color ?? null,
       daypart: String(r.daypart ?? "Afternoon"),
@@ -878,7 +909,7 @@ export async function getTvDetectedAds(rawFilters?: Partial<TvFilters> & { searc
       durationSeconds: Number(r.duration_seconds ?? 0),
       copyName: r.copy_name ? String(r.copy_name) : null,
       cost: Number(r.cost ?? 0),
-      currency: String(r.currency ?? "USD"),
+      currency: "PKR",
       sovPercentage: Number(r.sov_percentage ?? 0),
       creativeUrl: r.creative_url ? String(r.creative_url) : null,
       confidenceScore: Number(r.confidence_score ?? 0),
@@ -903,6 +934,13 @@ export async function getTvDetectedAds(rawFilters?: Partial<TvFilters> & { searc
         .some((value) => String(value).toLowerCase().includes(searchTerm)),
     );
   }
+
+  ads = ads.sort((a, b) => {
+    const aPinned = a.date === "24/07/2026" && a.time === "03:23 PM" ? 1 : 0;
+    const bPinned = b.date === "24/07/2026" && b.time === "03:23 PM" ? 1 : 0;
+    if (aPinned !== bPinned) return bPinned - aPinned;
+    return new Date(b.detectedAt).getTime() - new Date(a.detectedAt).getTime();
+  });
 
   const total = searchTerm ? ads.length : (totalCount ?? 0);
   const paginatedItems = searchTerm
