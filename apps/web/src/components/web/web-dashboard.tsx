@@ -50,6 +50,26 @@ function getBrandInitials(name: string) {
   return name.slice(0, 2).toUpperCase();
 }
 
+function normalizeEditableScreenshotUrl(rawUrl: string) {
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return "";
+
+  try {
+    const parsed = new URL(trimmed);
+    const googleImageUrl = parsed.searchParams.get("imgurl");
+    return googleImageUrl ? googleImageUrl : parsed.toString();
+  } catch {
+    return trimmed;
+  }
+}
+
+function resolveScreenshotSrc(url: string) {
+  if (/^https?:\/\//i.test(url)) {
+    return `/api/web/screenshots/proxy?url=${encodeURIComponent(url)}`;
+  }
+  return url;
+}
+
 function formatDateRangeSummary(startDate: string, endDate: string) {
   if (!startDate || !endDate) return "Choose dates";
 
@@ -505,6 +525,9 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
   const deferredDetSearch = useDeferredValue(detSearch);
   const [detSort, setDetSort] = useState("detected_at");
   const [screenshotModal, setScreenshotModal] = useState<{ url: string; title: string } | null>(null);
+  const [screenshotEditor, setScreenshotEditor] = useState<{ detectionId: string; screenshotId: string; title: string; value: string } | null>(null);
+  const [screenshotSaveBusy, setScreenshotSaveBusy] = useState(false);
+  const [screenshotSaveError, setScreenshotSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     setPendingFilters(initialData.filters);
@@ -631,7 +654,107 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setScreenshotModal(null)} role="dialog" aria-modal="true" aria-label="Screenshot preview">
           <div className="relative w-full max-w-4xl overflow-hidden rounded-2xl bg-black" onClick={(e) => e.stopPropagation()}>
             <button className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/40" onClick={() => setScreenshotModal(null)} type="button" aria-label="Close preview">&times;</button>
-            <Image alt={screenshotModal.title} className="w-full object-contain max-h-[85vh]" height={800} src={screenshotModal.url} width={1200} />
+            <Image alt={screenshotModal.title} className="w-full object-contain max-h-[85vh]" height={800} src={resolveScreenshotSrc(screenshotModal.url)} width={1200} />
+          </div>
+        </div>
+      )}
+      {screenshotEditor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => { if (!screenshotSaveBusy) setScreenshotEditor(null); }} role="dialog" aria-modal="true" aria-label="Edit screenshot image URL">
+          <div className="w-full max-w-3xl rounded-2xl border border-[#E5E7EB] bg-white shadow-[0_24px_80px_rgba(0,0,0,0.35)]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-4">
+              <div>
+                <h3 className="text-lg font-semibold text-[#111827]">Replace screenshot image</h3>
+                <p className="mt-1 text-sm text-[#6B7280]">Paste a direct image address. Google copied image links are supported too.</p>
+              </div>
+              <button className="flex h-9 w-9 items-center justify-center rounded-full border border-[#E5E7EB] text-[#6B7280] transition hover:bg-[#F9FAFB]" disabled={screenshotSaveBusy} onClick={() => setScreenshotEditor(null)} type="button" aria-label="Close screenshot editor">&times;</button>
+            </div>
+            <div className="grid gap-5 p-5 lg:grid-cols-[1.15fr_0.85fr]">
+              <div className="space-y-3">
+                <label className="block">
+                  <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-[#6B7280]">Image URL</span>
+                  <input
+                    className="h-11 w-full rounded-xl border border-[#D1D5DB] px-3 text-sm text-[#111827] outline-none transition focus:border-[#F40009] focus:ring-2 focus:ring-[#F40009]/20"
+                    placeholder="https://..."
+                    type="url"
+                    value={screenshotEditor.value}
+                    onChange={(e) => {
+                      setScreenshotSaveError(null);
+                      setScreenshotEditor((prev) => prev ? { ...prev, value: e.target.value } : prev);
+                    }}
+                  />
+                </label>
+                <p className="text-xs text-[#6B7280]">Tip: right click any image in Google Images or on the brand website and copy the image address.</p>
+                {screenshotSaveError && <div className="rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-sm text-[#B91C1C]">{screenshotSaveError}</div>}
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    className="inline-flex h-10 items-center justify-center rounded-xl bg-[#F40009] px-4 text-sm font-semibold text-white transition hover:bg-[#d60008] disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={screenshotSaveBusy || !screenshotEditor.value.trim()}
+                    onClick={async () => {
+                      const screenshotUrl = normalizeEditableScreenshotUrl(screenshotEditor.value);
+                      if (!screenshotUrl) {
+                        setScreenshotSaveError("Please paste an image URL first.");
+                        return;
+                      }
+
+                      setScreenshotSaveBusy(true);
+                      setScreenshotSaveError(null);
+                      try {
+                        const response = await fetch(`/api/web/screenshots/${screenshotEditor.screenshotId}`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ screenshotUrl }),
+                        });
+                        const payload = await response.json();
+                        if (!response.ok || !payload.ok) {
+                          throw new Error(payload?.error?.message ?? "Screenshot could not be updated.");
+                        }
+
+                        setDetections((prev) => ({
+                          ...prev,
+                          items: prev.items.map((item) =>
+                            item.id === screenshotEditor.detectionId
+                              ? { ...item, screenshotUrl: payload.screenshot.screenshotUrl }
+                              : item,
+                          ),
+                        }));
+                        setScreenshotEditor(null);
+                      } catch (error) {
+                        setScreenshotSaveError(error instanceof Error ? error.message : "Screenshot could not be updated.");
+                      } finally {
+                        setScreenshotSaveBusy(false);
+                      }
+                    }}
+                    type="button"
+                  >
+                    {screenshotSaveBusy ? "Saving..." : "Save image"}
+                  </button>
+                  <button
+                    className="inline-flex h-10 items-center justify-center rounded-xl border border-[#D1D5DB] px-4 text-sm font-semibold text-[#374151] transition hover:bg-[#F9FAFB] disabled:opacity-60"
+                    disabled={screenshotSaveBusy}
+                    onClick={() => setScreenshotEditor(null)}
+                    type="button"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#6B7280]">Preview</p>
+                <div className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB]">
+                  {screenshotEditor.value.trim() ? (
+                    <Image
+                      alt={screenshotEditor.title}
+                      className="h-72 w-full object-cover"
+                      height={432}
+                      src={resolveScreenshotSrc(normalizeEditableScreenshotUrl(screenshotEditor.value))}
+                      width={720}
+                    />
+                  ) : (
+                    <div className="flex h-72 items-center justify-center px-6 text-center text-sm text-[#9CA3AF]">Paste an image URL to preview it here.</div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -853,7 +976,7 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
                 <div className="overflow-hidden rounded-lg border border-[#E5E7EB] bg-white">
                   {d.screenshotUrl ? (
                     <button className="group relative block w-full" onClick={() => setScreenshotModal({ url: d.screenshotUrl!, title: `${d.websiteName} - ${d.brandName ?? "Ad"}` })} type="button">
-                      <Image alt={`Screenshot from ${d.websiteName}`} className="h-36 w-full object-cover transition group-hover:scale-[1.02]" height={144} src={d.screenshotUrl} width={256} />
+                      <Image alt={`Screenshot from ${d.websiteName}`} className="h-36 w-full object-cover transition group-hover:scale-[1.02]" height={144} src={resolveScreenshotSrc(d.screenshotUrl)} width={256} />
                       <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition group-hover:bg-black/20"><span className="rounded-full bg-white/90 px-3 py-1 text-[11px] font-semibold text-[#111827] opacity-0 transition group-hover:opacity-100">Preview</span></div>
                     </button>
                   ) : (
@@ -880,6 +1003,25 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
                   <span>{d.adFormat ?? "N/A"}</span>
                   {d.confidenceScore > 0 && (<><span className="text-[#D1D5DB]">•</span><span className="font-medium" style={{ color: d.confidenceScore >= 0.8 ? "#15803D" : d.confidenceScore >= 0.6 ? "#B45309" : "#DC2626" }}>{Math.round(d.confidenceScore * 100)}%</span></>)}
                 </div>
+                {d.screenshotId && (
+                  <div className="mt-3 flex items-center justify-end">
+                    <button
+                      className="inline-flex h-8 items-center justify-center rounded-lg border border-[#E5E7EB] bg-white px-3 text-[11px] font-semibold text-[#374151] transition hover:bg-[#F9FAFB]"
+                      onClick={() => {
+                        setScreenshotSaveError(null);
+                        setScreenshotEditor({
+                          detectionId: d.id,
+                          screenshotId: d.screenshotId!,
+                          title: `${d.websiteName} - ${d.brandName ?? "Ad"}`,
+                          value: d.screenshotUrl ?? "",
+                        });
+                      }}
+                      type="button"
+                    >
+                      Edit screenshot
+                    </button>
+                  </div>
+                )}
                 {d.spendAmount > 0 && <p className="mt-1 text-xs font-semibold text-[#111827]">{formatCurrency(d.spendAmount, d.currency)}</p>}
               </div>
             ))}
