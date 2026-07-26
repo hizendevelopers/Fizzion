@@ -222,11 +222,17 @@ export function normalizeInstagramComments(
 
   for (const item of items) {
     const commentData = item.comments as Record<string, unknown> | undefined;
+    const latestComments = Array.isArray(item.latestComments)
+      ? (item.latestComments as Record<string, unknown>[])
+      : [];
     const edges = (getNested(commentData ?? {}, "data") ?? item.edge_media_to_comment) as
       | Record<string, unknown>[]
       | { edges?: Record<string, unknown>[] }
       | undefined;
-    const edgeList = Array.isArray(edges) ? edges : edges?.edges ?? [];
+    const edgeList = [
+      ...(Array.isArray(edges) ? edges : edges?.edges ?? []),
+      ...latestComments,
+    ];
 
     for (const edge of edgeList) {
       const node = (edge.node ?? edge) as Record<string, unknown>;

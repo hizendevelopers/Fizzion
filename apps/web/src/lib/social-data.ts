@@ -191,6 +191,7 @@ export type SocialDashboardAccount = {
   verified: boolean;
   lastSyncedAt: string | null;
   lastSuccessfulSyncAt: string | null;
+  lastError: string | null;
   nextSyncAt: string | null;
   followers: number | null;
   following: number | null;
@@ -747,6 +748,7 @@ async function hydrateConnections(rows: GenericRow[]) {
       verified: rowBoolean(profileRow, "verified", rowBoolean(account, "is_verified", false)),
       lastSyncedAt: rowNullableString(row, "last_synced_at"),
       lastSuccessfulSyncAt: rowNullableString(row, "last_successful_sync_at"),
+      lastError: rowNullableString(row, "last_error"),
       nextSyncAt: rowNullableString(row, "next_sync_at"),
       followers,
       following,
@@ -1157,7 +1159,6 @@ async function persistSandboxFixture(input: {
           published_at: content.publishedAt,
           permalink: content.permalink,
           is_paid: false,
-          duration_seconds: content.durationSeconds,
           location_name: null,
           paid_status: "organic",
           processing_status: "ready",
@@ -1895,7 +1896,9 @@ async function hydrateContentItems(
       mediaUrl: rowNullableString(media, "source_url") ?? rawMedia.mediaUrl,
       permalink: rowNullableString(row, "permalink"),
       publishedAt: rowString(row, "published_at"),
-      durationSeconds: rowNullableNumber(row, "duration_seconds"),
+      durationSeconds:
+        rowNullableNumber(row, "duration_seconds") ??
+        rowNullableNumber(media, "duration_seconds"),
       hashtags: rowStringArray(row, "hashtags"),
       mentions: rowStringArray(row, "mentions"),
       taggedAccounts:

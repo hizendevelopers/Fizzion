@@ -4,6 +4,7 @@ import { unstable_noStore as noStore } from "next/cache";
 import { SocialAccountActions } from "@/components/social/social-account-actions";
 import { SocialExportButton } from "@/components/social/social-export-button";
 import { SocialProfileAvatar } from "@/components/social/social-profile-avatar";
+import { SocialSyncMonitor } from "@/components/social/social-sync-monitor";
 import { SocialTrendChart } from "@/components/social/social-trend-chart";
 import { CategoryBarCard, RadialStatCard, ShareOfVoiceCard } from "@/components/states/insight-charts";
 import { getSocialAccountDetail, listSocialContent } from "@/lib/social-data";
@@ -284,6 +285,14 @@ export default async function SocialAccountDetailPage({
           </div>
         </form>
       </section>
+
+      <SocialSyncMonitor
+        connectionId={detail.id}
+        initialConnectionStatus={detail.connectionStatus}
+        initialSyncStatus={detail.syncStatus}
+        initialLastError={detail.lastError}
+        initialLastSuccessfulSyncAt={detail.lastSuccessfulSyncAt}
+      />
 
       <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-4" id="insights">
         <InsightCard
