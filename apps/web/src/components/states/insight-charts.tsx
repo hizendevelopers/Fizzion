@@ -288,7 +288,7 @@ export function AreaTrendCard({
   color = "#F40009",
   fill = "rgba(244,0,9,0.14)",
   formatter,
-  emptyLabel = "No trend data is available yet.",
+  emptyLabel = "No trend data is available for the current filters.",
 }: {
   title: string;
   subtitle?: string;
@@ -363,11 +363,11 @@ export function StackedSpendingChartCard({
   subtitle,
   buckets,
   breakdown,
-  totalLabel = "Current total",
+  totalLabel = "Total",
   totalValue,
   summaryPills = [],
   comparisonValue,
-  comparisonLabel = "Compared with the equivalent previous period.",
+  comparisonLabel = "vs previous period",
   emptyLabel = "No spend data matched the current filters.",
   formatter = (value) => value.toLocaleString(),
   compactFormatter = (value) => value.toLocaleString(),
@@ -375,7 +375,7 @@ export function StackedSpendingChartCard({
   svgHeight = 286,
   plotHeight = 184,
   hideHeaderTotal = false,
-  hideSummaryPanels = false,
+  hideSummaryPanels = true,
 }: {
   title: string;
   subtitle?: string;
@@ -478,7 +478,7 @@ export function StackedSpendingChartCard({
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div>
             <h3 className="text-lg font-semibold text-foreground">{title}</h3>
-            <p className="mt-1 text-sm text-muted-foreground">{subtitle ?? "Brand spend over time."}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{subtitle ?? "Brand spend over time"}</p>
           </div>
           {!hideHeaderTotal ? (
             <div className="rounded-[1.2rem] border border-border bg-panel-soft px-4 py-3 text-right">
@@ -520,7 +520,7 @@ export function StackedSpendingChartCard({
       <div className="flex items-center justify-between border-b border-border px-5 py-4">
         <div>
           <h3 className="text-lg font-semibold text-foreground">{title}</h3>
-          <p className="mt-1 text-sm text-muted-foreground">{subtitle ?? "Brand spend over time."}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{subtitle ?? "Brand spend over time"}</p>
         </div>
         {!hideHeaderTotal ? (
           <div className="rounded-[1.2rem] border border-border bg-panel-soft px-4 py-3 text-right">
@@ -690,7 +690,7 @@ export function CategoryBarCard({
   subtitle,
   data,
   formatter,
-  emptyLabel = "No category data is available yet.",
+  emptyLabel = "No category data is available for the current filters.",
 }: {
   title: string;
   subtitle?: string;
@@ -703,7 +703,7 @@ export function CategoryBarCard({
   return (
     <article className="rounded-[1.8rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
       <h3 className="text-lg font-semibold text-foreground">{title}</h3>
-      <p className="mt-1 text-sm text-muted-foreground">{subtitle ?? "Live grouped totals"}</p>
+      <p className="mt-1 text-sm text-muted-foreground">{subtitle ?? "Grouped totals"}</p>
 
       <div className="mt-5 space-y-4">
         {data.length > 0 ? (
@@ -792,9 +792,9 @@ export function ShareOfVoiceCard({
   title,
   subtitle,
   data,
-  emptyLabel = "Not enough distribution data is available yet.",
+  emptyLabel = "No distribution data is available for the current filters.",
   hideHeader = false,
-  hideLeadSummary = false,
+  hideLeadSummary = true,
 }: {
   title: string;
   subtitle?: string;
@@ -818,7 +818,7 @@ export function ShareOfVoiceCard({
       {!hideHeader ? (
         <>
           <h3 className="text-lg font-semibold text-foreground">{title}</h3>
-          <p className="mt-1 text-sm text-muted-foreground">{subtitle ?? "Real proportional distribution from current data"}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{subtitle ?? "Proportional distribution from current data"}</p>
         </>
       ) : null}
 
