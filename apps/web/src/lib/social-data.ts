@@ -463,7 +463,7 @@ export async function getDefaultSocialOrganizationId() {
       return retryFallback.data.id as string;
     }
 
-    throw new Error("No organization is available for Social Intelligence.");
+    throw new Error("No organization is available for Social.");
   }
 
   return fallback.data.id as string;
@@ -2128,7 +2128,7 @@ async function buildSocialPortfolioPdf() {
     height: 55,
     color: rgb(0.95, 0.08, 0.11),
   });
-  page.drawText("Social Intelligence Report", {
+  page.drawText("Social Report", {
     x: 36,
     y: 562,
     size: 22,

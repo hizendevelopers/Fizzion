@@ -14,6 +14,7 @@ import {
   type SocialAccountDetail,
   type SocialDashboardAccount,
 } from "@/lib/social-data";
+import { listSocialProviderAvailability } from "@/lib/social-providers";
 import { formatNumber } from "@/lib/social-utils";
 
 type TabKey = "brands" | "influencers" | "report";
@@ -215,6 +216,8 @@ export default async function SocialIntelligencePage({
   const days = rangeToDays(range);
 
   const [summary, connections] = await Promise.all([getSocialPortfolioSummary(), listSocialConnections()]);
+  const providers = listSocialProviderAvailability();
+  const availableProviders = providers.filter((provider) => provider.available);
   const filteredConnections = connections
     .filter((connection) => (platform === "all" ? true : connection.provider === platform))
     .filter((connection) => passesPerformanceFilter(connection, performance));
@@ -280,10 +283,11 @@ export default async function SocialIntelligencePage({
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-red">Unified social monitoring</p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground">Social Intelligence</h1>
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground">Social</h1>
             <p className="mt-3 max-w-4xl text-sm leading-7 text-muted-foreground">
-              Connect brand and influencer accounts, review content and performance from supported
-              connected sources, and generate comparison-ready reports without leaving the platform.
+              Connect brand and influencer accounts, use the provided APIFY scrapers for Facebook,
+              Instagram, YouTube, and TikTok, then review imported content and performance without
+              leaving the platform.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -291,6 +295,22 @@ export default async function SocialIntelligencePage({
             <PillStat label="Total followers" value={formatNumber(summary.totalFollowers)} />
             <PillStat label="Total engagements" value={formatNumber(summary.totalEngagements)} />
           </div>
+        </div>
+
+        <div className="mt-5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+          <span>{availableProviders.length} APIFY scrapers ready</span>
+          {providers.map((provider) => (
+            <span
+              key={provider.provider}
+              className={`rounded-full border px-3 py-1 ${
+                provider.available
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : "border-amber-200 bg-amber-50 text-amber-700"
+              }`}
+            >
+              {provider.label}
+            </span>
+          ))}
         </div>
 
         <div className="mt-6 flex flex-wrap gap-3 rounded-[1.5rem] border border-border bg-panel-soft/65 p-2">
@@ -422,7 +442,7 @@ export default async function SocialIntelligencePage({
               <div>
                 <h2 className="text-xl font-semibold text-foreground">{activeTab === "brands" ? "Connected brand accounts" : "Connected influencer accounts"}</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Select an account to review its overview and synchronized content without leaving the main Social Intelligence page.
+                  Select an account to review its overview and synchronized content without leaving the main Social page.
                 </p>
               </div>
               <SocialExportButton dateRange={range} format="pdf" label="Download PDF" />

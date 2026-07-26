@@ -42,10 +42,10 @@ export const moduleDefinitions: Record<string, ModuleDefinition> = {
     ],
   },
   social: {
-    title: "Social Intelligence",
+    title: "Social",
     description:
-      "Track owned and public social accounts through a connector architecture that clearly separates authorized analytics from legitimately public metrics.",
-    status: "Connector-ready social shell",
+      "Track owned and public social accounts through APIFY-backed Facebook, Instagram, TikTok, and YouTube scrapers while clearly separating authorized analytics from legitimately public metrics.",
+    status: "APIFY-backed social monitoring",
     dependencies: [
       "Approved OAuth apps for Meta, YouTube, TikTok, and X",
       "Platform-specific scopes and account authorization",

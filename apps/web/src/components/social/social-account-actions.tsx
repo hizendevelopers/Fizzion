@@ -33,7 +33,7 @@ export function SocialAccountActions({
       }
 
       const confirmed = window.confirm(
-        "Remove this account from Social Intelligence and stop future synchronization?",
+        "Remove this account from Social and stop future synchronization?",
       );
       if (!confirmed) {
         setBusy(false);

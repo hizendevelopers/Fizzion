@@ -24,7 +24,7 @@ export default async function SocialAccountsPage() {
       <section className="rounded-[2.2rem] border border-white/85 bg-white/90 p-6 shadow-[var(--shadow-card)]">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">Social Intelligence</h1>
+            <h1 className="text-3xl font-semibold tracking-tight text-foreground">Social</h1>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground">
               Connect public social accounts through the configured Apify scrapers, then review
               imported profile data, content, and availability-aware metrics.
