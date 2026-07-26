@@ -82,7 +82,7 @@ function ErrorBanner({ message, onRetry }: { message: string; onRetry: () => voi
   return (<div className="rounded-2xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm text-[#991B1B]"><p className="font-semibold">Something went wrong</p><p className="mt-1 text-xs">{message}</p><button className="mt-2 inline-flex h-8 items-center justify-center rounded-lg bg-[#991B1B] px-3 text-xs font-semibold text-white" onClick={onRetry} type="button">Retry</button></div>);
 }
 function FilterChip({ label, tone = "default" }: { label: string; tone?: "default" | "accent" }) {
-  return <span className={cn("inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium", tone === "accent" ? "bg-[#F40009] text-white" : "border border-white/[0.08] bg-white/[0.04] text-white/60")}>{label}</span>;
+  return <span className={cn("inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium", tone === "accent" ? "bg-[#F40009] text-white" : "border border-[#D0D5DD] bg-white text-[#475467]")}>{label}</span>;
 }
 function MiniSparkline({ data, color }: { data: Array<{ value: number }>; color: string }) {
   if (data.length === 0) return <div className="h-full rounded-lg border border-dashed border-[#E5E7EB] bg-[#F9FAFB]" />;
@@ -97,7 +97,7 @@ function MiniSparkline({ data, color }: { data: Array<{ value: number }>; color:
   return <svg className="h-full w-full" viewBox={`0 0 ${w} ${h}`} fill="none"><path d={pts} stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></svg>;
 }
 function Section({ dark, children }: { dark?: boolean; children: React.ReactNode }) {
-  return <section className={cn("rounded-2xl p-5", dark ? "border border-white/[0.06] bg-[#161B24] text-white shadow-[0_8px_24px_rgba(0,0,0,0.2)]" : "border border-[#E5E7EB] bg-white shadow-[0_4px_16px_rgba(0,0,0,0.04)]")}>{children}</section>;
+  return <section className={cn("rounded-2xl p-5", dark ? "border border-[#E4E7EC] bg-[linear-gradient(180deg,#FFFFFF_0%,#F8FAFC_100%)] text-[#101828] shadow-[0_8px_24px_rgba(15,23,42,0.06)]" : "border border-[#E5E7EB] bg-white shadow-[0_4px_16px_rgba(0,0,0,0.04)]")}>{children}</section>;
 }
 
 /* ────────────────── Date Range Filter ──────────────────── */
@@ -239,22 +239,22 @@ function DateRangeFilter({
     <>
       <button
         ref={triggerRef}
-        className="flex h-11 w-full items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.04] px-3 text-left transition hover:border-white/15 hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F40009]/70"
+        className="flex h-11 w-full items-center justify-between rounded-xl border border-[#D0D5DD] bg-white px-3 text-left transition hover:border-[#98A2B3] hover:bg-[#F8FAFC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F40009]/25"
         type="button"
         aria-expanded={isOpen}
         aria-haspopup="dialog"
         onClick={() => onOpenChange(!isOpen)}
       >
         <span className="flex min-w-0 items-center gap-2.5">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#F40009]/12 text-[#FF4D55]">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#FFF1EE] text-[#D92D20]">
             <CalendarIcon className="h-4 w-4" />
           </span>
           <span className="min-w-0">
-            <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45">Date Range</span>
-            <span className="block truncate text-sm font-medium text-white">{formatDateRangeSummary(startDate, endDate)}</span>
+            <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-[#98A2B3]">Date Range</span>
+            <span className="block truncate text-sm font-medium text-[#101828]">{formatDateRangeSummary(startDate, endDate)}</span>
           </span>
         </span>
-        <ChevronDownIcon className={cn("h-4 w-4 shrink-0 text-white/45 transition", isOpen && "rotate-180")} />
+        <ChevronDownIcon className={cn("h-4 w-4 shrink-0 text-[#98A2B3] transition", isOpen && "rotate-180")} />
       </button>
       <FilterPopoverShell isOpen={isOpen} onOpenChange={onOpenChange} panelRef={panelRef} position={position}>
         <div className="space-y-4 p-4">
@@ -381,7 +381,7 @@ function MultiSelectFilter({
     <>
       <button
         ref={triggerRef}
-        className="flex h-11 w-full items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.04] px-3 text-left transition hover:border-white/15 hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F40009]/70"
+        className="flex h-11 w-full items-center justify-between rounded-xl border border-[#D0D5DD] bg-white px-3 text-left transition hover:border-[#98A2B3] hover:bg-[#F8FAFC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F40009]/25"
         type="button"
         aria-expanded={isOpen}
         aria-haspopup="dialog"
@@ -760,20 +760,20 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
       <Section dark>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/50">Web</p>
-            <h1 className="mt-2 text-2xl font-bold tracking-tight text-white lg:text-3xl">Web</h1>
-            <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-[#AEB5C2]">Real-time Web advertising monitoring across Iraqi news websites.</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#98A2B3]">Web</p>
+            <h1 className="mt-2 text-2xl font-bold tracking-tight text-[#101828] lg:text-3xl">Web</h1>
+            <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-[#667085]">Real-time Web advertising monitoring across Iraqi news websites.</p>
           </div>
-          <div className="shrink-0 rounded-xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm leading-relaxed text-[#AEB5C2]">
-            <p><span className="text-white/70">Period:</span> {state.data.summary.rangeLabel}</p>
-            <p><span className="text-white/70">Currency:</span> USD</p>
-            <p><span className="text-white/70">Filters:</span> {state.data.summary.activeFilterCount}</p>
+          <div className="shrink-0 rounded-xl border border-[#E4E7EC] bg-[#F8FAFC] px-4 py-2.5 text-sm leading-relaxed text-[#667085]">
+            <p><span className="text-[#344054]">Period:</span> {state.data.summary.rangeLabel}</p>
+            <p><span className="text-[#344054]">Currency:</span> USD</p>
+            <p><span className="text-[#344054]">Filters:</span> {state.data.summary.activeFilterCount}</p>
           </div>
         </div>
       </Section>
 
       {/* Filter Bar */}
-      <section className="rounded-2xl border border-white/[0.07] bg-[#12151C] p-4 shadow-[0_8px_24px_rgba(0,0,0,0.24)]">
+      <section className="rounded-2xl border border-[#E4E7EC] bg-[linear-gradient(180deg,#FFFFFF_0%,#F8FAFC_100%)] p-4 shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
         <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-[1.25fr_repeat(7,minmax(0,1fr))]">
           <DateRangeFilter
             preset={pendingFilters.preset}
@@ -858,7 +858,7 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
           />
           <div className="flex items-end gap-2 md:col-span-2 xl:col-span-2 2xl:col-span-1">
             <button className="inline-flex h-11 items-center justify-center rounded-xl bg-[#F40009] px-5 text-sm font-semibold text-white transition hover:bg-[#d60008] disabled:cursor-not-allowed disabled:opacity-50" disabled={state.loading || !hasDirtyFilters} onClick={applyFilters} type="button">{state.loading ? "Applying…" : "Apply"}</button>
-            <button className="inline-flex h-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] px-4 text-sm font-semibold text-white/70 transition hover:bg-white/10" disabled={state.loading} onClick={resetFilters} type="button">Reset</button>
+            <button className="inline-flex h-11 items-center justify-center rounded-xl border border-[#D0D5DD] bg-white px-4 text-sm font-semibold text-[#344054] transition hover:bg-[#F8FAFC]" disabled={state.loading} onClick={resetFilters} type="button">Reset</button>
           </div>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-1.5">

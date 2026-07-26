@@ -1275,7 +1275,7 @@ export function TvDashboard({ initialData }: TvDashboardProps) {
     <div className="space-y-6">
       <AdPreviewModal ad={previewAd} onClose={() => setPreviewAd(null)} />
 
-      <section className="rounded-[1.8rem] border border-[#E4E7EC] bg-[radial-gradient(circle_at_top_left,#FFF5F4_0%,#FFFFFF_46%,#F8FAFC_100%)] p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] md:p-5">
+      <section className="rounded-[1.8rem] border border-[#E4E7EC] bg-[linear-gradient(180deg,#FFFFFF_0%,#F4F7FA_100%)] p-4 shadow-[0_18px_48px_rgba(15,23,42,0.06)] md:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#98A2B3]">
@@ -1289,10 +1289,10 @@ export function TvDashboard({ initialData }: TvDashboardProps) {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-sm text-[#475467]">
-            <span className="rounded-full bg-white px-3 py-1.5 shadow-[0_4px_14px_rgba(15,23,42,0.04)]">
+            <span className="rounded-full border border-[#E4E7EC] bg-white px-3 py-1.5 shadow-[0_4px_14px_rgba(15,23,42,0.04)]">
               {state.data.summary.rangeLabel}
             </span>
-            <span className="rounded-full bg-white px-3 py-1.5 shadow-[0_4px_14px_rgba(15,23,42,0.04)]">
+            <span className="rounded-full border border-[#E4E7EC] bg-white px-3 py-1.5 shadow-[0_4px_14px_rgba(15,23,42,0.04)]">
               Last updated {formatLastUpdated(state.data.summary.lastUpdatedAt)}
             </span>
             <button
