@@ -8,6 +8,7 @@ import { createPortal } from "react-dom";
 import type { WebOverviewResponse, WebFilters, WebDetection } from "@/lib/web-analytics";
 import { formatCompactUsdFromCurrency, formatUsdFromCurrency } from "@/lib/display-currency";
 import { cn } from "@/lib/utils";
+import { normalizeWebScreenshotUrl } from "@/lib/web-screenshot-url";
 import { ShareOfVoiceCard, StackedSpendingChartCard } from "@/components/states/insight-charts";
 import {
   BrandIcon, CalendarIcon, CampaignIcon, ChevronDownIcon, GlobeIcon, ReportIcon, SearchIcon, WebIcon,
@@ -51,15 +52,10 @@ function getBrandInitials(name: string) {
 }
 
 function normalizeEditableScreenshotUrl(rawUrl: string) {
-  const trimmed = rawUrl.trim();
-  if (!trimmed) return "";
-
   try {
-    const parsed = new URL(trimmed);
-    const googleImageUrl = parsed.searchParams.get("imgurl");
-    return googleImageUrl ? googleImageUrl : parsed.toString();
+    return normalizeWebScreenshotUrl(rawUrl);
   } catch {
-    return trimmed;
+    return rawUrl.trim();
   }
 }
 
@@ -654,7 +650,7 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setScreenshotModal(null)} role="dialog" aria-modal="true" aria-label="Screenshot preview">
           <div className="relative w-full max-w-4xl overflow-hidden rounded-2xl bg-black" onClick={(e) => e.stopPropagation()}>
             <button className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/40" onClick={() => setScreenshotModal(null)} type="button" aria-label="Close preview">&times;</button>
-            <Image alt={screenshotModal.title} className="w-full object-contain max-h-[85vh]" height={800} src={resolveScreenshotSrc(screenshotModal.url)} width={1200} />
+            <img alt={screenshotModal.title} className="max-h-[85vh] w-full object-contain" decoding="async" loading="eager" referrerPolicy="no-referrer" src={resolveScreenshotSrc(screenshotModal.url)} />
           </div>
         </div>
       )}
@@ -742,12 +738,13 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#6B7280]">Preview</p>
                 <div className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB]">
                   {screenshotEditor.value.trim() ? (
-                    <Image
+                    <img
                       alt={screenshotEditor.title}
                       className="h-72 w-full object-cover"
-                      height={432}
+                      decoding="async"
+                      loading="eager"
+                      referrerPolicy="no-referrer"
                       src={resolveScreenshotSrc(normalizeEditableScreenshotUrl(screenshotEditor.value))}
-                      width={720}
                     />
                   ) : (
                     <div className="flex h-72 items-center justify-center px-6 text-center text-sm text-[#9CA3AF]">Paste an image URL to preview it here.</div>
@@ -976,7 +973,8 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
                 <div className="overflow-hidden rounded-lg border border-[#E5E7EB] bg-white">
                   {d.screenshotUrl ? (
                     <button className="group relative block w-full" onClick={() => setScreenshotModal({ url: d.screenshotUrl!, title: `${d.websiteName} - ${d.brandName ?? "Ad"}` })} type="button">
-                      <Image alt={`Screenshot from ${d.websiteName}`} className="h-36 w-full object-cover transition group-hover:scale-[1.02]" height={144} src={resolveScreenshotSrc(d.screenshotUrl)} width={256} />
+                      <img alt={`Screenshot from ${d.websiteName}`} className="h-36 w-full object-cover transition group-hover:scale-[1.02]" decoding="async" loading="lazy" referrerPolicy="no-referrer" src={resolveScreenshotSrc(d.screenshotUrl)} />
+
                       <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition group-hover:bg-black/20"><span className="rounded-full bg-white/90 px-3 py-1 text-[11px] font-semibold text-[#111827] opacity-0 transition group-hover:opacity-100">Preview</span></div>
                     </button>
                   ) : (
