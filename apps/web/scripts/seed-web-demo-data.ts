@@ -210,12 +210,19 @@ async function main() {
     if (spendResult.error) throw spendResult.error;
   }
 
-  const existingScreenshots = await supabase
+  const existingBaseScreenshots = await supabase
     .from("web_screenshots")
     .delete()
     .eq("organization_id", organizationId)
     .like("checksum", "web-demo:%");
-  if (existingScreenshots.error) throw existingScreenshots.error;
+  if (existingBaseScreenshots.error) throw existingBaseScreenshots.error;
+
+  const existingDetectionScreenshots = await supabase
+    .from("web_screenshots")
+    .delete()
+    .eq("organization_id", organizationId)
+    .like("checksum", "web-detection-demo:%");
+  if (existingDetectionScreenshots.error) throw existingDetectionScreenshots.error;
 
   const screenshotRows = buildWebDemoScreenshotSeeds().map((seed) => {
     const websiteId = websiteIdByDomain.get(seed.websiteDomain);
@@ -239,23 +246,78 @@ async function main() {
     if (screenshotResult.error) throw screenshotResult.error;
   }
 
+  const detectionSeeds = buildWebDemoDetectionSeeds(campaigns);
+  const detectionScreenshotSpecs = new Map<string, {
+    websiteDomain: string;
+    destinationUrl: string;
+    screenshotUrl: string;
+    detectedAt: string;
+    checksum: string;
+  }>();
+
+  for (const seed of detectionSeeds) {
+    const key = `${seed.websiteDomain}:${seed.brandName}`;
+    const checksum = `web-detection-demo:${seed.websiteDomain}:${seed.brandName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+    const existing = detectionScreenshotSpecs.get(key);
+    if (!existing || existing.detectedAt < seed.detectedAt) {
+      detectionScreenshotSpecs.set(key, {
+        websiteDomain: seed.websiteDomain,
+        destinationUrl: seed.destinationUrl,
+        screenshotUrl: seed.screenshotUrl,
+        detectedAt: seed.detectedAt,
+        checksum,
+      });
+    }
+  }
+
+  const detectionScreenshotRows = [...detectionScreenshotSpecs.values()].map((seed) => {
+    const websiteId = websiteIdByDomain.get(seed.websiteDomain);
+    if (!websiteId) throw new Error(`Website ${seed.websiteDomain} missing for detection screenshot seed.`);
+    return {
+      organization_id: organizationId,
+      website_id: websiteId,
+      page_url: seed.destinationUrl,
+      screenshot_url: seed.screenshotUrl,
+      captured_at: seed.detectedAt,
+      viewport_width: 1440,
+      viewport_height: 900,
+      status: "completed",
+      failure_reason: null,
+      checksum: seed.checksum,
+    };
+  });
+
+  const detectionScreenshotIdByChecksum = new Map<string, string>();
+  for (let index = 0; index < detectionScreenshotRows.length; index += screenshotChunkSize) {
+    const inserted = await supabase
+      .from("web_screenshots")
+      .insert(detectionScreenshotRows.slice(index, index + screenshotChunkSize))
+      .select("id,checksum");
+    if (inserted.error) throw inserted.error;
+    for (const row of (inserted.data ?? []) as SupabaseRow[]) {
+      detectionScreenshotIdByChecksum.set(String(row.checksum), String(row.id));
+    }
+  }
+
   const existingDetections = await supabase
     .from("web_ad_detections")
     .delete()
     .eq("organization_id", organizationId)
-    .like("destination_url", "https://demo.fizzion/%");
+    .in("campaign_id", campaignIds);
   if (existingDetections.error) throw existingDetections.error;
 
-  const detectionRows = buildWebDemoDetectionSeeds(campaigns).map((seed) => {
+  const detectionRows = detectionSeeds.map((seed) => {
     const websiteId = websiteIdByDomain.get(seed.websiteDomain);
     const campaignId = campaignIdByName.get(seed.campaignName);
     const brandId = brandIdByName.get(seed.brandName);
+    const screenshotChecksum = `web-detection-demo:${seed.websiteDomain}:${seed.brandName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
     if (!websiteId || !campaignId || !brandId) {
       throw new Error(`Missing relation for detection seed ${seed.campaignName} on ${seed.websiteDomain}.`);
     }
 
     return {
       organization_id: organizationId,
+      screenshot_id: detectionScreenshotIdByChecksum.get(screenshotChecksum) ?? null,
       website_id: websiteId,
       campaign_id: campaignId,
       brand_id: brandId,

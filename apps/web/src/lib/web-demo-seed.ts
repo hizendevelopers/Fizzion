@@ -13,6 +13,11 @@ export type WebDemoWebsiteSpec = {
   category: string;
 };
 
+export type WebDemoBrandSourceSpec = {
+  homepageUrl: string;
+  screenshotUrl: string;
+};
+
 export type WebDemoCampaignSpec = {
   brandName: string;
   name: string;
@@ -52,6 +57,7 @@ export type WebDemoDetectionSeed = {
   adFormat: string;
   position: string;
   destinationUrl: string;
+  screenshotUrl: string;
   confidenceScore: number;
   reviewStatus: "confirmed" | "pending";
   spendAmount: number;
@@ -73,6 +79,31 @@ export const WEB_DEMO_WEBSITES: WebDemoWebsiteSpec[] = [
   { name: "Iraq Business News", domain: "iraq-businessnews.com", homepageUrl: "https://iraq-businessnews.com", language: "English", category: "Business" },
   { name: "Al Forat News", domain: "alforatnews.iq", homepageUrl: "https://alforatnews.iq", language: "Arabic", category: "News" },
 ];
+
+export const WEB_DEMO_BRAND_SOURCES: Record<string, WebDemoBrandSourceSpec> = {
+  "coca-cola": { homepageUrl: "https://www.coca-cola.com/", screenshotUrl: "/demo/web/brands/coca-cola.jpg" },
+  pepsi: { homepageUrl: "https://www.pepsi.com/", screenshotUrl: "/demo/web/brands/pepsi.jpg" },
+  "7up": { homepageUrl: "https://www.7up.com/", screenshotUrl: "/demo/web/brands/7up.jpg" },
+  "mountain-dew": { homepageUrl: "https://www.mountaindew.com/", screenshotUrl: "/demo/web/brands/mountain-dew.jpg" },
+  mirinda: { homepageUrl: "https://www.mirinda.com/", screenshotUrl: "/demo/web/brands/mirinda.jpg" },
+  "rc-cola": { homepageUrl: "https://www.rccola.com/", screenshotUrl: "/demo/web/brands/rc-cola.jpg" },
+  "zain-iraq": { homepageUrl: "https://www.iq.zain.com/en", screenshotUrl: "/demo/web/brands/zain-iraq.jpg" },
+  asiacell: { homepageUrl: "https://www.asiacell.com/en", screenshotUrl: "/demo/web/brands/asiacell.jpg" },
+  "korek-telecom": { homepageUrl: "https://www.korek.com/", screenshotUrl: "/demo/web/brands/korek-telecom.jpg" },
+  samsung: { homepageUrl: "https://www.samsung.com/", screenshotUrl: "/demo/web/brands/samsung.jpg" },
+  lg: { homepageUrl: "https://www.lg.com/", screenshotUrl: "/demo/web/brands/lg.jpg" },
+  huawei: { homepageUrl: "https://consumer.huawei.com/en/", screenshotUrl: "/demo/web/brands/huawei.jpg" },
+  toyota: { homepageUrl: "https://www.toyota.com/", screenshotUrl: "/demo/web/brands/toyota.jpg" },
+  kia: { homepageUrl: "https://www.kia.com/", screenshotUrl: "/demo/web/brands/kia.jpg" },
+  hyundai: { homepageUrl: "https://www.hyundai.com/worldwide/en", screenshotUrl: "/demo/web/brands/hyundai.jpg" },
+  nestle: { homepageUrl: "https://www.nestle.com/", screenshotUrl: "/demo/web/brands/nestle.jpg" },
+  unilever: { homepageUrl: "https://www.unilever.com/", screenshotUrl: "/demo/web/brands/unilever.jpg" },
+  careem: { homepageUrl: "https://www.careem.com/en-IQ/", screenshotUrl: "/demo/web/brands/careem.jpg" },
+  talabat: { homepageUrl: "https://www.talabat.com/iraq", screenshotUrl: "/demo/web/brands/talabat.jpg" },
+  carrefour: { homepageUrl: "https://www.carrefouriraq.com/", screenshotUrl: "/demo/web/brands/carrefour.jpg" },
+  visa: { homepageUrl: "https://www.visa.com/", screenshotUrl: "/demo/web/brands/visa.jpg" },
+  mastercard: { homepageUrl: "https://www.mastercard.com/", screenshotUrl: "/demo/web/brands/mastercard.jpg" },
+};
 
 const WEB_OBJECTIVES: Record<string, string[]> = {
   Beverages: [
@@ -308,7 +339,7 @@ export function buildWebDemoScreenshotSeeds(): WebDemoScreenshotSeed[] {
       rows.push({
         websiteDomain: website.domain,
         pageUrl: `${website.homepageUrl}${sectionPath}`,
-        screenshotUrl: failed ? null : `/demo/web/screenshots/${website.domain}/${dateKey}.jpg`,
+        screenshotUrl: failed ? null : `/demo/web/websites/${website.domain}.jpg`,
         capturedAt: `${dateKey}T0${(websiteIndex % 4) + 6}:1${websiteIndex % 6}:00Z`,
         viewportWidth: 1440,
         viewportHeight: 900,
@@ -331,6 +362,8 @@ export function buildWebDemoDetectionSeeds(campaigns = buildWebDemoCampaigns()):
   for (const campaign of campaigns) {
     const brand = brandByName.get(campaign.brandName);
     if (!brand) continue;
+    const source = WEB_DEMO_BRAND_SOURCES[brand.slug];
+    if (!source) continue;
 
     const start = parseIsoDate(campaign.startDate);
     const rawEnd = campaign.endDate ? parseIsoDate(campaign.endDate) : seedEnd;
@@ -356,7 +389,8 @@ export function buildWebDemoDetectionSeeds(campaigns = buildWebDemoCampaigns()):
           brandName: campaign.brandName,
           adFormat,
           position,
-          destinationUrl: `https://demo.fizzion/${brand.slug}/${campaign.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+          destinationUrl: source.homepageUrl,
+          screenshotUrl: source.screenshotUrl,
           confidenceScore: Number((0.81 + unit(`${campaign.name}:${websiteDomain}:${dateKey}:confidence`) * 0.18).toFixed(2)),
           reviewStatus: unit(`${campaign.name}:${websiteDomain}:${dateKey}:review`) > 0.14 ? "confirmed" : "pending",
           spendAmount,

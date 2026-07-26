@@ -738,20 +738,27 @@ export async function getWebDetections(rawFilters?: Partial<WebFilters> & { sear
   const brandIds = [...new Set((rows ?? []).map((r: any) => r.brand_id).filter(Boolean))];
   const websiteIds = [...new Set((rows ?? []).map((r: any) => r.website_id).filter(Boolean))];
   const campaignIds = [...new Set((rows ?? []).map((r: any) => r.campaign_id).filter(Boolean))];
+  const screenshotIds = [...new Set((rows ?? []).map((r: any) => r.screenshot_id).filter(Boolean))];
 
   const [brandsRes, websitesRes, campaignsRes, screenshotsRes] = await Promise.all([
     brandIds.length > 0 ? client.from("brands").select("id,name,color").in("id", brandIds) : { data: [] },
     websiteIds.length > 0 ? client.from("websites").select("id,name,domain").in("id", websiteIds) : { data: [] },
     campaignIds.length > 0 ? client.from("campaigns").select("id,name").in("id", campaignIds) : { data: [] },
-    (rows ?? []).length > 0 ? client.from("web_screenshots").select("id,website_id,screenshot_url,page_url,captured_at").eq("organization_id", orgId).limit(50) : { data: [] },
+    screenshotIds.length > 0
+      ? client.from("web_screenshots").select("id,website_id,screenshot_url,page_url,captured_at").in("id", screenshotIds)
+      : (rows ?? []).length > 0
+        ? client.from("web_screenshots").select("id,website_id,screenshot_url,page_url,captured_at").eq("organization_id", orgId).limit(50)
+        : { data: [] },
   ]);
 
   const brandMap = new Map((brandsRes.data ?? []).map((r: any) => [String(r.id), r]));
   const websiteMap = new Map((websitesRes.data ?? []).map((r: any) => [String(r.id), r]));
   const campaignMap = new Map((campaignsRes.data ?? []).map((r: any) => [String(r.id), r]));
   const screenshotMap = new Map<string, any>();
+  const screenshotIdMap = new Map<string, any>();
   for (const s of (screenshotsRes.data ?? []) as any[]) {
     screenshotMap.set(s.website_id, s);
+    screenshotIdMap.set(String(s.id), s);
   }
 
   let detections: WebDetection[] = ((rows ?? []) as any[]).map((r: any) => {
@@ -759,7 +766,7 @@ export async function getWebDetections(rawFilters?: Partial<WebFilters> & { sear
     const ws = websiteMap.get(String(r.website_id));
     const br = r.brand_id ? brandMap.get(String(r.brand_id)) : null;
     const ca = r.campaign_id ? campaignMap.get(String(r.campaign_id)) : null;
-    const ss = screenshotMap.get(String(r.website_id));
+    const ss = r.screenshot_id ? screenshotIdMap.get(String(r.screenshot_id)) : screenshotMap.get(String(r.website_id));
     return {
       id: String(r.id), websiteId: String(r.website_id), websiteName: ws?.name ?? "Unknown",
       domain: ws?.domain ?? "", pageUrl: r.page_url ? String(r.page_url) : null,
