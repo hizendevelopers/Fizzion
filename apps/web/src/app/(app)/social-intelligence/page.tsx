@@ -13,6 +13,7 @@ import {
   listSocialContent,
   type SocialAccountDetail,
   type SocialDashboardAccount,
+  type SocialPortfolioSummary,
 } from "@/lib/social-data";
 import { listSocialProviderAvailability } from "@/lib/social-providers";
 import { formatNumber } from "@/lib/social-utils";
@@ -214,60 +215,104 @@ export default async function SocialIntelligencePage({
   const q = getSingleSearchParam(resolvedSearchParams.q) ?? "";
   const contentType = getSingleSearchParam(resolvedSearchParams.contentType) ?? "all";
   const days = rangeToDays(range);
-
-  const [summary, connections] = await Promise.all([getSocialPortfolioSummary(), listSocialConnections()]);
   const providers = listSocialProviderAvailability();
   const availableProviders = providers.filter((provider) => provider.available);
-  const filteredConnections = connections
-    .filter((connection) => (platform === "all" ? true : connection.provider === platform))
-    .filter((connection) => passesPerformanceFilter(connection, performance));
+  let dashboardError: string | null = null;
+  let summary: SocialPortfolioSummary = {
+    connectedAccounts: 0,
+    totalFollowers: 0,
+    totalFollowing: 0,
+    totalPublishedContent: 0,
+    totalReach: 0,
+    totalImpressions: 0,
+    totalViews: 0,
+    totalEngagements: 0,
+    averageEngagementRate: null,
+    followersGrowth: null,
+    totalLikes: 0,
+    totalComments: 0,
+    totalShares: 0,
+    totalSaves: 0,
+    totalWatchTimeSeconds: 0,
+    comparisonLabel: "Availability-aware totals",
+  };
+  let connections: SocialDashboardAccount[] = [];
+  let filteredConnections: SocialDashboardAccount[] = [];
+  let brands: SocialDashboardAccount[] = [];
+  let influencers: SocialDashboardAccount[] = [];
+  let activeConnections: SocialDashboardAccount[] = [];
+  let selectedConnection: SocialDashboardAccount | null = null;
+  let availableDetails: SocialAccountDetail[] = [];
+  let selectedDetail: SocialAccountDetail | null = null;
+  let selectedContent: Awaited<ReturnType<typeof listSocialContent>> = { items: [], total: 0 };
+  let reportDetails: SocialAccountDetail[] = [];
+  let aggregateTrend: ReturnType<typeof aggregateDetailTrend> = [];
+  let platformBars: ReturnType<typeof buildPlatformBars> = [];
+  let contentTypeShare: ReturnType<typeof buildContentTypeShare> = [];
+  let brandShare: ReturnType<typeof buildBrandShare> = [];
+  let totalReach = 0;
+  let totalEngagements = 0;
+  let totalViews = 0;
+  let totalFollowers = 0;
 
-  const brands = filteredConnections.filter((connection) => classifyPersona(connection) === "brand");
-  const influencers = filteredConnections.filter((connection) => classifyPersona(connection) === "influencer");
-  const activeConnections = activeTab === "influencers" ? influencers : brands;
-  const selectedConnection = activeConnections.find((connection) => connection.id === selectedId) ?? activeConnections[0] ?? null;
+  try {
+    [summary, connections] = await Promise.all([getSocialPortfolioSummary(), listSocialConnections()]);
+    filteredConnections = connections
+      .filter((connection) => (platform === "all" ? true : connection.provider === platform))
+      .filter((connection) => passesPerformanceFilter(connection, performance));
 
-  const detailTargets =
-    activeTab === "report"
-      ? brands.slice(0, 5)
-      : selectedConnection
-        ? [selectedConnection]
+    brands = filteredConnections.filter((connection) => classifyPersona(connection) === "brand");
+    influencers = filteredConnections.filter((connection) => classifyPersona(connection) === "influencer");
+    activeConnections = activeTab === "influencers" ? influencers : brands;
+    selectedConnection = activeConnections.find((connection) => connection.id === selectedId) ?? activeConnections[0] ?? null;
+
+    const detailTargets =
+      activeTab === "report"
+        ? brands.slice(0, 5)
+        : selectedConnection
+          ? [selectedConnection]
+          : [];
+
+    const detailRecords = await Promise.all(
+      detailTargets.map((connection) => getSocialAccountDetail(connection.id, { days })),
+    );
+    availableDetails = detailRecords.filter((detail): detail is SocialAccountDetail => Boolean(detail));
+    selectedDetail = activeTab === "report" ? null : availableDetails[0] ?? null;
+    selectedContent =
+      selectedDetail != null
+        ? await listSocialContent(selectedDetail.id, {
+            days,
+            page: 1,
+            limit: 8,
+            sort: "engagements",
+            q: q || undefined,
+            contentType: contentType === "all" ? undefined : contentType,
+          })
+        : { items: [], total: 0 };
+
+    reportDetails =
+      activeTab === "report"
+        ? (
+            await Promise.all(
+              brands.slice(0, 5).map((connection) => getSocialAccountDetail(connection.id, { days })),
+            )
+          ).filter((detail): detail is SocialAccountDetail => Boolean(detail))
         : [];
 
-  const detailRecords = await Promise.all(
-    detailTargets.map((connection) => getSocialAccountDetail(connection.id, { days })),
-  );
-  const availableDetails = detailRecords.filter((detail): detail is SocialAccountDetail => Boolean(detail));
-  const selectedDetail = activeTab === "report" ? null : availableDetails[0] ?? null;
-  const selectedContent =
-    selectedDetail != null
-      ? await listSocialContent(selectedDetail.id, {
-          days,
-          page: 1,
-          limit: 8,
-          sort: "engagements",
-          q: q || undefined,
-          contentType: contentType === "all" ? undefined : contentType,
-        })
-      : { items: [], total: 0 };
-
-  const reportDetails =
-    activeTab === "report"
-      ? (
-          await Promise.all(
-            brands.slice(0, 5).map((connection) => getSocialAccountDetail(connection.id, { days })),
-          )
-        ).filter((detail): detail is SocialAccountDetail => Boolean(detail))
-      : [];
-
-  const aggregateTrend = aggregateDetailTrend(activeTab === "report" ? reportDetails : availableDetails);
-  const platformBars = buildPlatformBars(activeTab === "report" ? reportDetails : availableDetails);
-  const contentTypeShare = buildContentTypeShare(selectedContent.items);
-  const brandShare = buildBrandShare(reportDetails);
-  const totalReach = (activeTab === "report" ? reportDetails : availableDetails).reduce((sum, detail) => sum + (detail.reach ?? 0), 0);
-  const totalEngagements = (activeTab === "report" ? reportDetails : availableDetails).reduce((sum, detail) => sum + (detail.engagements ?? 0), 0);
-  const totalViews = (activeTab === "report" ? reportDetails : availableDetails).reduce((sum, detail) => sum + (detail.views ?? 0), 0);
-  const totalFollowers = (activeTab === "report" ? reportDetails : availableDetails).reduce((sum, detail) => sum + (detail.followers ?? 0), 0);
+    aggregateTrend = aggregateDetailTrend(activeTab === "report" ? reportDetails : availableDetails);
+    platformBars = buildPlatformBars(activeTab === "report" ? reportDetails : availableDetails);
+    contentTypeShare = buildContentTypeShare(selectedContent.items);
+    brandShare = buildBrandShare(reportDetails);
+    totalReach = (activeTab === "report" ? reportDetails : availableDetails).reduce((sum, detail) => sum + (detail.reach ?? 0), 0);
+    totalEngagements = (activeTab === "report" ? reportDetails : availableDetails).reduce((sum, detail) => sum + (detail.engagements ?? 0), 0);
+    totalViews = (activeTab === "report" ? reportDetails : availableDetails).reduce((sum, detail) => sum + (detail.views ?? 0), 0);
+    totalFollowers = (activeTab === "report" ? reportDetails : availableDetails).reduce((sum, detail) => sum + (detail.followers ?? 0), 0);
+  } catch (error) {
+    dashboardError =
+      error instanceof Error
+        ? error.message
+        : "Social data could not be loaded right now.";
+  }
 
   const commonParams = {
     range,
@@ -361,6 +406,13 @@ export default async function SocialIntelligencePage({
           </button>
         </form>
       </section>
+
+      {dashboardError ? (
+        <section className="rounded-[1.8rem] border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900 shadow-[var(--shadow-soft)]">
+          Social analytics data is temporarily unavailable, but the APIFY scraper workflow is ready.
+          <div className="mt-2 text-xs text-amber-800">{dashboardError}</div>
+        </section>
+      ) : null}
 
       {activeTab === "report" ? (
         <div className="space-y-6">
