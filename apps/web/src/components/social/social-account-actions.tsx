@@ -1,14 +1,18 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { RefreshIcon, TrashIcon } from "@/components/app/ui-icons";
 
 export function SocialAccountActions({
   connectionId,
+  redirectToOnRemove,
 }: {
   connectionId: string;
+  redirectToOnRemove?: string;
 }) {
+  const router = useRouter();
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -28,7 +32,7 @@ export function SocialAccountActions({
           throw new Error(payload?.error?.message ?? "Sync failed.");
         }
         setStatus("Data refresh queued successfully.");
-        window.location.reload();
+        router.refresh();
         return;
       }
 
@@ -48,7 +52,10 @@ export function SocialAccountActions({
         throw new Error(payload?.error?.message ?? "Account removal failed.");
       }
       setStatus("Account removed from the workspace.");
-      window.location.reload();
+      if (redirectToOnRemove) {
+        router.replace(redirectToOnRemove);
+      }
+      router.refresh();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Action failed.");
     } finally {

@@ -421,7 +421,6 @@ export default async function SocialAccountDetailPage({
           data={metricAvailability}
           subtitle="Current imported totals across the account summary"
           title="Account Metric Mix"
-          formatter={formatNumber}
           emptyLabel="No account-level metric mix is available yet."
         />
         <ShareOfVoiceCard
@@ -508,7 +507,7 @@ export default async function SocialAccountDetailPage({
               <p>Next sync: {detail.nextSyncAt ?? "Not scheduled"}</p>
             </div>
             <div className="mt-5 border-t border-border pt-4">
-              <SocialAccountActions connectionId={detail.id} />
+              <SocialAccountActions connectionId={detail.id} redirectToOnRemove="/social-intelligence" />
             </div>
           </div>
 

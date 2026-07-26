@@ -2120,6 +2120,11 @@ async function buildSocialPortfolioPdf() {
   const page = pdf.addPage([842, 595]);
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const generatedOnLabel = new Date().toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
 
   page.drawRectangle({
     x: 0,
@@ -2135,7 +2140,7 @@ async function buildSocialPortfolioPdf() {
     font: bold,
     color: rgb(1, 1, 1),
   });
-  page.drawText("Generated on July 23, 2026", {
+  page.drawText(`Generated on ${generatedOnLabel}`, {
     x: 622,
     y: 564,
     size: 10,
@@ -2256,6 +2261,11 @@ async function buildSocialAccountPdf(connectionId: string) {
   const page = pdf.addPage([842, 595]);
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const generatedOnLabel = new Date().toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
 
   page.drawRectangle({
     x: 0,
@@ -2271,7 +2281,7 @@ async function buildSocialAccountPdf(connectionId: string) {
     font: bold,
     color: rgb(1, 1, 1),
   });
-  page.drawText("Generated on July 23, 2026", {
+  page.drawText(`Generated on ${generatedOnLabel}`, {
     x: 622,
     y: 564,
     size: 10,

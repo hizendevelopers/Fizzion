@@ -2,6 +2,7 @@ import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 
 import { ConnectAccountWizard } from "@/components/social/connect-account-wizard";
+import { SocialAccountActions } from "@/components/social/social-account-actions";
 import { SocialExportButton } from "@/components/social/social-export-button";
 import { SocialProfileAvatar } from "@/components/social/social-profile-avatar";
 import { SocialTrendChart } from "@/components/social/social-trend-chart";
@@ -86,6 +87,15 @@ function formatDisplayDate(value: string | null | undefined) {
   return new Date(value).toLocaleDateString("en-US", {
     day: "2-digit",
     month: "short",
+    year: "numeric",
+  });
+}
+
+function formatGeneratedDate() {
+  return new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
     year: "numeric",
   });
 }
@@ -429,7 +439,7 @@ export default async function SocialIntelligencePage({
               <div>
                 <h2 className="text-xl font-semibold text-foreground">Executive summary</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Period: {range.replace("last", "Last ").replace("today", "Today")} | Generated on Thursday, July 23, 2026
+                  Period: {range.replace("last", "Last ").replace("today", "Today")} | Generated on {formatGeneratedDate()}
                 </p>
                 <p className="mt-3 max-w-4xl text-sm leading-7 text-muted-foreground">
                   This report compares connected brand accounts only. Unsupported metrics remain hidden instead of being zero-filled.
@@ -538,6 +548,9 @@ export default async function SocialIntelligencePage({
                       <Link className="rounded-full border border-border bg-white px-4 py-2 text-sm font-medium text-foreground" href={`/social/accounts/${connection.id}`}>
                         Deep detail
                       </Link>
+                    </div>
+                    <div className="mt-4 border-t border-border pt-4">
+                      <SocialAccountActions connectionId={connection.id} />
                     </div>
                   </article>
                 ))
