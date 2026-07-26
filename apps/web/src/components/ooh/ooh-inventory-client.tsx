@@ -16,7 +16,6 @@ import type {
   OohBrandItem,
 } from "@/lib/ooh/ooh-data";
 import type { OohAssetListQuery } from "@/lib/ooh/ooh-schemas";
-import { OohImportPanel } from "./ooh-import-panel";
 import { OohMap } from "./ooh-map";
 
 type OohInventoryClientProps = {
@@ -159,12 +158,6 @@ export function OohInventoryClient({
                 className="rounded-full border border-border bg-panel-soft px-3 py-2 text-xs font-semibold text-foreground transition hover:border-brand-red/35"
               >
                 Asset Directory
-              </a>
-              <a
-                href="#ooh-import-tools"
-                className="rounded-full border border-border bg-panel-soft px-3 py-2 text-xs font-semibold text-foreground transition hover:border-brand-red/35"
-              >
-                Import Tools
               </a>
             </div>
 
@@ -336,10 +329,6 @@ export function OohInventoryClient({
             </div>
           </section>
 
-          <section id="ooh-import-tools">
-            <OohImportPanel />
-          </section>
-
           <div className="space-y-6">
             <div id="ooh-map-coverage">
               <OohMap
@@ -437,12 +426,6 @@ export function OohInventoryClient({
                                     className="rounded-full border border-border bg-white px-3 py-1.5 text-[11px] font-semibold text-foreground"
                                   >
                                     View
-                                  </Link>
-                                  <Link
-                                    href={`/ooh-intelligence/assets/${asset.id}/edit`}
-                                    className="rounded-full bg-brand-red px-3 py-1.5 text-[11px] font-semibold text-white shadow-[var(--shadow-soft)]"
-                                  >
-                                    Edit
                                   </Link>
                                 </div>
                               </div>
