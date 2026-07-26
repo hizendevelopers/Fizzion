@@ -614,27 +614,23 @@ export default async function SocialIntelligencePage({
                 <section className="rounded-[1.8rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <h2 className="text-xl font-semibold text-foreground">Synchronized Content</h2>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Published, tagged, collaboration, and mentioned content returned by the connected source where available.
-                      </p>
+                      <h2 className="text-xl font-semibold text-foreground">Content</h2>
                     </div>
-                    <span className="rounded-full bg-panel-soft px-3 py-2 text-xs text-muted-foreground">
-                      {selectedContent.total} matching items
-                    </span>
                   </div>
 
                   <div className="mt-5 grid gap-4 xl:grid-cols-2">
                     {selectedContent.items.length > 0 ? (
                       selectedContent.items.map((item) => (
                         <article className="rounded-[1.5rem] border border-border bg-panel-soft p-4" key={item.id}>
-                          {item.thumbnailUrl || item.mediaUrl ? (
+                          {resolveContentPreviewUrl(item.thumbnailUrl, item.mediaUrl) ? (
                             <div className="mb-4 overflow-hidden rounded-[1.2rem] border border-border bg-white">
-                              {item.mediaUrl && /\.(mp4|webm|mov)(\?|$)/i.test(item.mediaUrl) ? (
-                                <video className="h-64 w-full object-cover" controls poster={item.thumbnailUrl ?? undefined} preload="metadata" src={item.mediaUrl} />
-                              ) : (
-                                <img alt={item.title || item.caption || "Social content"} className="h-64 w-full object-cover" src={item.thumbnailUrl ?? item.mediaUrl ?? undefined} />
-                              )}
+                              <img
+                                alt={item.title || item.caption || "Social content"}
+                                className="h-64 w-full object-cover"
+                                loading="lazy"
+                                referrerPolicy="no-referrer"
+                                src={resolveContentPreviewUrl(item.thumbnailUrl, item.mediaUrl) ?? undefined}
+                              />
                             </div>
                           ) : null}
                           <div className="flex items-start justify-between gap-3">
@@ -737,4 +733,16 @@ function EmptyPanel({ title, description }: { title: string; description: string
       <p className="mt-2 leading-7">{description}</p>
     </div>
   );
+}
+
+function resolveContentPreviewUrl(thumbnailUrl: string | null, mediaUrl: string | null) {
+  if (thumbnailUrl) {
+    return thumbnailUrl;
+  }
+
+  if (mediaUrl && !/\.(mp4|webm|mov)(\?|$)/i.test(mediaUrl)) {
+    return mediaUrl;
+  }
+
+  return null;
 }

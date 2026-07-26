@@ -495,17 +495,7 @@ export default async function SocialAccountDetailPage({
       <section className="rounded-[1.9rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]" id="content-feed">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <h2 className="text-xl font-semibold text-foreground">Synchronized Content</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Real imported posts and reels with original captions, hashtags, likes, views, comments,
-              shares, saves, and any other source-returned metrics.
-            </p>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Showing {content.items.length} of {content.total} matching records for the current filters.
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Account summary currently reports {formatNumber(detail.contentCount)} total published items from the connected source.
-            </p>
+            <h2 className="text-xl font-semibold text-foreground">Content</h2>
           </div>
           <span className="rounded-full bg-panel-soft px-3 py-2 text-xs text-muted-foreground">
             Sorted by {sort.replaceAll("_", " ")}
@@ -516,13 +506,14 @@ export default async function SocialAccountDetailPage({
           {content.items.length > 0 ? (
             content.items.map((item) => (
               <article className="rounded-[1.5rem] border border-border bg-panel-soft p-4" key={item.id}>
-                {item.thumbnailUrl || item.mediaUrl ? (
+                {resolvePreviewUrl(item) ? (
                   <div className="mb-4 overflow-hidden rounded-[1.25rem] border border-border bg-white">
                     <img
                       alt={item.title || item.caption || "Synchronized social content preview"}
                       className="h-64 w-full object-cover"
                       loading="lazy"
-                      src={item.thumbnailUrl ?? item.mediaUrl ?? undefined}
+                      referrerPolicy="no-referrer"
+                      src={resolvePreviewUrl(item) ?? undefined}
                     />
                   </div>
                 ) : null}
@@ -825,4 +816,19 @@ function buildAccountHref(accountId: string, params: Record<string, string>) {
   }
   const query = search.toString();
   return query ? `/social/accounts/${accountId}?${query}#content-feed` : `/social/accounts/${accountId}#content-feed`;
+}
+
+function resolvePreviewUrl(item: {
+  thumbnailUrl: string | null;
+  mediaUrl: string | null;
+}) {
+  if (item.thumbnailUrl) {
+    return item.thumbnailUrl;
+  }
+
+  if (item.mediaUrl && !/\.(mp4|webm|mov)(\?|$)/i.test(item.mediaUrl)) {
+    return item.mediaUrl;
+  }
+
+  return null;
 }
