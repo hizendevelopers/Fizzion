@@ -588,12 +588,28 @@ export function StackedSpendingChartCard({
 
               {chartBuckets.map((bucket, index) => {
                 let runningHeight = 0;
+                const x = marginLeft + index * columnWidth + 7;
+                const segmentWidth = Math.max(columnWidth - 14, 12);
+                const trackHeight = bucket.total > 0 ? (bucket.total / maxBucketValue) * chartHeight : 14;
+                const trackVisibleHeight = Math.max(trackHeight, 14);
+                const trackY = marginTop + chartHeight - trackVisibleHeight;
                 return (
                   <g key={bucket.key}>
+                    <path
+                      d={buildRoundedStackSegmentPath({
+                        x,
+                        y: trackY,
+                        width: segmentWidth,
+                        height: trackVisibleHeight,
+                        roundTop: true,
+                        roundBottom: true,
+                      })}
+                      fill="#D9E2EC"
+                      opacity={bucket.total > 0 ? 0.2 : 0.5}
+                    />
                     {bucket.segments.map((segment, segmentIndex) => {
                       const segmentHeight = bucket.total > 0 ? (segment.value / maxBucketValue) * chartHeight : 0;
                       const y = marginTop + chartHeight - runningHeight - segmentHeight;
-                      const x = marginLeft + index * columnWidth + 7;
                       runningHeight += segmentHeight;
                       const resolvedColor = colorForShareLabel(segment.label, segmentIndex, segment.color);
                       const dimmed = focusedSegmentId && focusedSegmentId !== segment.id;
@@ -604,7 +620,7 @@ export function StackedSpendingChartCard({
                           d={buildRoundedStackSegmentPath({
                             x,
                             y,
-                            width: Math.max(columnWidth - 14, 12),
+                            width: segmentWidth,
                             height: Math.max(segmentHeight, 0),
                             roundTop: segmentIndex === bucket.segments.length - 1,
                             roundBottom: segmentIndex === 0,

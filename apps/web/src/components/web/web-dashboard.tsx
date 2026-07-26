@@ -388,15 +388,15 @@ function MultiSelectFilter({
         onClick={() => onOpenChange(!isOpen)}
       >
         <span className="flex min-w-0 items-center gap-2.5">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#F40009]/12 text-[#FF4D55]">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#FFF1EE] text-[#D92D20]">
             {icon}
           </span>
           <span className="min-w-0">
-            <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45">{label}</span>
-            <span className="block truncate text-sm font-medium text-white">{summaryLabel}</span>
+            <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-[#98A2B3]">{label}</span>
+            <span className="block truncate text-sm font-medium text-[#101828]">{summaryLabel}</span>
           </span>
         </span>
-        <ChevronDownIcon className={cn("h-4 w-4 shrink-0 text-white/45 transition", isOpen && "rotate-180")} />
+        <ChevronDownIcon className={cn("h-4 w-4 shrink-0 text-[#98A2B3] transition", isOpen && "rotate-180")} />
       </button>
       <FilterPopoverShell isOpen={isOpen} onOpenChange={onOpenChange} panelRef={panelRef} position={position} align={align}>
         <div className="space-y-3 p-4">
