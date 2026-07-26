@@ -16,8 +16,8 @@ import {
 test("normalizeTvFilters defaults to the latest 30 days", () => {
   const filters = normalizeTvFilters();
   assert.equal(filters.preset, "last30");
-  assert.equal(filters.startDate, "2026-06-27");
-  assert.equal(filters.endDate, "2026-07-26");
+  assert.equal(filters.startDate, "2026-06-26");
+  assert.equal(filters.endDate, "2026-07-25");
 });
 
 test("parseTvFiltersFromSearchParams parses shared arrays and timezone", () => {

@@ -26,6 +26,7 @@ const DAYPARTS = [
 ] as const;
 const DEMO_PREVIEW_URL = "/demo/tv/manual-detections/bonus-02.mp4";
 const DEMO_PREVIEW_POSTER = "/demo/tv/manual-detections/bonus-02.jpg";
+const TV_LATEST_AVAILABLE_DATA_DATE = "2026-07-25";
 
 export const tvPresetSchema = z.enum([
   "last7",
@@ -497,19 +498,19 @@ export function getTvGranularity(startDate: Date, endDate: Date) {
 }
 
 function buildDateRange(preset: TvPreset, customStart?: string, customEnd?: string) {
-  const today = startOfDayUtc(new Date());
+  const latestAvailableDate = startOfDayUtc(parseIsoDate(TV_LATEST_AVAILABLE_DATA_DATE));
   if (preset === "custom") {
-    const start = customStart ? startOfDayUtc(parseIsoDate(customStart)) : addDaysUtc(today, -29);
-    const end = customEnd ? endOfDayUtc(parseIsoDate(customEnd)) : endOfDayUtc(today);
+    const start = customStart ? startOfDayUtc(parseIsoDate(customStart)) : addDaysUtc(latestAvailableDate, -29);
+    const end = customEnd ? endOfDayUtc(parseIsoDate(customEnd)) : endOfDayUtc(latestAvailableDate);
     return { start, end };
   }
 
-  if (preset === "last7") return { start: addDaysUtc(today, -6), end: endOfDayUtc(today) };
-  if (preset === "last90") return { start: addDaysUtc(today, -89), end: endOfDayUtc(today) };
-  if (preset === "last6m") return { start: addDaysUtc(today, -181), end: endOfDayUtc(today) };
-  if (preset === "last12m") return { start: addDaysUtc(today, -364), end: endOfDayUtc(today) };
-  if (preset === "last2y") return { start: addDaysUtc(today, -729), end: endOfDayUtc(today) };
-  return { start: addDaysUtc(today, -29), end: endOfDayUtc(today) };
+  if (preset === "last7") return { start: addDaysUtc(latestAvailableDate, -6), end: endOfDayUtc(latestAvailableDate) };
+  if (preset === "last90") return { start: addDaysUtc(latestAvailableDate, -89), end: endOfDayUtc(latestAvailableDate) };
+  if (preset === "last6m") return { start: addDaysUtc(latestAvailableDate, -181), end: endOfDayUtc(latestAvailableDate) };
+  if (preset === "last12m") return { start: addDaysUtc(latestAvailableDate, -364), end: endOfDayUtc(latestAvailableDate) };
+  if (preset === "last2y") return { start: addDaysUtc(latestAvailableDate, -729), end: endOfDayUtc(latestAvailableDate) };
+  return { start: addDaysUtc(latestAvailableDate, -29), end: endOfDayUtc(latestAvailableDate) };
 }
 
 function countActiveFilterGroups(filters: {
