@@ -273,6 +273,7 @@ export type SocialAccountDetail = SocialDashboardAccount & {
     averageEngagementRateLast60Days: number | null;
     followersToFollowingRatio: number | null;
     commentsPerPostLast30Days: number | null;
+    totalMentions: number;
   };
   historyRows: Array<{
     date: string;
@@ -1580,6 +1581,9 @@ export async function getSocialAccountDetail(
   let commentsCount60 = 0;
   let engagementRateTotal60 = 0;
   let engagementRateCount60 = 0;
+  const totalMentions = postRows.reduce((sum, post) => {
+    return sum + rowStringArray(post, "mentions").length + rowStringArray(post, "tagged_accounts").length;
+  }, 0);
 
   for (const post of recentPosts) {
     const metric =
@@ -1753,6 +1757,7 @@ export async function getSocialAccountDetail(
           : null,
       commentsPerPostLast30Days:
         recentPosts.length > 0 && commentsCount > 0 ? commentsTotal / recentPosts.length : null,
+      totalMentions,
     },
     historyRows,
   };

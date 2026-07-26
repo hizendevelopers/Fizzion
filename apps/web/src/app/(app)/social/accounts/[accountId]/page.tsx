@@ -100,12 +100,6 @@ export default async function SocialAccountDetailPage({
       note: "Based on currently filtered content",
     }))
     .sort((left, right) => right.share - left.share);
-  const followersRatioDisplay =
-    detail.insights.followersToFollowingRatio != null
-      ? `${detail.insights.followersToFollowingRatio.toFixed(2)}x`
-      : detail.following === 0 && detail.followers != null
-        ? `${formatNumber(detail.followers)}:0`
-        : "Not available";
   const currentRangeLabel =
     days === 1
       ? "Today"
@@ -291,66 +285,46 @@ export default async function SocialAccountDetailPage({
         </form>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-6" id="insights">
+      <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-4" id="insights">
         <InsightCard
-          label="30-Day Follower Growth"
-          note="Real snapshot delta"
-          value={formatPercent(detail.insights.followerGrowthRate30Days)}
+          label="Total Followers"
+          note="Current account total"
+          value={formatNumber(detail.followers)}
         />
         <InsightCard
-          label="60-Day Follower Growth"
-          note="Real snapshot delta"
-          value={formatPercent(detail.insights.followerGrowthRate60Days)}
+          label="Total Following"
+          note="Current account total"
+          value={formatNumber(detail.following)}
         />
         <InsightCard
-          label="30-Day ER"
-          note="Derived from imported actions"
-          value={formatPercent(detail.insights.averageEngagementRateLast30Days)}
+          label="Total Posts"
+          note="Imported published content"
+          value={formatNumber(detail.contentCount)}
         />
         <InsightCard
-          label="60-Day ER"
-          note="Derived from imported actions"
-          value={formatPercent(detail.insights.averageEngagementRateLast60Days)}
+          label="Reach"
+          note="Current imported total"
+          value={formatNumber(detail.reach)}
         />
         <InsightCard
-          label="Posts in 30 Days"
-          note="Published content"
-          value={formatNumber(detail.insights.postsLast30Days)}
+          label="Engagement"
+          note="Account engagement percentage"
+          value={formatPercent(detail.engagementRateByFollowers)}
         />
         <InsightCard
-          label="Posts in 60 Days"
-          note="Published content"
-          value={formatNumber(detail.insights.postsLast60Days)}
+          label="Total Likes"
+          note="Imported total likes"
+          value={formatNumber(detail.totalLikes)}
         />
         <InsightCard
-          label="Weekly Followers"
-          note="Net gain over 7 days"
-          value={formatNumber(detail.insights.weeklyFollowerGain)}
+          label="Total Comments"
+          note="Imported total comments"
+          value={formatNumber(detail.totalComments)}
         />
         <InsightCard
-          label="Weekly Posts"
-          note="Published in last 7 days"
-          value={formatNumber(detail.insights.weeklyPosts)}
-        />
-        <InsightCard
-          label="Average Likes"
-          note="Last 30 days"
-          value={formatNumber(detail.insights.averageLikesLast30Days)}
-        />
-        <InsightCard
-          label="Average Comments"
-          note="Last 30 days"
-          value={formatNumber(detail.insights.averageCommentsLast30Days)}
-        />
-        <InsightCard
-          label="Followers Ratio"
-          note="Followers / following"
-          value={followersRatioDisplay}
-        />
-        <InsightCard
-          label="Comments / Post"
-          note="Last 30 days"
-          value={detail.insights.commentsPerPostLast30Days != null ? detail.insights.commentsPerPostLast30Days.toFixed(2) : "Not available"}
+          label="Total Mentions"
+          note="Mentions and tags across imported content"
+          value={formatNumber(detail.insights.totalMentions)}
         />
       </section>
 
