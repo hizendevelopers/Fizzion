@@ -4,13 +4,12 @@ import { unstable_noStore as noStore } from "next/cache";
 import { SocialAccountActions } from "@/components/social/social-account-actions";
 import { SocialExportButton } from "@/components/social/social-export-button";
 import { SocialProfileAvatar } from "@/components/social/social-profile-avatar";
-import { SocialSyncMonitor } from "@/components/social/social-sync-monitor";
 import { SocialTrendChart } from "@/components/social/social-trend-chart";
 import { CategoryBarCard, RadialStatCard, ShareOfVoiceCard } from "@/components/states/insight-charts";
 import { getSocialAccountDetail, listSocialContent } from "@/lib/social-data";
 import { formatNumber } from "@/lib/social-utils";
 
-const CONTENT_PAGE_SIZE = 12;
+const CONTENT_PAGE_SIZE = 250;
 
 export default async function SocialAccountDetailPage({
   params,
@@ -175,24 +174,6 @@ export default async function SocialAccountDetailPage({
               />
             </div>
 
-            <div className="rounded-[1.6rem] border border-border bg-panel-soft p-4" id="overview">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Real data coverage</p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Imported through Apify public scraping. Original profile picture, synchronized content,
-                    captions, hashtags, and metrics only appear when the source actually returns them.
-                  </p>
-                </div>
-                <a
-                  className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-foreground transition hover:bg-brand-red hover:text-white"
-                  href="#connection-health"
-                >
-                  View sync health
-                </a>
-              </div>
-            </div>
-
             <div className="flex flex-wrap items-center justify-end gap-3">
               <SocialExportButton connectionId={detail.id} label="Export Account CSV" />
               {detail.publicProfileUrl ? (
@@ -286,14 +267,6 @@ export default async function SocialAccountDetailPage({
         </form>
       </section>
 
-      <SocialSyncMonitor
-        connectionId={detail.id}
-        initialConnectionStatus={detail.connectionStatus}
-        initialSyncStatus={detail.syncStatus}
-        initialLastError={detail.lastError}
-        initialLastSuccessfulSyncAt={detail.lastSuccessfulSyncAt}
-      />
-
       <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-4" id="insights">
         <InsightCard
           label="Total Followers"
@@ -312,12 +285,12 @@ export default async function SocialAccountDetailPage({
         />
         <InsightCard
           label="Reach"
-          note="Current imported total"
+          note="Current available total"
           value={formatNumber(detail.reach)}
         />
         <InsightCard
           label="Engagement"
-          note="Account engagement percentage"
+          note="Likes divided by views when the source does not return a rate"
           value={formatPercent(detail.engagementRateByFollowers)}
         />
         <InsightCard

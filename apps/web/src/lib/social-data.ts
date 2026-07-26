@@ -15,6 +15,7 @@ import type {
 import { encryptSocialToken } from "./social-security";
 import {
   calculateEngagementRateByFollowers,
+  calculateEngagementRateByLikesAndViews,
   calculateEngagementRateByReach,
   calculateFollowerGrowthRate,
   calculateNormalizedEngagements,
@@ -305,6 +306,48 @@ function calculateDerivedEngagementRate(
     calculateEngagementRateByFollowers({ engagements, followers }) ??
       calculateEngagementRateByReach({ engagements, reach }),
   );
+}
+
+function resolveReachValue(...values: Array<number | null | undefined>) {
+  for (const value of values) {
+    if (value != null && value > 0) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function deriveInstagramPermalink(
+  rawPayload: GenericRow,
+  storedPermalink: string | null,
+  storedContentType: string,
+) {
+  const directUrl =
+    rowNullableString(rawPayload, "url") ??
+    rowNullableString(rawPayload, "permalink") ??
+    rowNullableString(rawPayload, "permalinkUrl") ??
+    rowNullableString(rawPayload, "postUrl");
+
+  if (directUrl) {
+    return directUrl;
+  }
+
+  if (storedPermalink && /instagram\.com\/(p|reel|tv)\//.test(storedPermalink)) {
+    return storedPermalink;
+  }
+
+  const shortcode =
+    rowNullableString(rawPayload, "shortcode") ??
+    rowNullableString(rawPayload, "code");
+
+  if (!shortcode) {
+    return storedPermalink;
+  }
+
+  const normalizedType = deriveRawSocialContentType(rawPayload, storedContentType);
+  const path = normalizedType === "reel" || normalizedType === "video" ? "reel" : "p";
+  return `https://www.instagram.com/${path}/${shortcode}/`;
 }
 
 export type SocialContentItem = {
@@ -696,9 +739,14 @@ async function hydrateConnections(rows: GenericRow[]) {
     const followers = rowNullableNumber(snapshot, "follower_count");
     const following = rowNullableNumber(snapshot, "following_count");
     const contentCount = rowNullableNumber(snapshot, "content_count") ?? postCountLookup.get(socialAccountId) ?? null;
-    const reach = rowMetricNumber(metric, "reach") ?? aggregateValue(aggregates?.reach ?? createAggregateMetric());
-    const impressions = rowMetricNumber(metric, "impressions") ?? aggregateValue(aggregates?.impressions ?? createAggregateMetric());
     const views = rowMetricNumber(metric, "views", ["plays", "totalViews"]) ?? aggregateValue(aggregates?.views ?? createAggregateMetric());
+    const impressions = rowMetricNumber(metric, "impressions") ?? aggregateValue(aggregates?.impressions ?? createAggregateMetric());
+    const reach = resolveReachValue(
+      rowMetricNumber(metric, "reach"),
+      aggregateValue(aggregates?.reach ?? createAggregateMetric()),
+      impressions,
+      views,
+    );
     const uniqueViewers = rowMetricNumber(metric, "unique_viewers");
     const likes = rowMetricNumber(metric, "likes", ["totalLikes"]) ?? aggregateValue(aggregates?.likes ?? createAggregateMetric());
     const comments = rowMetricNumber(metric, "comments") ?? aggregateValue(aggregates?.comments ?? createAggregateMetric());
@@ -715,6 +763,7 @@ async function hydrateConnections(rows: GenericRow[]) {
       });
     const engagementRateByFollowers =
       rowMetricNumber(metric, "engagement_rate", ["engagementRate"]) ??
+      calculateEngagementRateByLikesAndViews({ likes, views }) ??
       calculateEngagementRateByFollowers({ engagements, followers });
     const engagementRateByReach = calculateEngagementRateByReach({ engagements, reach });
     const followerGrowthRate =
@@ -1466,12 +1515,17 @@ export async function getSocialAccountDetail(
     const views = rowMetricNumber(metric, "views", ["plays", "video_views"]);
     const shares = rowMetricNumber(metric, "shares");
     const saves = rowMetricNumber(metric, "saves");
-    const reach = rowMetricNumber(metric, "reach");
+    const reach = resolveReachValue(
+      rowMetricNumber(metric, "reach"),
+      rowMetricNumber(metric, "impressions"),
+      rowMetricNumber(metric, "views", ["plays", "video_views"]),
+    );
     const engagements =
       rowMetricNumber(metric, "metric_value", ["engagements"]) ??
       calculateNormalizedEngagements({ likes, comments, shares, saves });
     const engagementRate =
       rowMetricNumber(metric, "engagement_rate", ["engagementRate"]) ??
+      calculateEngagementRateByLikesAndViews({ likes, views }) ??
       calculateDerivedEngagementRate(engagements, followerBaseline, reach);
 
     if (likes != null) {
@@ -1502,6 +1556,11 @@ export async function getSocialAccountDetail(
       contentMetricLookup.get(rowString(post, "id")) ??
       metricLookup.get(rowString(post, "id")) ??
       {};
+    const reach = resolveReachValue(
+      rowMetricNumber(metric, "reach"),
+      rowMetricNumber(metric, "impressions"),
+      rowMetricNumber(metric, "views", ["plays", "video_views"]),
+    );
     const dayKey = getDayKey(rowString(post, "published_at"));
     const nearestPublicationSnapshot = nearestSnapshot(new Date(rowString(post, "published_at")));
     const followerBaseline = nearestPublicationSnapshot
@@ -1519,7 +1578,7 @@ export async function getSocialAccountDetail(
         hashtag,
         postCount: existing.postCount + 1,
         engagements: existing.engagements + (rowMetricNumber(metric, "metric_value", ["engagements"]) ?? 0),
-        reach: existing.reach + (rowMetricNumber(metric, "reach") ?? 0),
+        reach: existing.reach + (reach ?? 0),
       });
     }
   }
@@ -1595,7 +1654,12 @@ export async function getSocialAccountDetail(
     const comments = rowMetricNumber(metric, "comments");
     const shares = rowMetricNumber(metric, "shares");
     const saves = rowMetricNumber(metric, "saves");
-    const reach = rowMetricNumber(metric, "reach");
+    const views = rowMetricNumber(metric, "views", ["plays", "video_views"]);
+    const reach = resolveReachValue(
+      rowMetricNumber(metric, "reach"),
+      rowMetricNumber(metric, "impressions"),
+      views,
+    );
     const engagements =
       rowMetricNumber(metric, "metric_value", ["engagements"]) ??
       calculateNormalizedEngagements({ likes, comments, shares, saves });
@@ -1605,6 +1669,7 @@ export async function getSocialAccountDetail(
       : latestFollowers;
     const engagementRate =
       rowMetricNumber(metric, "engagement_rate", ["engagementRate"]) ??
+      calculateEngagementRateByLikesAndViews({ likes, views }) ??
       calculateDerivedEngagementRate(engagements, followerBaseline, reach);
 
     if (likes != null) {
@@ -1630,7 +1695,12 @@ export async function getSocialAccountDetail(
     const comments = rowMetricNumber(metric, "comments");
     const shares = rowMetricNumber(metric, "shares");
     const saves = rowMetricNumber(metric, "saves");
-    const reach = rowMetricNumber(metric, "reach");
+    const views = rowMetricNumber(metric, "views", ["plays", "video_views"]);
+    const reach = resolveReachValue(
+      rowMetricNumber(metric, "reach"),
+      rowMetricNumber(metric, "impressions"),
+      views,
+    );
     const engagements =
       rowMetricNumber(metric, "metric_value", ["engagements"]) ??
       calculateNormalizedEngagements({ likes, comments, shares, saves });
@@ -1640,6 +1710,7 @@ export async function getSocialAccountDetail(
       : latestFollowers;
     const engagementRate =
       rowMetricNumber(metric, "engagement_rate", ["engagementRate"]) ??
+      calculateEngagementRateByLikesAndViews({ likes, views }) ??
       calculateDerivedEngagementRate(engagements, followerBaseline, reach);
 
     if (likes != null) {
@@ -1671,7 +1742,13 @@ export async function getSocialAccountDetail(
       followers: snapshotRow ? rowNullableNumber(snapshotRow, "follower_count") : null,
       following: snapshotRow ? rowNullableNumber(snapshotRow, "following_count") : null,
       contentCount: snapshotRow ? rowNullableNumber(snapshotRow, "content_count") : dailySummary?.postCount ?? null,
-      reach: snapshotRow ? rowMetricNumber(snapshotRow, "reach") : null,
+      reach: snapshotRow
+        ? resolveReachValue(
+            rowMetricNumber(snapshotRow, "reach"),
+            rowMetricNumber(snapshotRow, "impressions"),
+            rowMetricNumber(snapshotRow, "views"),
+          )
+        : null,
       impressions: snapshotRow ? rowMetricNumber(snapshotRow, "impressions") : null,
       engagements: (snapshotRow ? rowMetricNumber(snapshotRow, "engagements") : null) ?? dailySummary?.engagementsSum ?? null,
       views:
@@ -1679,6 +1756,12 @@ export async function getSocialAccountDetail(
         (dailySummary && dailySummary.viewsCount > 0 ? dailySummary.viewsSum : null),
       engagementRate:
         (snapshotRow ? rowMetricNumber(snapshotRow, "engagement_rate") : null) ??
+        (dailySummary && dailySummary.likesCount > 0 && dailySummary.viewsCount > 0
+          ? calculateEngagementRateByLikesAndViews({
+              likes: dailySummary.likesSum,
+              views: dailySummary.viewsSum,
+            })
+          : null) ??
         (dailySummary && dailySummary.engagementRateCount > 0
           ? dailySummary.engagementRateSum / dailySummary.engagementRateCount
           : null),
@@ -1876,10 +1959,24 @@ async function hydrateContentItems(
     const comments = rowMetricNumber(metric, "comments");
     const shares = rowMetricNumber(metric, "shares");
     const saves = rowMetricNumber(metric, "saves");
-    const reach = rowMetricNumber(metric, "reach");
+    const views =
+      rowMetricNumber(metric, "views", ["plays", "video_views"]) ??
+      rowNullableNumber(rawPayload, "videoViewCount") ??
+      rowNullableNumber(rawPayload, "viewCount");
+    const impressions = rowMetricNumber(metric, "impressions");
+    const reach = resolveReachValue(
+      rowMetricNumber(metric, "reach"),
+      impressions,
+      views,
+    );
     const engagements =
       rowMetricNumber(metric, "metric_value", ["engagements"]) ??
       calculateNormalizedEngagements({ likes, comments, shares, saves });
+    const normalizedContentType = deriveRawSocialContentType(rawPayload, rowString(row, "content_type"));
+    const permalink =
+      provider === "instagram"
+        ? deriveInstagramPermalink(rawPayload, rowNullableString(row, "permalink"), normalizedContentType)
+        : rowNullableString(row, "permalink");
 
     return {
       id: rowString(row, "id"),
@@ -1888,13 +1985,11 @@ async function hydrateContentItems(
       title: rowString(row, "title", rowString(row, "caption", "Untitled content")),
       caption: rowString(row, "caption"),
       description: rowString(row, "description"),
-      contentType: deriveRawSocialContentType(rawPayload, rowString(row, "content_type")),
-      contentTypeLabel: formatSocialContentTypeLabel(
-        deriveRawSocialContentType(rawPayload, rowString(row, "content_type")),
-      ),
+      contentType: normalizedContentType,
+      contentTypeLabel: formatSocialContentTypeLabel(normalizedContentType),
       thumbnailUrl: rowNullableString(media, "thumbnail_url") ?? rawMedia.thumbnailUrl,
       mediaUrl: rowNullableString(media, "source_url") ?? rawMedia.mediaUrl,
-      permalink: rowNullableString(row, "permalink"),
+      permalink,
       publishedAt: rowString(row, "published_at"),
       durationSeconds:
         rowNullableNumber(row, "duration_seconds") ??
@@ -1913,15 +2008,13 @@ async function hydrateContentItems(
       comments,
       shares,
       saves,
-      views:
-        rowMetricNumber(metric, "views", ["plays", "video_views"]) ??
-        rowNullableNumber(rawPayload, "videoViewCount") ??
-        rowNullableNumber(rawPayload, "viewCount"),
+      views,
       reach,
-      impressions: rowMetricNumber(metric, "impressions"),
+      impressions,
       engagements,
       engagementRateByFollowers:
         rowMetricNumber(metric, "engagement_rate", ["engagementRate"]) ??
+        calculateEngagementRateByLikesAndViews({ likes, views }) ??
         calculateDerivedEngagementRate(engagements, null, reach),
       engagementRateByReach: calculateEngagementRateByReach({ engagements, reach }),
       watchTimeSeconds: rowMetricNumber(metric, "watch_time_seconds"),

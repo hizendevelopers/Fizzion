@@ -29,22 +29,22 @@ const PROVIDERS: Array<{
   {
     key: "tiktok",
     title: "TikTok",
-    description: "Scrape public TikTok profile data, videos, and metrics via Apify.",
+    description: "Import public TikTok profile data, videos, and metrics.",
   },
   {
     key: "instagram",
     title: "Instagram",
-    description: "Scrape public Instagram profile posts, reels, and metrics via Apify.",
+    description: "Import public Instagram posts, reels, profile details, and metrics.",
   },
   {
     key: "youtube",
     title: "YouTube",
-    description: "Scrape public YouTube channel videos, shorts, and stats via Apify.",
+    description: "Import public YouTube channel videos, shorts, and stats.",
   },
   {
     key: "facebook",
     title: "Facebook",
-    description: "Scrape public Facebook Page posts and metrics via Apify.",
+    description: "Import public Facebook Page posts and metrics.",
   },
 ];
 
@@ -130,8 +130,7 @@ export function ConnectAccountWizard() {
         <div>
           <h2 className="text-xl font-semibold text-foreground">Connect Social Account</h2>
           <p className="text-sm text-muted-foreground">
-            Enter a public profile URL, handle, or username. This workflow uses Apify scrapers and
-            imports only publicly available data.
+            Enter a public profile URL, handle, or username to import publicly available account data.
           </p>
         </div>
         <span className="rounded-full bg-panel-soft px-3 py-1 text-xs text-muted-foreground">
@@ -201,7 +200,7 @@ export function ConnectAccountWizard() {
         </div>
         {!importBusy && !preview ? (
           <p className="mt-2 text-xs text-muted-foreground">
-            Click <strong>Connect &amp; Import</strong> to start the public-data scrape.
+            Click <strong>Connect &amp; Import</strong> to start pulling public account data.
           </p>
         ) : null}
       </div>
@@ -230,10 +229,6 @@ export function ConnectAccountWizard() {
                 <p className="mt-2 break-all text-xs text-muted-foreground">{preview.normalizedUrl}</p>
               ) : null}
             </div>
-          </div>
-          <div className="mt-3 rounded bg-amber-50 p-2 text-sm text-amber-800">
-            Public data only via Apify. Unavailable metrics will be shown as not available from
-            this data source.
           </div>
           <div className="mt-3 flex gap-2">
             <button

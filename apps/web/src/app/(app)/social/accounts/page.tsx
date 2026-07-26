@@ -26,8 +26,8 @@ export default async function SocialAccountsPage() {
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-foreground">Social</h1>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground">
-              Connect public social accounts through the configured Apify scrapers, then review
-              imported profile data, content, and availability-aware metrics.
+              Connect public social accounts, then review imported profile data, content, and
+              availability-aware metrics.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -80,7 +80,7 @@ export default async function SocialAccountsPage() {
         </div>
 
         <div className="mt-5 flex flex-wrap gap-3 text-xs text-muted-foreground">
-          <span>{availableProviders.length} providers ready through Apify</span>
+          <span>{availableProviders.length} providers ready</span>
           <span>
             Supported: {providers.map((provider) => provider.label).join(", ")}
           </span>
@@ -94,8 +94,8 @@ export default async function SocialAccountsPage() {
           <div>
             <h2 className="text-xl font-semibold text-foreground">Connected Accounts</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Real imported profile images, synchronization status, and source-aware metrics are
-              shown for each connected account.
+              Imported profile images, synchronization status, and source-aware metrics are shown
+              for each connected account.
             </p>
           </div>
           <span className="rounded-full bg-panel-soft px-3 py-2 text-xs text-muted-foreground">
@@ -184,8 +184,8 @@ export default async function SocialAccountsPage() {
             ))
           ) : (
             <div className="rounded-[1.6rem] border border-dashed border-border bg-panel-soft px-5 py-6 text-sm text-muted-foreground xl:col-span-2">
-              No connected social accounts yet. Start with the Apify connect wizard above after
-              configuring `APIFY_API_TOKEN`.
+              No connected social accounts yet. Start with the connect wizard above after
+              configuring the required Social data source settings.
             </div>
           )}
         </div>

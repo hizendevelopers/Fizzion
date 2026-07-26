@@ -136,6 +136,9 @@ export function normalizeInstagramContent(
           : mt.includes("IMAGE") || mt.includes("image")
             ? "image"
             : "post";
+      const permalink =
+        toString(item.url ?? item.permalink ?? item.postUrl) ??
+        `https://www.instagram.com/${contentType === "reel" ? "reel" : "p"}/${code}/`;
 
       const hashtags = toStringArray(item.hashtags).length > 0
         ? toStringArray(item.hashtags)
@@ -191,7 +194,7 @@ export function normalizeInstagramContent(
         title: captionText ? captionText.split("\n")[0].slice(0, 120) : undefined,
         caption: captionText,
         description: captionText,
-        permalink: `https://www.instagram.com/p/${code}/`,
+        permalink,
         thumbnailUrl: firstImage,
         mediaUrls,
         hashtags,
@@ -201,6 +204,8 @@ export function normalizeInstagramContent(
         publishedAt: toDate(item.timestamp ?? item.taken_at_timestamp ?? item.createdAt),
         durationSeconds: toNumber(item.videoDuration ?? item.duration ?? item.video_duration),
         views: views ?? plays,
+        reach: toNumber(item.reach) ?? toNumber(item.accountsReached) ?? views ?? plays,
+        impressions: toNumber(item.impressions),
         likes,
         comments,
         shares,

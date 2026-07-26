@@ -293,7 +293,7 @@ export default async function SocialIntelligencePage({
         ? await listSocialContent(selectedDetail.id, {
             days,
             page: 1,
-            limit: 8,
+            limit: 250,
             sort: "engagements",
             q: q || undefined,
             contentType: contentType === "all" ? undefined : contentType,
@@ -340,9 +340,8 @@ export default async function SocialIntelligencePage({
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-red">Unified social monitoring</p>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground">Social</h1>
             <p className="mt-3 max-w-4xl text-sm leading-7 text-muted-foreground">
-              Connect brand and influencer accounts, use the provided APIFY scrapers for Facebook,
-              Instagram, YouTube, and TikTok, then review imported content and performance without
-              leaving the platform.
+              Connect brand and influencer accounts for Facebook, Instagram, YouTube, and TikTok,
+              then review imported content and performance without leaving the platform.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -353,7 +352,7 @@ export default async function SocialIntelligencePage({
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-          <span>{availableProviders.length} APIFY scrapers ready</span>
+          <span>{availableProviders.length} providers ready</span>
           {providers.map((provider) => (
             <span
               key={provider.provider}
@@ -419,7 +418,7 @@ export default async function SocialIntelligencePage({
 
       {dashboardError ? (
         <section className="rounded-[1.8rem] border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900 shadow-[var(--shadow-soft)]">
-          Social analytics data is temporarily unavailable, but the APIFY scraper workflow is ready.
+          Social analytics data is temporarily unavailable right now.
           <div className="mt-2 text-xs text-amber-800">{dashboardError}</div>
         </section>
       ) : null}
