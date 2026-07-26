@@ -443,14 +443,14 @@ export default async function SocialIntelligencePage({
           </section>
 
           <section className="grid gap-6 xl:grid-cols-2">
-            <SocialTrendChart title="Reach comparison" metric="reach" points={aggregateTrend} color="#f40009" fill="rgba(244,0,9,0.12)" valueFormatter={formatNumber} />
-            <SocialTrendChart title="Engagement comparison" metric="engagements" points={aggregateTrend} color="#18a957" fill="rgba(24,169,87,0.14)" valueFormatter={formatNumber} />
-            <SocialTrendChart title="Views comparison" metric="views" points={aggregateTrend} color="#06b6d4" fill="rgba(6,182,212,0.14)" valueFormatter={formatNumber} />
-            <SocialTrendChart title="Followers growth" metric="followers" points={aggregateTrend} color="#8b5cf6" fill="rgba(139,92,246,0.14)" valueFormatter={formatNumber} />
+            <SocialTrendChart title="Reach comparison" metric="reach" points={aggregateTrend} color="#f40009" fill="rgba(244,0,9,0.12)" />
+            <SocialTrendChart title="Engagement comparison" metric="engagements" points={aggregateTrend} color="#18a957" fill="rgba(24,169,87,0.14)" />
+            <SocialTrendChart title="Views comparison" metric="views" points={aggregateTrend} color="#06b6d4" fill="rgba(6,182,212,0.14)" />
+            <SocialTrendChart title="Followers growth" metric="followers" points={aggregateTrend} color="#8b5cf6" fill="rgba(139,92,246,0.14)" />
           </section>
 
           <section className="grid gap-6 xl:grid-cols-2">
-            <CategoryBarCard title="Platform contribution" subtitle="Engagement contribution by connected platform" data={platformBars} formatter={formatNumber} />
+            <CategoryBarCard title="Platform contribution" subtitle="Engagement contribution by connected platform" data={platformBars} />
             <ShareOfVoiceCard title="Brand share" subtitle="Engagement-weighted brand share for the selected reporting scope" data={brandShare} />
           </section>
 
@@ -587,14 +587,14 @@ export default async function SocialIntelligencePage({
               {activeSubTab === "overview" ? (
                 <>
                   <section className="grid gap-6 xl:grid-cols-2">
-                    <SocialTrendChart title="Reach trend" metric="reach" points={selectedDetail.trend} color="#f40009" fill="rgba(244,0,9,0.12)" valueFormatter={formatNumber} />
-                    <SocialTrendChart title="Engagement trend" metric="engagements" points={selectedDetail.trend} color="#18a957" fill="rgba(24,169,87,0.14)" valueFormatter={formatNumber} />
-                    <SocialTrendChart title="Followers growth" metric="followers" points={selectedDetail.trend} color="#8b5cf6" fill="rgba(139,92,246,0.14)" valueFormatter={formatNumber} />
-                    <SocialTrendChart title="Views trend" metric="views" points={selectedDetail.trend} color="#06b6d4" fill="rgba(6,182,212,0.14)" valueFormatter={formatNumber} />
+                    <SocialTrendChart title="Reach trend" metric="reach" points={selectedDetail.trend} color="#f40009" fill="rgba(244,0,9,0.12)" />
+                    <SocialTrendChart title="Engagement trend" metric="engagements" points={selectedDetail.trend} color="#18a957" fill="rgba(24,169,87,0.14)" />
+                    <SocialTrendChart title="Followers growth" metric="followers" points={selectedDetail.trend} color="#8b5cf6" fill="rgba(139,92,246,0.14)" />
+                    <SocialTrendChart title="Views trend" metric="views" points={selectedDetail.trend} color="#06b6d4" fill="rgba(6,182,212,0.14)" />
                   </section>
 
                   <section className="grid gap-6 xl:grid-cols-2">
-                    <CategoryBarCard title="Platform performance" subtitle="Performance concentration for the selected account scope" data={platformBars} formatter={formatNumber} />
+                    <CategoryBarCard title="Platform performance" subtitle="Performance concentration for the selected account scope" data={platformBars} />
                     <ShareOfVoiceCard title="Content-type performance" subtitle="Current filtered mix of synchronized content" data={contentTypeShare} />
                   </section>
                 </>

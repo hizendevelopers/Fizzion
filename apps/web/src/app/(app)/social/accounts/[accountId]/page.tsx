@@ -361,7 +361,6 @@ export default async function SocialAccountDetailPage({
           points={detail.trend}
           color="#22c55e"
           fill="rgba(34,197,94,0.14)"
-          valueFormatter={formatNumber}
         />
         <SocialTrendChart
           title={`Following | ${currentRangeLabel}`}
@@ -369,7 +368,6 @@ export default async function SocialAccountDetailPage({
           points={detail.trend}
           color="#06b6d4"
           fill="rgba(6,182,212,0.14)"
-          valueFormatter={formatNumber}
         />
         <SocialTrendChart
           title={`Engagement Rate | ${currentRangeLabel}`}
@@ -377,7 +375,6 @@ export default async function SocialAccountDetailPage({
           points={detail.trend}
           color="#fb923c"
           fill="rgba(251,146,60,0.14)"
-          valueFormatter={(value) => formatPercent(value)}
         />
         <SocialTrendChart
           title={`Average Likes | ${currentRangeLabel}`}
@@ -385,7 +382,6 @@ export default async function SocialAccountDetailPage({
           points={detail.trend}
           color="#ef4444"
           fill="rgba(239,68,68,0.14)"
-          valueFormatter={formatNumber}
         />
         <SocialTrendChart
           title={`Average Comments | ${currentRangeLabel}`}
@@ -393,7 +389,6 @@ export default async function SocialAccountDetailPage({
           points={detail.trend}
           color="#8b5cf6"
           fill="rgba(139,92,246,0.14)"
-          valueFormatter={formatNumber}
         />
         <SocialTrendChart
           title={`Engagements | ${currentRangeLabel}`}
@@ -401,7 +396,6 @@ export default async function SocialAccountDetailPage({
           points={detail.trend}
           color="#f59e0b"
           fill="rgba(245,158,11,0.16)"
-          valueFormatter={formatNumber}
         />
       </section>
 
@@ -410,7 +404,6 @@ export default async function SocialAccountDetailPage({
           data={hashtagPerformance}
           subtitle="Top hashtags ranked by real imported engagement totals"
           title="Hashtag Performance"
-          formatter={formatNumber}
           emptyLabel="No hashtag performance data is available for this account yet."
         />
         <RadialStatCard
