@@ -206,15 +206,15 @@ export function Topbar({ locale, timezone }: TopbarProps) {
     <div className="relative w-full border-0">
       <header className="relative w-full overflow-hidden border-0 bg-[linear-gradient(90deg,#f8f8f6_0%,#ffffff_30%,#fffafa_43%,#ffe9eb_56%,#ffb7bc_67%,#f4242d_82%,#d70712_100%)]">
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute inset-y-0 right-0 w-[66%] bg-[radial-gradient(circle_at_30%_50%,rgba(255,195,202,0.24),transparent_15%),radial-gradient(circle_at_77%_16%,rgba(255,255,255,0.28),transparent_10%),radial-gradient(circle_at_76%_100%,rgba(255,255,255,0.24),transparent_18%)]" />
-          <div className="absolute right-[-1.2rem] top-[-1.9rem] h-[7rem] w-[34rem] rotate-[8deg] rounded-[999px] bg-[linear-gradient(180deg,rgba(109,0,9,0.98)_0%,rgba(184,0,15,0.94)_32%,rgba(246,28,39,0.84)_72%,rgba(246,28,39,0)_100%)] blur-[1px]" />
-          <div className="absolute right-[7.5rem] top-[0.2rem] h-[3.5rem] w-[19rem] rotate-[10deg] rounded-[999px] border-t border-white/50" />
-          <div className="absolute right-[10.4rem] top-[0.95rem] h-[3rem] w-[15rem] rotate-[11deg] rounded-[999px] border-t border-white/26" />
-          <div className="absolute right-[9.5rem] top-[-0.1rem] h-[5.4rem] w-[21rem] rotate-[9deg] rounded-[999px] bg-[radial-gradient(ellipse_at_center,rgba(255,68,78,0.16)_0%,rgba(255,68,78,0.04)_48%,transparent_76%)] blur-[1px]" />
-          <div className="absolute right-[13rem] top-[0.42rem] h-[0.95rem] w-[0.95rem] rounded-full bg-white/80 blur-[0.3px]" />
-          <div className="absolute right-[15.1rem] top-[1.45rem] h-[0.38rem] w-[0.38rem] rounded-full bg-white/70" />
-          <div className="absolute right-[17rem] top-[0.95rem] h-[0.55rem] w-[0.55rem] rounded-full bg-white/62" />
-          <div className="absolute inset-x-0 bottom-0 h-10 bg-[linear-gradient(180deg,transparent_0%,rgba(255,255,255,0.10)_100%)]" />
+          <div className="absolute inset-y-0 right-0 w-[70%] bg-[radial-gradient(circle_at_28%_62%,rgba(255,195,202,0.20),transparent_14%),radial-gradient(circle_at_76%_30%,rgba(255,255,255,0.24),transparent_10%),radial-gradient(circle_at_82%_100%,rgba(255,255,255,0.16),transparent_18%),linear-gradient(90deg,rgba(255,255,255,0)_0%,rgba(249,91,101,0.10)_24%,rgba(228,12,24,0.28)_55%,rgba(215,7,18,0.44)_100%)]" />
+          <div className="absolute -bottom-[2.4rem] right-[-2rem] h-[9.4rem] w-[38rem] rotate-[6deg] rounded-[999px] bg-[linear-gradient(180deg,rgba(126,0,10,0.20)_0%,rgba(175,0,12,0.82)_18%,rgba(235,18,30,0.92)_58%,rgba(235,18,30,0.12)_100%)] blur-[1px]" />
+          <div className="absolute bottom-[1.75rem] right-[6.5rem] h-[4.25rem] w-[22rem] rotate-[8deg] rounded-[999px] border-t border-white/44" />
+          <div className="absolute bottom-[1.15rem] right-[9.25rem] h-[3.3rem] w-[17rem] rotate-[9deg] rounded-[999px] border-t border-white/22" />
+          <div className="absolute bottom-[0.3rem] right-[8.7rem] h-[5.8rem] w-[23rem] rotate-[7deg] rounded-[999px] bg-[radial-gradient(ellipse_at_center,rgba(255,88,98,0.18)_0%,rgba(255,88,98,0.05)_50%,transparent_76%)] blur-[1px]" />
+          <div className="absolute bottom-[4.1rem] right-[12.7rem] h-[0.9rem] w-[0.9rem] rounded-full bg-white/72 blur-[0.25px]" />
+          <div className="absolute bottom-[3rem] right-[14.8rem] h-[0.36rem] w-[0.36rem] rounded-full bg-white/62" />
+          <div className="absolute bottom-[3.7rem] right-[16.8rem] h-[0.55rem] w-[0.55rem] rounded-full bg-white/55" />
+          <div className="absolute inset-y-0 left-[32%] right-[22%] bg-[linear-gradient(90deg,rgba(255,255,255,0.28)_0%,rgba(255,245,246,0.12)_34%,rgba(255,228,231,0.04)_100%)] blur-[18px]" />
         </div>
 
         <div className="relative z-[2] h-[118px] min-h-[118px] max-h-[118px] w-full px-[26px] box-border">
