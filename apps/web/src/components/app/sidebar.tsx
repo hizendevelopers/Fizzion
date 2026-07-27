@@ -56,7 +56,7 @@ export function Sidebar({ labels }: SidebarProps) {
   }
 
   return (
-    <aside className="hidden h-[calc(100vh-1.5rem)] w-[17rem] shrink-0 self-start border-r border-[#F1DDD5] bg-[linear-gradient(180deg,#fff8f3_0%,#fff4ee_45%,#f4fbff_100%)] text-sidebar-foreground lg:sticky lg:top-0 lg:flex">
+    <aside className="hidden h-[calc(100vh-1.5rem)] w-[17rem] shrink-0 self-start border-r border-[#8d241d] bg-[linear-gradient(180deg,#6f1712_0%,#e7223a_100%)] text-sidebar-foreground lg:sticky lg:top-0 lg:flex">
       <div className="flex h-full w-full flex-col gap-4 p-5">
         <div className="px-2 pt-1">
           <SidebarBranding />
