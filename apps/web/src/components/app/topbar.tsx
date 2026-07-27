@@ -203,20 +203,12 @@ export function Topbar({ locale, timezone }: TopbarProps) {
   }
 
   return (
-    <div className="relative w-full overflow-hidden border-0 bg-[linear-gradient(90deg,#070707_0%,#0a090a_26%,#120606_44%,#2c0606_62%,#5d0708_78%,#89090c_100%)]">
-      <header className="relative w-full overflow-hidden border-0 bg-[linear-gradient(90deg,#070707_0%,#0a090a_26%,#120606_44%,#2c0606_62%,#5d0708_78%,#89090c_100%)]">
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_45%,rgba(255,255,255,0.05),transparent_18%),radial-gradient(circle_at_82%_38%,rgba(255,48,36,0.12),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.02)_0%,rgba(0,0,0,0.12)_100%)]" />
-          <div className="absolute inset-y-0 left-[38%] right-[-6%] bg-[linear-gradient(90deg,rgba(76,5,5,0)_0%,rgba(122,8,8,0.18)_18%,rgba(193,11,12,0.40)_42%,rgba(255,38,25,0.56)_66%,rgba(160,0,0,0.72)_100%)]" />
-          <div className="absolute -top-[0.2rem] right-[-3rem] h-[8.6rem] w-[48rem] rotate-[7deg] rounded-[999px] bg-[linear-gradient(180deg,rgba(255,78,52,0.18)_0%,rgba(255,44,16,0.94)_34%,rgba(166,7,7,0.96)_72%,rgba(94,0,0,0.20)_100%)] blur-[0.5px]" />
-          <div className="absolute top-[0.15rem] right-[8rem] h-[4.6rem] w-[31rem] rotate-[7deg] rounded-[999px] border-t border-white/42" />
-          <div className="absolute top-[0.95rem] right-[11rem] h-[3.6rem] w-[24rem] rotate-[8deg] rounded-[999px] border-t border-white/22" />
-          <div className="absolute top-[-0.55rem] right-[7rem] h-[6.2rem] w-[34rem] rotate-[6deg] rounded-[999px] bg-[radial-gradient(ellipse_at_center,rgba(255,112,92,0.28)_0%,rgba(255,60,30,0.10)_50%,transparent_78%)] blur-[1px]" />
-          <div className="absolute top-[0.1rem] right-[14.2rem] h-[1.05rem] w-[1.05rem] rounded-full bg-white/78 blur-[0.3px]" />
-          <div className="absolute top-[1.2rem] right-[16.4rem] h-[0.45rem] w-[0.45rem] rounded-full bg-white/62" />
-          <div className="absolute top-[0.75rem] right-[18.5rem] h-[0.62rem] w-[0.62rem] rounded-full bg-white/55" />
-          <div className="absolute inset-y-0 left-0 w-[30%] bg-[linear-gradient(90deg,rgba(7,7,7,0.96)_0%,rgba(7,7,7,0.84)_54%,rgba(7,7,7,0.25)_100%)]" />
-        </div>
+    <div className="relative w-full overflow-hidden border-0 bg-[#070707]">
+      <header className="relative w-full overflow-hidden border-0 bg-[#070707]">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 bg-[url('/assets/header-splash-background.svg')] bg-cover bg-center bg-no-repeat"
+        />
 
         <div className="relative z-[2] h-[118px] min-h-[118px] max-h-[118px] w-full px-[26px] box-border">
           <div className="grid h-full w-full grid-cols-1 items-center lg:grid-cols-[minmax(280px,34%)_1fr_170px]">
@@ -261,7 +253,7 @@ export function Topbar({ locale, timezone }: TopbarProps) {
         </div>
       </header>
 
-      <div className="relative z-[4] flex w-full justify-start bg-[linear-gradient(180deg,rgba(10,8,8,0.95)_0%,rgba(14,8,8,0.98)_100%)] px-[26px] pb-3 pt-3">
+      <div className="relative z-[4] flex w-full justify-start bg-[#070707] px-[26px] pb-3 pt-3">
         <div
           className="flex min-w-0 items-center justify-start gap-2 overflow-x-auto pb-1 scrollbar-none lg:gap-[10px] lg:overflow-visible lg:pb-0"
           ref={controlsRef}
