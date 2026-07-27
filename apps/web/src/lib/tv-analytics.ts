@@ -28,6 +28,14 @@ const DAYPARTS = [
 const DEMO_PREVIEW_URL = "/demo/tv/manual-detections/bonus-02.mp4";
 const DEMO_PREVIEW_POSTER = "/demo/tv/manual-detections/bonus-02.jpg";
 const TV_LATEST_AVAILABLE_DATA_DATE = "2026-07-25";
+const TV_WATCHLIST_BRANDS = [
+  { name: "Coca-Cola", color: "#DC2626" },
+  { name: "Pepsi", color: "#2563EB" },
+  { name: "7UP", color: "#16A34A" },
+  { name: "Mirinda", color: "#F58220" },
+  { name: "Mountain Dew", color: "#78BE20" },
+  { name: "RC Cola", color: "#7A1F2B" },
+] as const;
 
 export const tvPresetSchema = z.enum([
   "last7",
@@ -202,7 +210,7 @@ type TvActiveBrandItem = {
   activeCampaignCount: number;
   connectedChannelCount: number;
   totalSpend: number;
-  status: "Active";
+  status: "Active" | "Tracked";
 };
 
 export type TvDetectedAd = {
@@ -1058,6 +1066,10 @@ function buildTrendBuckets(
   };
 }
 
+function slugifyBrandName(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
 function computeCurrentAndPreviousScope(
   dataset: TvDataset,
   filters: NormalizedTvFilters,
@@ -1254,28 +1266,40 @@ export async function getTvAnalytics(rawFilters?: Partial<TvFilters>): Promise<T
     })
     .sort((left, right) => right.totalSpend - left.totalSpend);
 
-  const activeBrandItems = [...activeBrandIds]
-    .map((brandId) => {
-      const brand = brandsById.get(brandId);
-      if (!brand) return null;
-      const brandCampaigns = activeCampaigns.filter((campaign) => campaign.brandId === brandId);
+  const activeBrandItems = TV_WATCHLIST_BRANDS
+    .map((watchBrand) => {
+      const brand =
+        dataset.brands.find((item) => item.name.toLowerCase() === watchBrand.name.toLowerCase()) ?? null;
+      const brandId = brand?.id ?? `00000000-0000-4000-8000-${slugifyBrandName(watchBrand.name).replace(/-/g, "").slice(0, 12).padEnd(12, "0")}`;
+      const brandCampaigns = activeCampaigns.filter((campaign) => {
+        const campaignBrand = campaign.brandId ? brandsById.get(campaign.brandId) : null;
+        return campaignBrand?.name.toLowerCase() === watchBrand.name.toLowerCase();
+      });
       const channelIds = new Set(
         brandCampaigns.flatMap((campaign) => [...(dataset.campaignChannels.get(campaign.id) ?? new Set<string>())]),
       );
+      const resolvedSpend =
+        brand && currentSpendByBrand.has(brand.id)
+          ? currentSpendByBrand.get(brand.id) ?? 0
+          : 0;
+
       return {
         brandId,
-        brandName: brand.name,
-        brandColor: brand.color,
-        logoUrl: brand.logoUrl,
-        initials: getInitials(brand.name),
+        brandName: brand?.name ?? watchBrand.name,
+        brandColor: brand?.color ?? watchBrand.color,
+        logoUrl: brand?.logoUrl ?? null,
+        initials: getInitials(brand?.name ?? watchBrand.name),
         activeCampaignCount: brandCampaigns.length,
         connectedChannelCount: channelIds.size,
-        totalSpend: currentSpendByBrand.get(brandId) ?? 0,
-        status: "Active" as const,
+        totalSpend: resolvedSpend,
+        status: brandCampaigns.length > 0 ? "Active" as const : "Tracked" as const,
       };
     })
-    .filter(Boolean)
-    .sort((left, right) => (right?.totalSpend ?? 0) - (left?.totalSpend ?? 0)) as TvActiveBrandItem[];
+    .sort((left, right) => {
+      if (left.status !== right.status) return left.status === "Active" ? -1 : 1;
+      if (left.totalSpend !== right.totalSpend) return right.totalSpend - left.totalSpend;
+      return left.brandName.localeCompare(right.brandName);
+    }) as TvActiveBrandItem[];
 
   const channelTotal = sumMoney(channelSplit.map((item) => item.spend));
   const brandTotal = sumMoney(brandBreakdown.map((item) => item.spend));
@@ -1308,11 +1332,11 @@ export async function getTvAnalytics(rawFilters?: Partial<TvFilters>): Promise<T
     filterOptions,
     kpis: {
       activeBrands: {
-        value: activeBrandIds.size,
-        previousValue: previousActiveBrandIds.size,
-        changePercent: safePercentChange(activeBrandIds.size, previousActiveBrandIds.size),
-        description: "Unique brands active on TV",
-        comparisonLabel: "Unique brands active on TV",
+        value: activeBrandItems.length,
+        previousValue: activeBrandItems.length,
+        changePercent: 0,
+        description: "Coke Iraq TV watchlist brands currently tracked",
+        comparisonLabel: "Coke Iraq TV watchlist brands currently tracked",
       },
       activeCampaigns: {
         value: activeCampaigns.length,
