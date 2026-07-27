@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getOptionalSupabaseAdminClient } from "@/lib/supabase/server";
-import { buildAppBaseUrl } from "@/lib/social-security";
 import { makeRequestId, tvApiError } from "@/lib/tv-api";
 import { extractImageUrlFromHtml, isAppRelativeImagePath, normalizeWebScreenshotUrl } from "@/lib/web-screenshot-url";
 
@@ -29,9 +28,9 @@ function normalizeScreenshotUrl(rawUrl: string) {
   return normalizeWebScreenshotUrl(rawUrl);
 }
 
-function resolveFetchUrl(url: string) {
+function resolveFetchUrl(url: string, requestOrigin: string) {
   if (isAppRelativeImagePath(url)) {
-    return `${buildAppBaseUrl()}${url}`;
+    return new URL(url, requestOrigin).toString();
   }
 
   return url;
@@ -64,8 +63,8 @@ async function fetchRemoteResource(url: string) {
   });
 }
 
-async function resolveRemoteImageUrl(url: string) {
-  const fetchUrl = resolveFetchUrl(url);
+async function resolveRemoteImageUrl(url: string, requestOrigin: string) {
+  const fetchUrl = resolveFetchUrl(url, requestOrigin);
   const response = await fetchRemoteResource(fetchUrl);
 
   if (!response.ok) {
@@ -121,7 +120,8 @@ export async function PATCH(request: Request, context: RouteContext) {
     const { id } = await context.params;
     const organizationId = await resolveOrganizationId();
     const normalizedScreenshotUrl = normalizeScreenshotUrl(parsed.data.screenshotUrl);
-    const screenshotUrl = await resolveRemoteImageUrl(normalizedScreenshotUrl);
+    const requestOrigin = new URL(request.url).origin;
+    const screenshotUrl = await resolveRemoteImageUrl(normalizedScreenshotUrl, requestOrigin);
 
     const { data: updated, error } = await client
       .from("web_screenshots")
