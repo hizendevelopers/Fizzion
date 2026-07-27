@@ -15,6 +15,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const platform = body?.platform as SocialProviderKey;
     const inputValue = body?.input?.trim();
+    const personaHint = body?.persona === "influencer" || body?.persona === "brand" ? body.persona : "brand";
 
     if (!platform || !["tiktok", "instagram", "youtube", "facebook"].includes(platform)) {
       return socialApiError("INVALID_PLATFORM", "Please select a valid platform (tiktok, instagram, youtube, facebook).", 400, requestId);
@@ -83,12 +84,13 @@ export async function POST(request: Request) {
       input_value: inputValue,
       normalized_url: normalized.normalizedUrl,
       username: normalized.username ?? normalized.handle,
-      account_type: "public_scrape",
+      account_type: personaHint === "influencer" ? "influencer_creator" : "brand_account",
       apify_actor_id: APIFY_ACTORS[platform],
       token_status: "not_required",
       sandbox_mode: false,
       metadata: {
         source: "apify_scrape",
+        persona: personaHint,
         normalizedInput: normalized,
       },
       updated_at: now,

@@ -6,6 +6,8 @@ import { useState } from "react";
 import { PlatformIcon } from "./platform-icon";
 
 type ProviderKey = "tiktok" | "instagram" | "youtube" | "facebook";
+type WizardPersona = "brand" | "influencer";
+type WizardTab = "brands" | "influencers";
 
 type DiscoveryPreview = {
   provider: ProviderKey;
@@ -48,7 +50,13 @@ const PROVIDERS: Array<{
   },
 ];
 
-export function ConnectAccountWizard() {
+export function ConnectAccountWizard({
+  personaHint = "brand",
+  redirectTab = "brands",
+}: {
+  personaHint?: WizardPersona;
+  redirectTab?: WizardTab;
+}) {
   const [provider, setProvider] = useState<ProviderKey>("tiktok");
   const [input, setInput] = useState("");
   const [preview, setPreview] = useState<DiscoveryPreview | null>(null);
@@ -95,7 +103,7 @@ export function ConnectAccountWizard() {
       const response = await fetch("/api/social/connections/apify-connect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ platform: provider, input: input.trim() }),
+        body: JSON.stringify({ platform: provider, input: input.trim(), persona: personaHint }),
       });
       const payload = (await response.json()) as {
         connectionId?: string;
@@ -104,9 +112,9 @@ export function ConnectAccountWizard() {
       if (!response.ok || !payload.connectionId) {
         throw new Error(payload?.error?.message || "Failed to connect account.");
       }
-      setSuccess("Scraping started. Redirecting to the account dashboard...");
+      setSuccess(`Scraping started. Redirecting to the ${redirectTab === "influencers" ? "Influencer" : "Brand"} view...`);
       window.setTimeout(() => {
-        window.location.href = `/social/accounts/${payload.connectionId}`;
+        window.location.href = `/social-intelligence?tab=${redirectTab}&selected=${payload.connectionId}`;
       }, 1200);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Failed to connect account.");

@@ -177,6 +177,7 @@ function shouldIncludeConnectionRow(row: GenericRow) {
 export type SocialDashboardAccount = {
   id: string;
   socialAccountId: string;
+  personaHint: "brand" | "influencer" | null;
   provider: SocialProviderKey;
   platformLabel: string;
   connectionStatus: string;
@@ -735,6 +736,7 @@ async function hydrateConnections(rows: GenericRow[]) {
     const snapshot = snapshotLookup.get(socialAccountId) ?? {};
     const metric = metricLookup.get(socialAccountId) ?? {};
     const aggregates = accountMetricAggregates.get(socialAccountId);
+    const metadata = rowObject(row, "metadata");
 
     const followers = rowNullableNumber(snapshot, "follower_count");
     const following = rowNullableNumber(snapshot, "following_count");
@@ -776,6 +778,10 @@ async function hydrateConnections(rows: GenericRow[]) {
     return {
       id: connectionId,
       socialAccountId,
+      personaHint:
+        metadata.persona === "brand" || metadata.persona === "influencer"
+          ? metadata.persona
+          : null,
       provider: rowString(row, "connection_type") as SocialProviderKey,
       platformLabel: getPlatformLabel(rowString(row, "connection_type") as SocialProviderKey),
       connectionStatus: rowString(row, "connection_status", rowString(row, "status", "pending")),

@@ -52,6 +52,12 @@ function rangeToDays(range: RangeKey) {
 }
 
 function classifyPersona(account: SocialDashboardAccount) {
+  if (account.personaHint === "influencer") {
+    return "influencer" as const;
+  }
+  if (account.personaHint === "brand") {
+    return "brand" as const;
+  }
   const haystack = `${account.accountType} ${account.accountName} ${account.username}`.toLowerCase();
   if (/(creator|influencer|blogger|artist|personal|public figure|talent)/.test(haystack)) {
     return "influencer" as const;
@@ -496,7 +502,10 @@ export default async function SocialIntelligencePage({
             <SummaryCard label="Views" value={formatNumber(totalViews)} note="Imported views and plays" />
           </section>
 
-          <ConnectAccountWizard />
+          <ConnectAccountWizard
+            personaHint={activeTab === "influencers" ? "influencer" : "brand"}
+            redirectTab={activeTab === "influencers" ? "influencers" : "brands"}
+          />
 
           <section className="rounded-[1.8rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
             <div className="flex items-center justify-between gap-3">
