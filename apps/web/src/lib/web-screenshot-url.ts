@@ -21,6 +21,10 @@ function decodeParamValue(value: string) {
   }
 }
 
+export function isAppRelativeImagePath(value: string) {
+  return value.trim().startsWith("/");
+}
+
 export function normalizeWebScreenshotUrl(rawUrl: string) {
   const trimmed = rawUrl.trim();
   if (!trimmed) {

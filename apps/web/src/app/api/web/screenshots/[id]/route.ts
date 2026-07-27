@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getOptionalSupabaseAdminClient } from "@/lib/supabase/server";
+import { buildAppBaseUrl } from "@/lib/social-security";
 import { makeRequestId, tvApiError } from "@/lib/tv-api";
-import { extractImageUrlFromHtml, normalizeWebScreenshotUrl } from "@/lib/web-screenshot-url";
+import { extractImageUrlFromHtml, isAppRelativeImagePath, normalizeWebScreenshotUrl } from "@/lib/web-screenshot-url";
 
 const ORGANIZATION_SLUG = "coca_cola_iraq";
 
@@ -16,7 +17,24 @@ const screenshotUpdateSchema = z.object({
 });
 
 function normalizeScreenshotUrl(rawUrl: string) {
+  const trimmed = rawUrl.trim();
+  if (!trimmed) {
+    throw new Error("Image URL is required.");
+  }
+
+  if (isAppRelativeImagePath(trimmed)) {
+    return trimmed;
+  }
+
   return normalizeWebScreenshotUrl(rawUrl);
+}
+
+function resolveFetchUrl(url: string) {
+  if (isAppRelativeImagePath(url)) {
+    return `${buildAppBaseUrl()}${url}`;
+  }
+
+  return url;
 }
 
 async function resolveOrganizationId() {
@@ -47,7 +65,8 @@ async function fetchRemoteResource(url: string) {
 }
 
 async function resolveRemoteImageUrl(url: string) {
-  const response = await fetchRemoteResource(url);
+  const fetchUrl = resolveFetchUrl(url);
+  const response = await fetchRemoteResource(fetchUrl);
 
   if (!response.ok) {
     throw new Error(`Image URL returned ${response.status}.`);
@@ -60,7 +79,7 @@ async function resolveRemoteImageUrl(url: string) {
   }
 
   const html = await response.text();
-  const extractedImageUrl = extractImageUrlFromHtml(html, url);
+  const extractedImageUrl = extractImageUrlFromHtml(html, fetchUrl);
   if (!extractedImageUrl) {
     throw new Error("The provided URL does not point to an image.");
   }

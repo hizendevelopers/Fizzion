@@ -660,7 +660,7 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
             <div className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-4">
               <div>
                 <h3 className="text-lg font-semibold text-[#111827]">Replace screenshot image</h3>
-                <p className="mt-1 text-sm text-[#6B7280]">Paste a direct image address. Google copied image links are supported too.</p>
+                <p className="mt-1 text-sm text-[#6B7280]">Paste a direct image address or an app image path like <code>/demo/...</code>. Google copied image links are supported too.</p>
               </div>
               <button className="flex h-9 w-9 items-center justify-center rounded-full border border-[#E5E7EB] text-[#6B7280] transition hover:bg-[#F9FAFB]" disabled={screenshotSaveBusy} onClick={() => setScreenshotEditor(null)} type="button" aria-label="Close screenshot editor">&times;</button>
             </div>
@@ -670,8 +670,8 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
                   <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-[#6B7280]">Image URL</span>
                   <input
                     className="h-11 w-full rounded-xl border border-[#D1D5DB] px-3 text-sm text-[#111827] outline-none transition focus:border-[#F40009] focus:ring-2 focus:ring-[#F40009]/20"
-                    placeholder="https://..."
-                    type="url"
+                    placeholder="https://... or /demo/..."
+                    type="text"
                     value={screenshotEditor.value}
                     onChange={(e) => {
                       setScreenshotSaveError(null);
@@ -679,7 +679,7 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
                     }}
                   />
                 </label>
-                <p className="text-xs text-[#6B7280]">Tip: right click any image in Google Images or on the brand website and copy the image address.</p>
+                <p className="text-xs text-[#6B7280]">Tip: you can use a copied image address from the web or a local app path that already exists in this project.</p>
                 {screenshotSaveError && <div className="rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-sm text-[#B91C1C]">{screenshotSaveError}</div>}
                 <div className="flex flex-wrap items-center gap-2">
                   <button

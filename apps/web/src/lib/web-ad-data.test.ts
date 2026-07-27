@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { isWebAdvertisingRunActiveStatus } from "@/lib/web-ad-data";
 import { inferWebDetectionSize } from "@/lib/web-analytics";
-import { extractImageUrlFromHtml, normalizeWebScreenshotUrl } from "@/lib/web-screenshot-url";
+import { extractImageUrlFromHtml, isAppRelativeImagePath, normalizeWebScreenshotUrl } from "@/lib/web-screenshot-url";
 
 test("isWebAdvertisingRunActiveStatus detects active crawl states safely", () => {
   assert.equal(isWebAdvertisingRunActiveStatus("queued"), false);
@@ -36,6 +36,13 @@ test("normalizeWebScreenshotUrl resolves Google image redirect parameters safely
     ),
     "https://cdn.example.com/banner.png",
   );
+});
+
+test("isAppRelativeImagePath detects app-hosted assets safely", () => {
+  assert.equal(isAppRelativeImagePath("/demo/web/brands/coca-cola.jpg"), true);
+  assert.equal(isAppRelativeImagePath(" /demo/web/brands/coca-cola.jpg "), true);
+  assert.equal(isAppRelativeImagePath("https://example.com/creative.jpg"), false);
+  assert.equal(isAppRelativeImagePath("demo/web/brands/coca-cola.jpg"), false);
 });
 
 test("extractImageUrlFromHtml reads common social and open graph image metadata", () => {
