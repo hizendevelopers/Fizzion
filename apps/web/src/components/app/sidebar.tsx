@@ -56,7 +56,7 @@ export function Sidebar({ labels }: SidebarProps) {
   }
 
   return (
-    <aside className="hidden lg:sticky lg:top-0 lg:flex h-[calc(100vh-1.5rem)] w-[17rem] shrink-0 self-start border-r border-[#E4E7EC] bg-[linear-gradient(180deg,#151922_0%,#1A1F29_100%)] text-sidebar-foreground">
+    <aside className="hidden h-[calc(100vh-1.5rem)] w-[17rem] shrink-0 self-start border-r border-[#F1DDD5] bg-[linear-gradient(180deg,#fff8f3_0%,#fff4ee_45%,#f4fbff_100%)] text-sidebar-foreground lg:sticky lg:top-0 lg:flex">
       <div className="flex h-full w-full flex-col gap-4 p-5">
         <div className="px-2 pt-1">
           <SidebarBranding />
@@ -78,14 +78,14 @@ export function Sidebar({ labels }: SidebarProps) {
                     className={cn(
                       "flex w-full items-center justify-between rounded-[1.1rem] px-4 py-3 text-left text-sm font-semibold transition duration-300",
                       active || isOpen
-                        ? "bg-[linear-gradient(135deg,#F40009_0%,#D92D20_100%)] text-white shadow-[0_14px_32px_rgba(244,0,9,0.22)] ring-1 ring-white/8"
-                        : "text-[#AEB5C2] hover:bg-white/[0.06] hover:text-[#F7F8FA]",
+                        ? "bg-[linear-gradient(135deg,#ff6b62_0%,#f04438_52%,#ff8b5c_100%)] text-white shadow-[0_16px_32px_rgba(240,68,56,0.24)] ring-1 ring-white/50"
+                        : "text-[#6C5A55] hover:bg-white/75 hover:text-[#1F1816] hover:shadow-[0_12px_24px_rgba(71,27,23,0.08)]",
                     )}
                     onClick={() => toggleSection(item.key)}
                     type="button"
                   >
                     <span className="flex items-center gap-3">
-                      <span className={cn("flex h-9 w-9 items-center justify-center rounded-xl", active || isOpen ? "bg-white/14" : "bg-white/6")}>
+                      <span className={cn("flex h-9 w-9 items-center justify-center rounded-xl", active || isOpen ? "bg-white/18" : "bg-[linear-gradient(135deg,#fff7f3,#eef8ff)] text-[#C94C43] shadow-[0_10px_22px_rgba(71,27,23,0.07)]")}>
                         {icon}
                       </span>
                       <span>{labels[item.key] ?? item.key}</span>
@@ -98,11 +98,11 @@ export function Sidebar({ labels }: SidebarProps) {
                     className={cn(
                       "flex items-center gap-3 rounded-[1.1rem] px-4 py-3 text-sm font-semibold transition duration-300",
                       active
-                        ? "bg-[linear-gradient(135deg,#F40009_0%,#D92D20_100%)] text-white shadow-[0_14px_32px_rgba(244,0,9,0.22)] ring-1 ring-white/8"
-                        : "text-[#AEB5C2] hover:bg-white/[0.06] hover:text-[#F7F8FA]",
+                        ? "bg-[linear-gradient(135deg,#ff6b62_0%,#f04438_52%,#ff8b5c_100%)] text-white shadow-[0_16px_32px_rgba(240,68,56,0.24)] ring-1 ring-white/50"
+                        : "text-[#6C5A55] hover:bg-white/75 hover:text-[#1F1816] hover:shadow-[0_12px_24px_rgba(71,27,23,0.08)]",
                     )}
                   >
-                    <span className={cn("flex h-9 w-9 items-center justify-center rounded-xl", active ? "bg-white/14" : "bg-white/6")}>
+                    <span className={cn("flex h-9 w-9 items-center justify-center rounded-xl", active ? "bg-white/18" : "bg-[linear-gradient(135deg,#fff7f3,#eef8ff)] text-[#C94C43] shadow-[0_10px_22px_rgba(71,27,23,0.07)]")}>
                       {icon}
                     </span>
                     {labels[item.key] ?? item.key}
@@ -121,8 +121,8 @@ export function Sidebar({ labels }: SidebarProps) {
                           className={cn(
                             "flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition duration-300",
                             childActive
-                              ? "bg-white/[0.08] text-white ring-1 ring-[#F40009]/40"
-                              : "text-[#94A3B8] hover:bg-white/[0.06] hover:text-white",
+                              ? "bg-white/88 text-[#1F1816] ring-1 ring-[#F04438]/25 shadow-[0_10px_20px_rgba(71,27,23,0.08)]"
+                              : "text-[#7B6A65] hover:bg-white/80 hover:text-[#1F1816]",
                           )}
                         >
                           <span className="h-2.5 w-2.5 rounded-full bg-brand-green shadow-[0_0_0_4px_rgba(53,199,111,0.12)]" />
@@ -137,7 +137,7 @@ export function Sidebar({ labels }: SidebarProps) {
           })}
         </div>
 
-        <div className="mt-auto rounded-[1.35rem] border border-white/10 bg-white/[0.04] px-4 py-4 shadow-[0_14px_30px_rgba(0,0,0,0.14)]">
+        <div className="mt-auto rounded-[1.35rem] border border-[#F1DDD5] bg-[linear-gradient(135deg,#fffefd_0%,#fff5ef_54%,#f1fbff_100%)] px-4 py-4 shadow-[0_14px_30px_rgba(71,27,23,0.08)]">
           <div className="flex items-center justify-center">
             <Image
               alt="Hizen logo"
@@ -150,7 +150,7 @@ export function Sidebar({ labels }: SidebarProps) {
               width={92}
             />
           </div>
-          <p className="mt-2 text-center text-[11px] font-medium tracking-[0.02em] text-white/55">
+          <p className="mt-2 text-center text-[11px] font-medium tracking-[0.02em] text-[#8A6E66]">
             Built by Hizen
           </p>
         </div>
