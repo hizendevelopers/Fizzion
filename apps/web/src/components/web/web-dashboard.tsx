@@ -214,6 +214,11 @@ function FilterPopoverShell({
   );
 }
 
+function ViewportModal({ children }: { children: React.ReactNode }) {
+  if (typeof document === "undefined") return null;
+  return createPortal(children, document.body);
+}
+
 function DateRangeFilter({
   preset,
   startDate,
@@ -647,113 +652,117 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
     <div className="space-y-6">
       {/* Screenshot Modal */}
       {screenshotModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setScreenshotModal(null)} role="dialog" aria-modal="true" aria-label="Screenshot preview">
-          <div className="relative w-full max-w-4xl overflow-hidden rounded-2xl bg-black" onClick={(e) => e.stopPropagation()}>
-            <button className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/40" onClick={() => setScreenshotModal(null)} type="button" aria-label="Close preview">&times;</button>
-            <img alt={screenshotModal.title} className="max-h-[85vh] w-full object-contain" decoding="async" loading="eager" referrerPolicy="no-referrer" src={resolveScreenshotSrc(screenshotModal.url)} />
+        <ViewportModal>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" onClick={() => setScreenshotModal(null)} role="dialog" aria-modal="true" aria-label="Screenshot preview">
+            <div className="relative w-full max-w-4xl overflow-hidden rounded-2xl bg-black" onClick={(e) => e.stopPropagation()}>
+              <button className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/40" onClick={() => setScreenshotModal(null)} type="button" aria-label="Close preview">&times;</button>
+              <img alt={screenshotModal.title} className="max-h-[85vh] w-full object-contain" decoding="async" loading="eager" referrerPolicy="no-referrer" src={resolveScreenshotSrc(screenshotModal.url)} />
+            </div>
           </div>
-        </div>
+        </ViewportModal>
       )}
       {screenshotEditor && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => { if (!screenshotSaveBusy) setScreenshotEditor(null); }} role="dialog" aria-modal="true" aria-label="Edit screenshot image URL">
-          <div className="w-full max-w-3xl rounded-2xl border border-[#E5E7EB] bg-white shadow-[0_24px_80px_rgba(0,0,0,0.35)]" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-4">
-              <div>
-                <h3 className="text-lg font-semibold text-[#111827]">Replace screenshot image</h3>
-                <p className="mt-1 text-sm text-[#6B7280]">Paste a direct image address or an app image path like <code>/demo/...</code>. Google copied image links are supported too.</p>
+        <ViewportModal>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" onClick={() => { if (!screenshotSaveBusy) setScreenshotEditor(null); }} role="dialog" aria-modal="true" aria-label="Edit screenshot image URL">
+            <div className="w-full max-w-3xl rounded-2xl border border-[#E5E7EB] bg-white shadow-[0_24px_80px_rgba(0,0,0,0.35)]" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-[#111827]">Replace screenshot image</h3>
+                  <p className="mt-1 text-sm text-[#6B7280]">Paste a direct image address or an app image path like <code>/demo/...</code>. Google copied image links are supported too.</p>
+                </div>
+                <button className="flex h-9 w-9 items-center justify-center rounded-full border border-[#E5E7EB] text-[#6B7280] transition hover:bg-[#F9FAFB]" disabled={screenshotSaveBusy} onClick={() => setScreenshotEditor(null)} type="button" aria-label="Close screenshot editor">&times;</button>
               </div>
-              <button className="flex h-9 w-9 items-center justify-center rounded-full border border-[#E5E7EB] text-[#6B7280] transition hover:bg-[#F9FAFB]" disabled={screenshotSaveBusy} onClick={() => setScreenshotEditor(null)} type="button" aria-label="Close screenshot editor">&times;</button>
-            </div>
-            <div className="grid gap-5 p-5 lg:grid-cols-[1.15fr_0.85fr]">
-              <div className="space-y-3">
-                <label className="block">
-                  <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-[#6B7280]">Image URL</span>
-                  <input
-                    className="h-11 w-full rounded-xl border border-[#D1D5DB] px-3 text-sm text-[#111827] outline-none transition focus:border-[#F40009] focus:ring-2 focus:ring-[#F40009]/20"
-                    placeholder="https://... or /demo/..."
-                    type="text"
-                    value={screenshotEditor.value}
-                    onChange={(e) => {
-                      setScreenshotSaveError(null);
-                      setScreenshotEditor((prev) => prev ? { ...prev, value: e.target.value } : prev);
-                    }}
-                  />
-                </label>
-                <p className="text-xs text-[#6B7280]">Tip: you can use a copied image address from the web or a local app path that already exists in this project.</p>
-                {screenshotSaveError && <div className="rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-sm text-[#B91C1C]">{screenshotSaveError}</div>}
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    className="inline-flex h-10 items-center justify-center rounded-xl bg-[#F40009] px-4 text-sm font-semibold text-white transition hover:bg-[#d60008] disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={screenshotSaveBusy || !screenshotEditor.value.trim()}
-                    onClick={async () => {
-                      const screenshotUrl = normalizeEditableScreenshotUrl(screenshotEditor.value);
-                      if (!screenshotUrl) {
-                        setScreenshotSaveError("Please paste an image URL first.");
-                        return;
-                      }
-
-                      setScreenshotSaveBusy(true);
-                      setScreenshotSaveError(null);
-                      try {
-                        const response = await fetch(`/api/web/screenshots/${screenshotEditor.screenshotId}`, {
-                          method: "PATCH",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ screenshotUrl }),
-                        });
-                        const payload = await response.json();
-                        if (!response.ok || !payload.ok) {
-                          throw new Error(payload?.error?.message ?? "Screenshot could not be updated.");
+              <div className="grid gap-5 p-5 lg:grid-cols-[1.15fr_0.85fr]">
+                <div className="space-y-3">
+                  <label className="block">
+                    <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-[#6B7280]">Image URL</span>
+                    <input
+                      className="h-11 w-full rounded-xl border border-[#D1D5DB] px-3 text-sm text-[#111827] outline-none transition focus:border-[#F40009] focus:ring-2 focus:ring-[#F40009]/20"
+                      placeholder="https://... or /demo/..."
+                      type="text"
+                      value={screenshotEditor.value}
+                      onChange={(e) => {
+                        setScreenshotSaveError(null);
+                        setScreenshotEditor((prev) => prev ? { ...prev, value: e.target.value } : prev);
+                      }}
+                    />
+                  </label>
+                  <p className="text-xs text-[#6B7280]">Tip: you can use a copied image address from the web or a local app path that already exists in this project.</p>
+                  {screenshotSaveError && <div className="rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-sm text-[#B91C1C]">{screenshotSaveError}</div>}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      className="inline-flex h-10 items-center justify-center rounded-xl bg-[#F40009] px-4 text-sm font-semibold text-white transition hover:bg-[#d60008] disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={screenshotSaveBusy || !screenshotEditor.value.trim()}
+                      onClick={async () => {
+                        const screenshotUrl = normalizeEditableScreenshotUrl(screenshotEditor.value);
+                        if (!screenshotUrl) {
+                          setScreenshotSaveError("Please paste an image URL first.");
+                          return;
                         }
 
-                        setDetections((prev) => ({
-                          ...prev,
-                          items: prev.items.map((item) =>
-                            item.id === screenshotEditor.detectionId
-                              ? { ...item, screenshotUrl: payload.screenshot.screenshotUrl }
-                              : item,
-                          ),
-                        }));
-                        setScreenshotEditor(null);
-                      } catch (error) {
-                        setScreenshotSaveError(error instanceof Error ? error.message : "Screenshot could not be updated.");
-                      } finally {
-                        setScreenshotSaveBusy(false);
-                      }
-                    }}
-                    type="button"
-                  >
-                    {screenshotSaveBusy ? "Saving..." : "Save image"}
-                  </button>
-                  <button
-                    className="inline-flex h-10 items-center justify-center rounded-xl border border-[#D1D5DB] px-4 text-sm font-semibold text-[#374151] transition hover:bg-[#F9FAFB] disabled:opacity-60"
-                    disabled={screenshotSaveBusy}
-                    onClick={() => setScreenshotEditor(null)}
-                    type="button"
-                  >
-                    Cancel
-                  </button>
+                        setScreenshotSaveBusy(true);
+                        setScreenshotSaveError(null);
+                        try {
+                          const response = await fetch(`/api/web/screenshots/${screenshotEditor.screenshotId}`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ screenshotUrl }),
+                          });
+                          const payload = await response.json();
+                          if (!response.ok || !payload.ok) {
+                            throw new Error(payload?.error?.message ?? "Screenshot could not be updated.");
+                          }
+
+                          setDetections((prev) => ({
+                            ...prev,
+                            items: prev.items.map((item) =>
+                              item.id === screenshotEditor.detectionId
+                                ? { ...item, screenshotUrl: payload.screenshot.screenshotUrl }
+                                : item,
+                            ),
+                          }));
+                          setScreenshotEditor(null);
+                        } catch (error) {
+                          setScreenshotSaveError(error instanceof Error ? error.message : "Screenshot could not be updated.");
+                        } finally {
+                          setScreenshotSaveBusy(false);
+                        }
+                      }}
+                      type="button"
+                    >
+                      {screenshotSaveBusy ? "Saving..." : "Save image"}
+                    </button>
+                    <button
+                      className="inline-flex h-10 items-center justify-center rounded-xl border border-[#D1D5DB] px-4 text-sm font-semibold text-[#374151] transition hover:bg-[#F9FAFB] disabled:opacity-60"
+                      disabled={screenshotSaveBusy}
+                      onClick={() => setScreenshotEditor(null)}
+                      type="button"
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#6B7280]">Preview</p>
-                <div className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB]">
-                  {screenshotEditor.value.trim() ? (
-                    <img
-                      alt={screenshotEditor.title}
-                      className="h-72 w-full object-cover"
-                      decoding="async"
-                      loading="eager"
-                      referrerPolicy="no-referrer"
-                      src={resolveScreenshotSrc(normalizeEditableScreenshotUrl(screenshotEditor.value))}
-                    />
-                  ) : (
-                    <div className="flex h-72 items-center justify-center px-6 text-center text-sm text-[#9CA3AF]">Paste an image URL to preview it here.</div>
-                  )}
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#6B7280]">Preview</p>
+                  <div className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB]">
+                    {screenshotEditor.value.trim() ? (
+                      <img
+                        alt={screenshotEditor.title}
+                        className="h-72 w-full object-cover"
+                        decoding="async"
+                        loading="eager"
+                        referrerPolicy="no-referrer"
+                        src={resolveScreenshotSrc(normalizeEditableScreenshotUrl(screenshotEditor.value))}
+                      />
+                    ) : (
+                      <div className="flex h-72 items-center justify-center px-6 text-center text-sm text-[#9CA3AF]">Paste an image URL to preview it here.</div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        </ViewportModal>
       )}
 
       {/* Header */}
