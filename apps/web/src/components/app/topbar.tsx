@@ -203,10 +203,8 @@ export function Topbar({ locale, timezone }: TopbarProps) {
   }
 
   return (
-    <div
-      className="relative w-full overflow-hidden border-0 bg-[#020202] bg-[url('/assets/header-splash-background.svg')] bg-cover bg-center bg-no-repeat"
-    >
-      <header className="relative w-full overflow-hidden border-0 bg-transparent">
+    <div className="relative w-full border-0">
+      <header className="relative w-full overflow-hidden border-0 bg-[#020202] bg-[url('/assets/header-splash-background.svg')] bg-cover bg-center bg-no-repeat">
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0"
@@ -255,7 +253,7 @@ export function Topbar({ locale, timezone }: TopbarProps) {
         </div>
       </header>
 
-      <div className="relative z-[4] flex w-full justify-end bg-transparent px-[26px] pb-3 pt-3">
+      <div className="relative z-[4] flex w-full justify-end bg-white px-[26px] py-3">
         <div
           className="flex min-w-0 items-center justify-end gap-2 overflow-x-auto pb-1 scrollbar-none lg:gap-[10px] lg:overflow-visible lg:pb-0"
           ref={controlsRef}
