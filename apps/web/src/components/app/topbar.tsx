@@ -255,9 +255,9 @@ export function Topbar({ locale, timezone }: TopbarProps) {
         </div>
       </header>
 
-      <div className="relative z-[4] flex w-full justify-start bg-transparent px-[26px] pb-3 pt-3">
+      <div className="relative z-[4] flex w-full justify-end bg-transparent px-[26px] pb-3 pt-3">
         <div
-          className="flex min-w-0 items-center justify-start gap-2 overflow-x-auto pb-1 scrollbar-none lg:gap-[10px] lg:overflow-visible lg:pb-0"
+          className="flex min-w-0 items-center justify-end gap-2 overflow-x-auto pb-1 scrollbar-none lg:gap-[10px] lg:overflow-visible lg:pb-0"
           ref={controlsRef}
         >
           <HeaderMenuTrigger
