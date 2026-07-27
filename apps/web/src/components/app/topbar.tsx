@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import type { ReactNode, RefObject } from "react";
 
 import { setLocale, setTimezone } from "@/app/actions/preferences";
 import type { AppLocale } from "@/lib/preferences";
@@ -34,7 +35,7 @@ const HEADER_DATE_PRESETS: Array<{ id: HeaderDatePreset; label: string }> = [
 
 const LOCALE_OPTIONS: Array<{ value: AppLocale; label: string }> = [
   { value: "en", label: "English" },
-  { value: "ar", label: "العربية" },
+  { value: "ar", label: "Arabic" },
 ];
 
 const MARKET_OPTIONS = [
@@ -120,8 +121,8 @@ function formatDisplayRange(startDate: string, endDate: string) {
   }).format(end);
 
   return start.getFullYear() === end.getFullYear()
-    ? `${startLabel} – ${endLabel}`
-    : `${startLabel}, ${start.getFullYear()} – ${endLabel}`;
+    ? `${startLabel} - ${endLabel}`
+    : `${startLabel}, ${start.getFullYear()} - ${endLabel}`;
 }
 
 function formatShortDisplayRange(startDate: string, endDate: string) {
@@ -131,7 +132,8 @@ function formatShortDisplayRange(startDate: string, endDate: string) {
   const end = new Date(`${endDate}T00:00:00`);
   const startLabel = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(start);
   const endLabel = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(end);
-  return `${startLabel} – ${endLabel}`;
+
+  return `${startLabel} - ${endLabel}`;
 }
 
 export function Topbar({ locale, timezone }: TopbarProps) {
@@ -146,7 +148,7 @@ export function Topbar({ locale, timezone }: TopbarProps) {
   const localeButtonRef = useRef<HTMLButtonElement | null>(null);
   const marketButtonRef = useRef<HTMLButtonElement | null>(null);
   const dateButtonRef = useRef<HTMLButtonElement | null>(null);
-  const localeLabel = locale === "ar" ? "العربية" : "English";
+  const localeLabel = locale === "ar" ? "Arabic" : "English";
 
   useEffect(() => {
     if (!openPanel) return;
@@ -201,226 +203,225 @@ export function Topbar({ locale, timezone }: TopbarProps) {
   }
 
   return (
-    <header className="relative border-b border-[#eddad4] bg-[linear-gradient(90deg,#f8f8f6_0%,#ffffff_32%,#fff8f8_48%,#ffe5e7_62%,#ef1019_82%,#d9000b_100%)]">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 overflow-hidden"
-      >
-        <div className="absolute inset-y-0 right-0 w-[46%] bg-[radial-gradient(circle_at_74%_12%,rgba(255,255,255,0.24),transparent_12%),radial-gradient(circle_at_68%_100%,rgba(255,255,255,0.28),transparent_18%),linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0)_100%)]" />
-        <div className="absolute right-[-3%] top-0 h-full w-[40rem] bg-[radial-gradient(circle_at_72%_100%,rgba(255,255,255,0.22),transparent_22%)]" />
-        <div className="absolute right-[11rem] top-[0.55rem] h-16 w-[22rem] rotate-[11deg] rounded-[999px] border-t border-white/42 opacity-90" />
-        <div className="absolute right-[8.2rem] top-[1.25rem] h-14 w-[19rem] rotate-[14deg] rounded-[999px] border-t border-white/24 opacity-80" />
-        <div className="absolute right-[7.5rem] top-[0.2rem] h-10 w-[16rem] rotate-[8deg] rounded-[999px] bg-[linear-gradient(180deg,rgba(255,255,255,0.18)_0%,rgba(255,255,255,0.02)_100%)] blur-[2px] opacity-60" />
-        <div className="absolute right-[15.5rem] top-[0.3rem] h-3.5 w-3.5 rounded-full bg-white/70 blur-[0.6px]" />
-        <div className="absolute right-[20rem] top-[1.5rem] h-1.5 w-1.5 rounded-full bg-white/65" />
-        <div className="absolute right-[23rem] top-[1.05rem] h-2.5 w-2.5 rounded-full bg-white/55" />
-        <div className="absolute inset-x-0 bottom-0 h-8 bg-[linear-gradient(180deg,transparent_0%,rgba(255,255,255,0.12)_100%)]" />
+    <header className="relative w-full overflow-hidden border-0 bg-[linear-gradient(90deg,#f8f8f6_0%,#ffffff_30%,#fffafa_43%,#ffe9eb_56%,#ffb7bc_67%,#f4242d_82%,#d70712_100%)]">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute inset-y-0 right-0 w-[66%] bg-[radial-gradient(circle_at_30%_50%,rgba(255,195,202,0.24),transparent_15%),radial-gradient(circle_at_77%_16%,rgba(255,255,255,0.28),transparent_10%),radial-gradient(circle_at_76%_100%,rgba(255,255,255,0.24),transparent_18%)]" />
+        <div className="absolute right-[-1.2rem] top-[-1.9rem] h-[7rem] w-[34rem] rotate-[8deg] rounded-[999px] bg-[linear-gradient(180deg,rgba(109,0,9,0.98)_0%,rgba(184,0,15,0.94)_32%,rgba(246,28,39,0.84)_72%,rgba(246,28,39,0)_100%)] blur-[1px]" />
+        <div className="absolute right-[7.5rem] top-[0.2rem] h-[3.5rem] w-[19rem] rotate-[10deg] rounded-[999px] border-t border-white/50" />
+        <div className="absolute right-[10.4rem] top-[0.95rem] h-[3rem] w-[15rem] rotate-[11deg] rounded-[999px] border-t border-white/26" />
+        <div className="absolute right-[9.5rem] top-[-0.1rem] h-[5.4rem] w-[21rem] rotate-[9deg] rounded-[999px] bg-[radial-gradient(ellipse_at_center,rgba(255,68,78,0.16)_0%,rgba(255,68,78,0.04)_48%,transparent_76%)] blur-[1px]" />
+        <div className="absolute right-[13rem] top-[0.42rem] h-[0.95rem] w-[0.95rem] rounded-full bg-white/80 blur-[0.3px]" />
+        <div className="absolute right-[15.1rem] top-[1.45rem] h-[0.38rem] w-[0.38rem] rounded-full bg-white/70" />
+        <div className="absolute right-[17rem] top-[0.95rem] h-[0.55rem] w-[0.55rem] rounded-full bg-white/62" />
+        <div className="absolute inset-x-0 bottom-0 h-10 bg-[linear-gradient(180deg,transparent_0%,rgba(255,255,255,0.10)_100%)]" />
       </div>
 
-      <div className="relative flex min-h-[7.35rem] items-center gap-5 px-6 py-3 lg:min-h-[7.45rem] lg:px-7">
-        <div className="w-[19rem] shrink-0 self-stretch pt-2 lg:w-[20.5rem]">
-          <p className="text-[0.96rem] font-bold leading-none tracking-[-0.035em] text-[#1c2232]">
-            Media Intelligence
-          </p>
-          <div className="mt-1 h-[3.3rem] overflow-hidden lg:h-[3.45rem]">
+      <div className="relative z-[2] h-[118px] min-h-[118px] max-h-[118px] w-full px-[26px] box-border">
+        <div className="grid h-full w-full grid-cols-1 items-center gap-y-3 lg:grid-cols-[minmax(280px,34%)_minmax(460px,1fr)_115px] lg:gap-x-0">
+          <div className="relative z-[3] flex w-full flex-col items-start justify-center lg:w-[320px]">
+            <p className="m-0 mb-[6px] text-[15px] font-bold leading-[18px] text-[#172033] opacity-100">
+              Media Intelligence
+            </p>
+            <div className="flex max-w-[260px] flex-col items-start">
+              <span
+                className="m-0 max-w-[260px] text-left text-[38px] font-bold leading-[42px] tracking-[-0.04em] opacity-100"
+                style={{
+                  fontFamily: '"Brush Script MT","Segoe Script","Lucida Handwriting",cursive',
+                  backgroundImage: "linear-gradient(90deg,#f21c22 0%,#f21c22 24%,#2dbd46 60%,#73d46f 100%)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                }}
+              >
+                Reimagined
+              </span>
+              <span
+                aria-hidden="true"
+                className="mt-[1px] block h-[7px] w-[176px] -rotate-[3deg] rounded-full bg-[linear-gradient(90deg,#f11d22_0%,#f11d22_22%,#2dbd46_70%,#7fdc7f_100%)]"
+              />
+            </div>
+          </div>
+
+          <div
+            className="relative z-[4] flex min-w-0 items-center justify-start gap-2 overflow-x-auto pb-1 scrollbar-none lg:gap-2 lg:overflow-visible lg:pb-0 lg:pl-0 min-[1200px]:gap-[10px] min-[1200px]:pl-5"
+            ref={controlsRef}
+          >
+            <HeaderMenuTrigger
+              ariaControls="header-locale-menu"
+              ariaExpanded={openPanel === "locale"}
+              ariaLabel="Language selector"
+              buttonRef={localeButtonRef}
+              icon={<GlobeIcon className="h-[14px] w-[14px]" />}
+              isOpen={openPanel === "locale"}
+              label={localeLabel}
+              onClick={() => togglePanel("locale")}
+              pending={pending}
+              widthClass="w-[112px] min-w-[112px]"
+            >
+              <HeaderMenu id="header-locale-menu" open={openPanel === "locale"} widthClass="w-[11rem]">
+                {LOCALE_OPTIONS.map((option) => (
+                  <HeaderMenuItem
+                    key={option.value}
+                    active={option.value === locale}
+                    label={option.label}
+                    onClick={() => {
+                      closePanel();
+                      startTransition(async () => {
+                        await setLocale(option.value);
+                        router.refresh();
+                      });
+                    }}
+                  />
+                ))}
+              </HeaderMenu>
+            </HeaderMenuTrigger>
+
+            <HeaderMenuTrigger
+              ariaControls="header-market-menu"
+              ariaExpanded={openPanel === "market"}
+              ariaLabel="Market selector"
+              buttonRef={marketButtonRef}
+              icon={<PinIcon className="h-[14px] w-[14px]" />}
+              isOpen={openPanel === "market"}
+              label={timezone}
+              onClick={() => togglePanel("market")}
+              pending={pending}
+              widthClass="w-[145px] min-w-[145px] max-[1199px]:w-[132px] max-[1199px]:min-w-[132px]"
+            >
+              <HeaderMenu id="header-market-menu" open={openPanel === "market"} widthClass="w-[12rem]">
+                {MARKET_OPTIONS.map((option) => (
+                  <HeaderMenuItem
+                    key={option.value}
+                    active={option.value === timezone}
+                    label={option.label}
+                    onClick={() => {
+                      closePanel();
+                      startTransition(async () => {
+                        await setTimezone(option.value);
+                        router.replace(pathname);
+                        router.refresh();
+                      });
+                    }}
+                  />
+                ))}
+              </HeaderMenu>
+            </HeaderMenuTrigger>
+
+            <HeaderMenuTrigger
+              ariaControls="header-date-menu"
+              ariaExpanded={openPanel === "date"}
+              ariaLabel="Date range selector"
+              buttonRef={dateButtonRef}
+              icon={<CalendarIcon className="h-[14px] w-[14px]" />}
+              isOpen={openPanel === "date"}
+              label={
+                <>
+                  <span className="hidden min-[1200px]:inline">{formatDisplayRange(currentDateState.startDate, currentDateState.endDate)}</span>
+                  <span className="min-[1200px]:hidden">{formatShortDisplayRange(currentDateState.startDate, currentDateState.endDate)}</span>
+                </>
+              }
+              onClick={() => togglePanel("date")}
+              pending={pending}
+              widthClass="w-[198px] min-w-[198px] max-[1199px]:w-[175px] max-[1199px]:min-w-[175px]"
+            >
+              <HeaderMenu id="header-date-menu" open={openPanel === "date"} widthClass="w-[min(92vw,22rem)]">
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#8d6a65]">Date Range</p>
+                    <p className="mt-1 text-sm text-[#5f514c]">This updates shared URL date filters where pages support them.</p>
+                  </div>
+
+                  <label className="space-y-1.5">
+                    <span className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#8d6a65]">Preset</span>
+                    <select
+                      className="h-10 w-full rounded-[0.9rem] border border-[#efdbd4] bg-white px-3 text-sm font-medium text-[#24262f] outline-none transition focus:border-[#f40009]/35 focus:ring-2 focus:ring-[#f40009]/12"
+                      onChange={(event) => {
+                        const preset = event.target.value as HeaderDatePreset;
+                        const range = getPresetDates(preset);
+                        setDraftDate((current) => ({
+                          preset,
+                          startDate: range.startDate || current.startDate,
+                          endDate: range.endDate || current.endDate,
+                        }));
+                      }}
+                      value={draftDate.preset}
+                    >
+                      {HEADER_DATE_PRESETS.map((entry) => (
+                        <option key={entry.id} value={entry.id}>
+                          {entry.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="space-y-1.5">
+                      <span className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#8d6a65]">Start</span>
+                      <input
+                        className="h-10 w-full rounded-[0.9rem] border border-[#efdbd4] bg-white px-3 text-sm font-medium text-[#24262f] outline-none transition focus:border-[#f40009]/35 focus:ring-2 focus:ring-[#f40009]/12"
+                        max={draftDate.endDate || undefined}
+                        onChange={(event) =>
+                          setDraftDate((current) => ({
+                            ...current,
+                            preset: "custom",
+                            startDate: event.target.value,
+                          }))
+                        }
+                        type="date"
+                        value={draftDate.startDate}
+                      />
+                    </label>
+                    <label className="space-y-1.5">
+                      <span className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#8d6a65]">End</span>
+                      <input
+                        className="h-10 w-full rounded-[0.9rem] border border-[#efdbd4] bg-white px-3 text-sm font-medium text-[#24262f] outline-none transition focus:border-[#f40009]/35 focus:ring-2 focus:ring-[#f40009]/12"
+                        min={draftDate.startDate || undefined}
+                        onChange={(event) =>
+                          setDraftDate((current) => ({
+                            ...current,
+                            preset: "custom",
+                            endDate: event.target.value,
+                          }))
+                        }
+                        type="date"
+                        value={draftDate.endDate}
+                      />
+                    </label>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-1">
+                    <button
+                      className="inline-flex h-9 items-center justify-center rounded-[0.82rem] border border-[#efdbd4] bg-white px-3.5 text-sm font-semibold text-[#4a3f3a] transition hover:bg-[#fff6f2]"
+                      onClick={closePanel}
+                      type="button"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className="inline-flex h-9 items-center justify-center rounded-[0.82rem] bg-[linear-gradient(135deg,#ff5148_0%,#f40009_100%)] px-3.5 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(244,0,9,0.18)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-80"
+                      disabled={pending}
+                      onClick={applyDate}
+                      type="button"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                </div>
+              </HeaderMenu>
+            </HeaderMenuTrigger>
+          </div>
+
+          <div className="relative z-[4] hidden h-full items-start justify-end pt-3 min-[992px]:flex min-[1200px]:w-[115px] max-[1199px]:w-[90px]">
             <Image
-              alt="Reimagined"
-              className="h-[5.4rem] w-auto max-w-none object-contain object-left-top -translate-x-1 -translate-y-[0.7rem] lg:h-[5.7rem] lg:-translate-y-[0.78rem]"
-              height={86}
+              alt="Coca-Cola logo"
+              className="h-auto max-h-[55px] w-[108px] object-contain max-[1199px]:w-[90px] min-[1200px]:w-[112px]"
+              height={48}
               onError={(event) => {
                 event.currentTarget.style.display = "none";
               }}
-              src="/assets/reimagined-logo.png"
-              width={420}
+              src="/assets/coca-cola-logo.png"
+              width={112}
             />
           </div>
-        </div>
-
-        <div className="min-w-0 flex-1" />
-
-        <div
-          className="relative z-10 flex max-w-full items-center justify-end gap-2 overflow-x-auto pb-1 pr-[5.9rem] scrollbar-none lg:gap-3 lg:pr-[7.1rem]"
-          ref={controlsRef}
-        >
-          <HeaderMenuTrigger
-            ariaControls="header-locale-menu"
-            ariaExpanded={openPanel === "locale"}
-            ariaLabel="Language selector"
-            buttonRef={localeButtonRef}
-            icon={<GlobeIcon className="h-4 w-4" />}
-            isOpen={openPanel === "locale"}
-            label={localeLabel}
-            onClick={() => togglePanel("locale")}
-            widthClass="w-[6.8rem] lg:w-[6.9rem]"
-          >
-            <HeaderMenu
-              id="header-locale-menu"
-              open={openPanel === "locale"}
-              widthClass="w-[11rem]"
-            >
-              {LOCALE_OPTIONS.map((option) => (
-                <HeaderMenuItem
-                  key={option.value}
-                  active={option.value === locale}
-                  label={option.label}
-                  onClick={() => {
-                    closePanel();
-                    startTransition(async () => {
-                      await setLocale(option.value);
-                      router.refresh();
-                    });
-                  }}
-                />
-              ))}
-            </HeaderMenu>
-          </HeaderMenuTrigger>
-
-          <HeaderMenuTrigger
-            ariaControls="header-market-menu"
-            ariaExpanded={openPanel === "market"}
-            ariaLabel="Market selector"
-            buttonRef={marketButtonRef}
-            icon={<PinIcon className="h-4 w-4" />}
-            isOpen={openPanel === "market"}
-            label={timezone}
-            onClick={() => togglePanel("market")}
-            widthClass="w-[8.6rem] lg:w-[8.85rem]"
-          >
-            <HeaderMenu
-              id="header-market-menu"
-              open={openPanel === "market"}
-              widthClass="w-[12rem]"
-            >
-              {MARKET_OPTIONS.map((option) => (
-                <HeaderMenuItem
-                  key={option.value}
-                  active={option.value === timezone}
-                  label={option.label}
-                  onClick={() => {
-                    closePanel();
-                    startTransition(async () => {
-                      await setTimezone(option.value);
-                      router.replace(pathname);
-                      router.refresh();
-                    });
-                  }}
-                />
-              ))}
-            </HeaderMenu>
-          </HeaderMenuTrigger>
-
-          <HeaderMenuTrigger
-            ariaControls="header-date-menu"
-            ariaExpanded={openPanel === "date"}
-            ariaLabel="Date range selector"
-            buttonRef={dateButtonRef}
-            icon={<CalendarIcon className="h-4 w-4" />}
-            isOpen={openPanel === "date"}
-            label={<><span className="hidden sm:inline">{formatDisplayRange(currentDateState.startDate, currentDateState.endDate)}</span><span className="sm:hidden">{formatShortDisplayRange(currentDateState.startDate, currentDateState.endDate)}</span></>}
-            onClick={() => togglePanel("date")}
-            widthClass="w-[12rem] lg:w-[12.25rem]"
-          >
-            <HeaderMenu
-              id="header-date-menu"
-              open={openPanel === "date"}
-              widthClass="w-[min(92vw,22rem)]"
-            >
-              <div className="space-y-3">
-                <div>
-                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#8d6a65]">Date Range</p>
-                  <p className="mt-1 text-sm text-[#5f514c]">This updates shared URL date filters where pages support them.</p>
-                </div>
-
-                <label className="space-y-1.5">
-                  <span className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#8d6a65]">Preset</span>
-                  <select
-                    className="h-10 w-full rounded-[0.9rem] border border-[#efdbd4] bg-white px-3 text-sm font-medium text-[#24262f] outline-none transition focus:border-[#f40009]/35 focus:ring-2 focus:ring-[#f40009]/12"
-                    onChange={(event) => {
-                      const preset = event.target.value as HeaderDatePreset;
-                      const range = getPresetDates(preset);
-                      setDraftDate((current) => ({
-                        preset,
-                        startDate: range.startDate || current.startDate,
-                        endDate: range.endDate || current.endDate,
-                      }));
-                    }}
-                    value={draftDate.preset}
-                  >
-                    {HEADER_DATE_PRESETS.map((entry) => (
-                      <option key={entry.id} value={entry.id}>
-                        {entry.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="space-y-1.5">
-                    <span className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#8d6a65]">Start</span>
-                    <input
-                      className="h-10 w-full rounded-[0.9rem] border border-[#efdbd4] bg-white px-3 text-sm font-medium text-[#24262f] outline-none transition focus:border-[#f40009]/35 focus:ring-2 focus:ring-[#f40009]/12"
-                      max={draftDate.endDate || undefined}
-                      onChange={(event) =>
-                        setDraftDate((current) => ({
-                          ...current,
-                          preset: "custom",
-                          startDate: event.target.value,
-                        }))
-                      }
-                      type="date"
-                      value={draftDate.startDate}
-                    />
-                  </label>
-                  <label className="space-y-1.5">
-                    <span className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#8d6a65]">End</span>
-                    <input
-                      className="h-10 w-full rounded-[0.9rem] border border-[#efdbd4] bg-white px-3 text-sm font-medium text-[#24262f] outline-none transition focus:border-[#f40009]/35 focus:ring-2 focus:ring-[#f40009]/12"
-                      min={draftDate.startDate || undefined}
-                      onChange={(event) =>
-                        setDraftDate((current) => ({
-                          ...current,
-                          preset: "custom",
-                          endDate: event.target.value,
-                        }))
-                      }
-                      type="date"
-                      value={draftDate.endDate}
-                    />
-                  </label>
-                </div>
-
-                <div className="flex items-center justify-end gap-2 pt-1">
-                  <button
-                    className="inline-flex h-9 items-center justify-center rounded-[0.82rem] border border-[#efdbd4] bg-white px-3.5 text-sm font-semibold text-[#4a3f3a] transition hover:bg-[#fff6f2]"
-                    onClick={closePanel}
-                    type="button"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    className="inline-flex h-9 items-center justify-center rounded-[0.82rem] bg-[linear-gradient(135deg,#ff5148_0%,#f40009_100%)] px-3.5 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(244,0,9,0.18)] transition hover:-translate-y-0.5"
-                    onClick={applyDate}
-                    type="button"
-                  >
-                    Apply
-                  </button>
-                </div>
-              </div>
-            </HeaderMenu>
-          </HeaderMenuTrigger>
-        </div>
-
-        <div className="pointer-events-none absolute right-6 top-3 z-10 lg:right-7 lg:top-[0.85rem]">
-          <Image
-            alt="Coca-Cola logo"
-            className="h-[2.1rem] w-auto object-contain drop-shadow-[0_10px_22px_rgba(92,0,0,0.28)] lg:h-[2.5rem]"
-            height={40}
-            onError={(event) => {
-              event.currentTarget.style.display = "none";
-            }}
-            src="/assets/coca-cola-logo.png"
-            width={116}
-          />
         </div>
       </div>
     </header>
@@ -437,17 +438,19 @@ function HeaderMenuTrigger({
   isOpen,
   label,
   onClick,
+  pending,
   widthClass,
 }: {
   ariaControls: string;
   ariaExpanded: boolean;
   ariaLabel: string;
-  buttonRef: React.RefObject<HTMLButtonElement | null>;
-  children: React.ReactNode;
-  icon: React.ReactNode;
+  buttonRef: RefObject<HTMLButtonElement | null>;
+  children: ReactNode;
+  icon: ReactNode;
   isOpen: boolean;
-  label: React.ReactNode;
+  label: ReactNode;
   onClick: () => void;
+  pending?: boolean;
   widthClass: string;
 }) {
   return (
@@ -459,17 +462,18 @@ function HeaderMenuTrigger({
         aria-haspopup="menu"
         aria-label={ariaLabel}
         className={cn(
-          "inline-flex h-[2.7rem] w-full items-center gap-2.5 rounded-[0.72rem] border border-[rgba(170,40,50,0.10)] bg-[rgba(255,255,255,0.94)] px-3 text-[0.84rem] font-semibold text-[#262832] shadow-[0_5px_18px_rgba(90,10,20,0.10)] transition duration-200 hover:border-[rgba(170,40,50,0.18)] hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f40009]/25",
+          "grid h-[42px] w-full grid-cols-[27px_minmax(0,1fr)_13px] items-center gap-[7px] rounded-[11px] border border-[rgba(190,50,60,0.10)] bg-[rgba(255,255,255,0.96)] px-[11px] text-[13px] font-semibold leading-none text-[#262832] shadow-[0_5px_16px_rgba(85,20,25,0.10)] transition duration-200 hover:border-[rgba(170,40,50,0.18)] hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f40009]/20 disabled:cursor-wait disabled:opacity-80",
           isOpen && "border-[rgba(170,40,50,0.22)] bg-white",
         )}
+        disabled={pending}
         onClick={onClick}
         type="button"
       >
-        <span className="flex h-[1.65rem] w-[1.65rem] shrink-0 items-center justify-center rounded-full bg-[#fff2ef] text-[#ff5a50]">
+        <span className="grid h-[27px] w-[27px] place-items-center rounded-full bg-[#fff1f2] text-[#f13b45]">
           {icon}
         </span>
-        <span className="truncate text-left">{label}</span>
-        <ChevronDownIcon className={cn("ml-auto h-3.5 w-3.5 shrink-0 text-[#4b4f5b] transition", isOpen && "rotate-180")} />
+        <span className="overflow-visible whitespace-nowrap text-left">{label}</span>
+        <ChevronDownIcon className={cn("h-[13px] w-[13px] justify-self-end text-[#4b4f5b] transition", isOpen && "rotate-180")} />
       </button>
       {children}
     </div>
@@ -482,7 +486,7 @@ function HeaderMenu({
   open,
   widthClass,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   id: string;
   open: boolean;
   widthClass: string;
