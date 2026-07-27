@@ -15,22 +15,6 @@ export function Topbar() {
 
         <div className="flex items-center justify-end gap-3">
           <Image
-            alt="Hizen logo"
-            className="h-9 w-auto object-contain"
-            height={38}
-            onError={(event) => {
-              event.currentTarget.style.display = "none";
-            }}
-            src="/assets/hizen-logo.png"
-            width={100}
-          />
-          <span
-            aria-hidden="true"
-            className="select-none text-sm font-medium text-white/45"
-          >
-            ×
-          </span>
-          <Image
             alt="Coca-Cola logo"
             className="h-9 w-auto object-contain"
             height={38}

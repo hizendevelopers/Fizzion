@@ -33,7 +33,7 @@ export function SidebarBranding({ compact = false }: SidebarBrandingProps) {
       {/* Attribution text - hidden in compact mode */}
       {!compact && (
         <p className="mt-[6px] max-w-[200px] text-center text-[11px] font-medium leading-[1.4] tracking-[0.02em] text-white/55">
-          Built by Hizen for Coca-Cola Iraq
+          Coca-Cola Iraq media intelligence workspace
         </p>
       )}
     </div>
