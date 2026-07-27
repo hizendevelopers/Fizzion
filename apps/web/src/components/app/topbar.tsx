@@ -203,228 +203,234 @@ export function Topbar({ locale, timezone }: TopbarProps) {
   }
 
   return (
-    <header className="relative w-full overflow-hidden border-0 bg-[linear-gradient(90deg,#f8f8f6_0%,#ffffff_30%,#fffafa_43%,#ffe9eb_56%,#ffb7bc_67%,#f4242d_82%,#d70712_100%)]">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute inset-y-0 right-0 w-[66%] bg-[radial-gradient(circle_at_30%_50%,rgba(255,195,202,0.24),transparent_15%),radial-gradient(circle_at_77%_16%,rgba(255,255,255,0.28),transparent_10%),radial-gradient(circle_at_76%_100%,rgba(255,255,255,0.24),transparent_18%)]" />
-        <div className="absolute right-[-1.2rem] top-[-1.9rem] h-[7rem] w-[34rem] rotate-[8deg] rounded-[999px] bg-[linear-gradient(180deg,rgba(109,0,9,0.98)_0%,rgba(184,0,15,0.94)_32%,rgba(246,28,39,0.84)_72%,rgba(246,28,39,0)_100%)] blur-[1px]" />
-        <div className="absolute right-[7.5rem] top-[0.2rem] h-[3.5rem] w-[19rem] rotate-[10deg] rounded-[999px] border-t border-white/50" />
-        <div className="absolute right-[10.4rem] top-[0.95rem] h-[3rem] w-[15rem] rotate-[11deg] rounded-[999px] border-t border-white/26" />
-        <div className="absolute right-[9.5rem] top-[-0.1rem] h-[5.4rem] w-[21rem] rotate-[9deg] rounded-[999px] bg-[radial-gradient(ellipse_at_center,rgba(255,68,78,0.16)_0%,rgba(255,68,78,0.04)_48%,transparent_76%)] blur-[1px]" />
-        <div className="absolute right-[13rem] top-[0.42rem] h-[0.95rem] w-[0.95rem] rounded-full bg-white/80 blur-[0.3px]" />
-        <div className="absolute right-[15.1rem] top-[1.45rem] h-[0.38rem] w-[0.38rem] rounded-full bg-white/70" />
-        <div className="absolute right-[17rem] top-[0.95rem] h-[0.55rem] w-[0.55rem] rounded-full bg-white/62" />
-        <div className="absolute inset-x-0 bottom-0 h-10 bg-[linear-gradient(180deg,transparent_0%,rgba(255,255,255,0.10)_100%)]" />
-      </div>
+    <div className="relative w-full border-0">
+      <header className="relative w-full overflow-hidden border-0 bg-[linear-gradient(90deg,#f8f8f6_0%,#ffffff_30%,#fffafa_43%,#ffe9eb_56%,#ffb7bc_67%,#f4242d_82%,#d70712_100%)]">
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute inset-y-0 right-0 w-[66%] bg-[radial-gradient(circle_at_30%_50%,rgba(255,195,202,0.24),transparent_15%),radial-gradient(circle_at_77%_16%,rgba(255,255,255,0.28),transparent_10%),radial-gradient(circle_at_76%_100%,rgba(255,255,255,0.24),transparent_18%)]" />
+          <div className="absolute right-[-1.2rem] top-[-1.9rem] h-[7rem] w-[34rem] rotate-[8deg] rounded-[999px] bg-[linear-gradient(180deg,rgba(109,0,9,0.98)_0%,rgba(184,0,15,0.94)_32%,rgba(246,28,39,0.84)_72%,rgba(246,28,39,0)_100%)] blur-[1px]" />
+          <div className="absolute right-[7.5rem] top-[0.2rem] h-[3.5rem] w-[19rem] rotate-[10deg] rounded-[999px] border-t border-white/50" />
+          <div className="absolute right-[10.4rem] top-[0.95rem] h-[3rem] w-[15rem] rotate-[11deg] rounded-[999px] border-t border-white/26" />
+          <div className="absolute right-[9.5rem] top-[-0.1rem] h-[5.4rem] w-[21rem] rotate-[9deg] rounded-[999px] bg-[radial-gradient(ellipse_at_center,rgba(255,68,78,0.16)_0%,rgba(255,68,78,0.04)_48%,transparent_76%)] blur-[1px]" />
+          <div className="absolute right-[13rem] top-[0.42rem] h-[0.95rem] w-[0.95rem] rounded-full bg-white/80 blur-[0.3px]" />
+          <div className="absolute right-[15.1rem] top-[1.45rem] h-[0.38rem] w-[0.38rem] rounded-full bg-white/70" />
+          <div className="absolute right-[17rem] top-[0.95rem] h-[0.55rem] w-[0.55rem] rounded-full bg-white/62" />
+          <div className="absolute inset-x-0 bottom-0 h-10 bg-[linear-gradient(180deg,transparent_0%,rgba(255,255,255,0.10)_100%)]" />
+        </div>
 
-      <div className="relative z-[2] h-[118px] min-h-[118px] max-h-[118px] w-full px-[26px] box-border">
-        <div className="grid h-full w-full grid-cols-1 items-center gap-y-3 lg:grid-cols-[minmax(280px,34%)_minmax(460px,1fr)_115px] lg:gap-x-0">
-          <div className="relative z-[3] flex w-full flex-col items-start justify-center lg:w-[320px]">
-            <p className="m-0 mb-[6px] text-[15px] font-bold leading-[18px] text-[#172033] opacity-100">
-              Media Intelligence
-            </p>
-            <div className="flex max-w-[260px] flex-col items-start">
-              <span
-                className="m-0 max-w-[260px] text-left text-[38px] font-bold leading-[42px] tracking-[-0.04em] opacity-100"
-                style={{
-                  fontFamily: '"Brush Script MT","Segoe Script","Lucida Handwriting",cursive',
-                  backgroundImage: "linear-gradient(90deg,#f21c22 0%,#f21c22 24%,#2dbd46 60%,#73d46f 100%)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
+        <div className="relative z-[2] h-[118px] min-h-[118px] max-h-[118px] w-full px-[26px] box-border">
+          <div className="grid h-full w-full grid-cols-1 items-center lg:grid-cols-[minmax(280px,34%)_1fr_170px]">
+            <div className="relative z-[3] flex w-full flex-col items-start justify-center lg:w-[320px]">
+              <p className="m-0 mb-[6px] text-[15px] font-bold leading-[18px] text-[#172033] opacity-100">
+                Media Intelligence
+              </p>
+              <div className="flex max-w-[260px] flex-col items-start">
+                <span
+                  className="m-0 max-w-[260px] text-left text-[38px] font-bold leading-[42px] tracking-[-0.04em] opacity-100"
+                  style={{
+                    fontFamily: '"Brush Script MT","Segoe Script","Lucida Handwriting",cursive',
+                    backgroundImage: "linear-gradient(90deg,#f21c22 0%,#f21c22 24%,#2dbd46 60%,#73d46f 100%)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                  }}
+                >
+                  Reimagined
+                </span>
+                <span
+                  aria-hidden="true"
+                  className="mt-[1px] block h-[7px] w-[176px] -rotate-[3deg] rounded-full bg-[linear-gradient(90deg,#f11d22_0%,#f11d22_22%,#2dbd46_70%,#7fdc7f_100%)]"
+                />
+              </div>
+            </div>
+
+            <div className="hidden lg:block" />
+
+            <div className="relative z-[4] hidden h-full items-center justify-center min-[992px]:flex">
+              <Image
+                alt="Coca-Cola logo"
+                className="h-auto max-h-[74px] w-[140px] object-contain min-[1200px]:w-[152px]"
+                height={64}
+                onError={(event) => {
+                  event.currentTarget.style.display = "none";
                 }}
-              >
-                Reimagined
-              </span>
-              <span
-                aria-hidden="true"
-                className="mt-[1px] block h-[7px] w-[176px] -rotate-[3deg] rounded-full bg-[linear-gradient(90deg,#f11d22_0%,#f11d22_22%,#2dbd46_70%,#7fdc7f_100%)]"
+                src="/assets/coca-cola-logo.png"
+                width={152}
               />
             </div>
           </div>
+        </div>
+      </header>
 
-          <div
-            className="relative z-[4] flex min-w-0 items-center justify-start gap-2 overflow-x-auto pb-1 scrollbar-none lg:gap-2 lg:overflow-visible lg:pb-0 lg:pl-0 min-[1200px]:gap-[10px] min-[1200px]:pl-5"
-            ref={controlsRef}
+      <div className="relative z-[4] flex w-full justify-start px-[26px] pb-3 pt-3">
+        <div
+          className="flex min-w-0 items-center justify-start gap-2 overflow-x-auto pb-1 scrollbar-none lg:gap-[10px] lg:overflow-visible lg:pb-0"
+          ref={controlsRef}
+        >
+          <HeaderMenuTrigger
+            ariaControls="header-locale-menu"
+            ariaExpanded={openPanel === "locale"}
+            ariaLabel="Language selector"
+            buttonRef={localeButtonRef}
+            icon={<GlobeIcon className="h-[14px] w-[14px]" />}
+            isOpen={openPanel === "locale"}
+            label={localeLabel}
+            onClick={() => togglePanel("locale")}
+            pending={pending}
+            widthClass="w-[112px] min-w-[112px]"
           >
-            <HeaderMenuTrigger
-              ariaControls="header-locale-menu"
-              ariaExpanded={openPanel === "locale"}
-              ariaLabel="Language selector"
-              buttonRef={localeButtonRef}
-              icon={<GlobeIcon className="h-[14px] w-[14px]" />}
-              isOpen={openPanel === "locale"}
-              label={localeLabel}
-              onClick={() => togglePanel("locale")}
-              pending={pending}
-              widthClass="w-[112px] min-w-[112px]"
-            >
-              <HeaderMenu id="header-locale-menu" open={openPanel === "locale"} widthClass="w-[11rem]">
-                {LOCALE_OPTIONS.map((option) => (
-                  <HeaderMenuItem
-                    key={option.value}
-                    active={option.value === locale}
-                    label={option.label}
-                    onClick={() => {
-                      closePanel();
-                      startTransition(async () => {
-                        await setLocale(option.value);
-                        router.refresh();
-                      });
-                    }}
-                  />
-                ))}
-              </HeaderMenu>
-            </HeaderMenuTrigger>
+            <HeaderMenu id="header-locale-menu" open={openPanel === "locale"} widthClass="w-[11rem]">
+              {LOCALE_OPTIONS.map((option) => (
+                <HeaderMenuItem
+                  key={option.value}
+                  active={option.value === locale}
+                  label={option.label}
+                  onClick={() => {
+                    closePanel();
+                    startTransition(async () => {
+                      await setLocale(option.value);
+                      router.refresh();
+                    });
+                  }}
+                />
+              ))}
+            </HeaderMenu>
+          </HeaderMenuTrigger>
 
-            <HeaderMenuTrigger
-              ariaControls="header-market-menu"
-              ariaExpanded={openPanel === "market"}
-              ariaLabel="Market selector"
-              buttonRef={marketButtonRef}
-              icon={<PinIcon className="h-[14px] w-[14px]" />}
-              isOpen={openPanel === "market"}
-              label={timezone}
-              onClick={() => togglePanel("market")}
-              pending={pending}
-              widthClass="w-[145px] min-w-[145px] max-[1199px]:w-[132px] max-[1199px]:min-w-[132px]"
-            >
-              <HeaderMenu id="header-market-menu" open={openPanel === "market"} widthClass="w-[12rem]">
-                {MARKET_OPTIONS.map((option) => (
-                  <HeaderMenuItem
-                    key={option.value}
-                    active={option.value === timezone}
-                    label={option.label}
-                    onClick={() => {
-                      closePanel();
-                      startTransition(async () => {
-                        await setTimezone(option.value);
-                        router.replace(pathname);
-                        router.refresh();
-                      });
-                    }}
-                  />
-                ))}
-              </HeaderMenu>
-            </HeaderMenuTrigger>
+          <HeaderMenuTrigger
+            ariaControls="header-market-menu"
+            ariaExpanded={openPanel === "market"}
+            ariaLabel="Market selector"
+            buttonRef={marketButtonRef}
+            icon={<PinIcon className="h-[14px] w-[14px]" />}
+            isOpen={openPanel === "market"}
+            label={timezone}
+            onClick={() => togglePanel("market")}
+            pending={pending}
+            widthClass="w-[145px] min-w-[145px] max-[1199px]:w-[132px] max-[1199px]:min-w-[132px]"
+          >
+            <HeaderMenu id="header-market-menu" open={openPanel === "market"} widthClass="w-[12rem]">
+              {MARKET_OPTIONS.map((option) => (
+                <HeaderMenuItem
+                  key={option.value}
+                  active={option.value === timezone}
+                  label={option.label}
+                  onClick={() => {
+                    closePanel();
+                    startTransition(async () => {
+                      await setTimezone(option.value);
+                      router.replace(pathname);
+                      router.refresh();
+                    });
+                  }}
+                />
+              ))}
+            </HeaderMenu>
+          </HeaderMenuTrigger>
 
-            <HeaderMenuTrigger
-              ariaControls="header-date-menu"
-              ariaExpanded={openPanel === "date"}
-              ariaLabel="Date range selector"
-              buttonRef={dateButtonRef}
-              icon={<CalendarIcon className="h-[14px] w-[14px]" />}
-              isOpen={openPanel === "date"}
-              label={
-                <>
-                  <span className="hidden min-[1200px]:inline">{formatDisplayRange(currentDateState.startDate, currentDateState.endDate)}</span>
-                  <span className="min-[1200px]:hidden">{formatShortDisplayRange(currentDateState.startDate, currentDateState.endDate)}</span>
-                </>
-              }
-              onClick={() => togglePanel("date")}
-              pending={pending}
-              widthClass="w-[198px] min-w-[198px] max-[1199px]:w-[175px] max-[1199px]:min-w-[175px]"
-            >
-              <HeaderMenu id="header-date-menu" open={openPanel === "date"} widthClass="w-[min(92vw,22rem)]">
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#8d6a65]">Date Range</p>
-                    <p className="mt-1 text-sm text-[#5f514c]">This updates shared URL date filters where pages support them.</p>
-                  </div>
-
-                  <label className="space-y-1.5">
-                    <span className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#8d6a65]">Preset</span>
-                    <select
-                      className="h-10 w-full rounded-[0.9rem] border border-[#efdbd4] bg-white px-3 text-sm font-medium text-[#24262f] outline-none transition focus:border-[#f40009]/35 focus:ring-2 focus:ring-[#f40009]/12"
-                      onChange={(event) => {
-                        const preset = event.target.value as HeaderDatePreset;
-                        const range = getPresetDates(preset);
-                        setDraftDate((current) => ({
-                          preset,
-                          startDate: range.startDate || current.startDate,
-                          endDate: range.endDate || current.endDate,
-                        }));
-                      }}
-                      value={draftDate.preset}
-                    >
-                      {HEADER_DATE_PRESETS.map((entry) => (
-                        <option key={entry.id} value={entry.id}>
-                          {entry.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className="space-y-1.5">
-                      <span className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#8d6a65]">Start</span>
-                      <input
-                        className="h-10 w-full rounded-[0.9rem] border border-[#efdbd4] bg-white px-3 text-sm font-medium text-[#24262f] outline-none transition focus:border-[#f40009]/35 focus:ring-2 focus:ring-[#f40009]/12"
-                        max={draftDate.endDate || undefined}
-                        onChange={(event) =>
-                          setDraftDate((current) => ({
-                            ...current,
-                            preset: "custom",
-                            startDate: event.target.value,
-                          }))
-                        }
-                        type="date"
-                        value={draftDate.startDate}
-                      />
-                    </label>
-                    <label className="space-y-1.5">
-                      <span className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#8d6a65]">End</span>
-                      <input
-                        className="h-10 w-full rounded-[0.9rem] border border-[#efdbd4] bg-white px-3 text-sm font-medium text-[#24262f] outline-none transition focus:border-[#f40009]/35 focus:ring-2 focus:ring-[#f40009]/12"
-                        min={draftDate.startDate || undefined}
-                        onChange={(event) =>
-                          setDraftDate((current) => ({
-                            ...current,
-                            preset: "custom",
-                            endDate: event.target.value,
-                          }))
-                        }
-                        type="date"
-                        value={draftDate.endDate}
-                      />
-                    </label>
-                  </div>
-
-                  <div className="flex items-center justify-end gap-2 pt-1">
-                    <button
-                      className="inline-flex h-9 items-center justify-center rounded-[0.82rem] border border-[#efdbd4] bg-white px-3.5 text-sm font-semibold text-[#4a3f3a] transition hover:bg-[#fff6f2]"
-                      onClick={closePanel}
-                      type="button"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      className="inline-flex h-9 items-center justify-center rounded-[0.82rem] bg-[linear-gradient(135deg,#ff5148_0%,#f40009_100%)] px-3.5 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(244,0,9,0.18)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-80"
-                      disabled={pending}
-                      onClick={applyDate}
-                      type="button"
-                    >
-                      Apply
-                    </button>
-                  </div>
+          <HeaderMenuTrigger
+            ariaControls="header-date-menu"
+            ariaExpanded={openPanel === "date"}
+            ariaLabel="Date range selector"
+            buttonRef={dateButtonRef}
+            icon={<CalendarIcon className="h-[14px] w-[14px]" />}
+            isOpen={openPanel === "date"}
+            label={
+              <>
+                <span className="hidden min-[1200px]:inline">{formatDisplayRange(currentDateState.startDate, currentDateState.endDate)}</span>
+                <span className="min-[1200px]:hidden">{formatShortDisplayRange(currentDateState.startDate, currentDateState.endDate)}</span>
+              </>
+            }
+            onClick={() => togglePanel("date")}
+            pending={pending}
+            widthClass="w-[198px] min-w-[198px] max-[1199px]:w-[175px] max-[1199px]:min-w-[175px]"
+          >
+            <HeaderMenu id="header-date-menu" open={openPanel === "date"} widthClass="w-[min(92vw,22rem)]">
+              <div className="space-y-3">
+                <div>
+                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#8d6a65]">Date Range</p>
+                  <p className="mt-1 text-sm text-[#5f514c]">This updates shared URL date filters where pages support them.</p>
                 </div>
-              </HeaderMenu>
-            </HeaderMenuTrigger>
-          </div>
 
-          <div className="relative z-[4] hidden h-full items-start justify-end pt-3 min-[992px]:flex min-[1200px]:w-[115px] max-[1199px]:w-[90px]">
-            <Image
-              alt="Coca-Cola logo"
-              className="h-auto max-h-[55px] w-[108px] object-contain max-[1199px]:w-[90px] min-[1200px]:w-[112px]"
-              height={48}
-              onError={(event) => {
-                event.currentTarget.style.display = "none";
-              }}
-              src="/assets/coca-cola-logo.png"
-              width={112}
-            />
-          </div>
+                <label className="space-y-1.5">
+                  <span className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#8d6a65]">Preset</span>
+                  <select
+                    className="h-10 w-full rounded-[0.9rem] border border-[#efdbd4] bg-white px-3 text-sm font-medium text-[#24262f] outline-none transition focus:border-[#f40009]/35 focus:ring-2 focus:ring-[#f40009]/12"
+                    onChange={(event) => {
+                      const preset = event.target.value as HeaderDatePreset;
+                      const range = getPresetDates(preset);
+                      setDraftDate((current) => ({
+                        preset,
+                        startDate: range.startDate || current.startDate,
+                        endDate: range.endDate || current.endDate,
+                      }));
+                    }}
+                    value={draftDate.preset}
+                  >
+                    {HEADER_DATE_PRESETS.map((entry) => (
+                      <option key={entry.id} value={entry.id}>
+                        {entry.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="space-y-1.5">
+                    <span className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#8d6a65]">Start</span>
+                    <input
+                      className="h-10 w-full rounded-[0.9rem] border border-[#efdbd4] bg-white px-3 text-sm font-medium text-[#24262f] outline-none transition focus:border-[#f40009]/35 focus:ring-2 focus:ring-[#f40009]/12"
+                      max={draftDate.endDate || undefined}
+                      onChange={(event) =>
+                        setDraftDate((current) => ({
+                          ...current,
+                          preset: "custom",
+                          startDate: event.target.value,
+                        }))
+                      }
+                      type="date"
+                      value={draftDate.startDate}
+                    />
+                  </label>
+                  <label className="space-y-1.5">
+                    <span className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[#8d6a65]">End</span>
+                    <input
+                      className="h-10 w-full rounded-[0.9rem] border border-[#efdbd4] bg-white px-3 text-sm font-medium text-[#24262f] outline-none transition focus:border-[#f40009]/35 focus:ring-2 focus:ring-[#f40009]/12"
+                      min={draftDate.startDate || undefined}
+                      onChange={(event) =>
+                        setDraftDate((current) => ({
+                          ...current,
+                          preset: "custom",
+                          endDate: event.target.value,
+                        }))
+                      }
+                      type="date"
+                      value={draftDate.endDate}
+                    />
+                  </label>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <button
+                    className="inline-flex h-9 items-center justify-center rounded-[0.82rem] border border-[#efdbd4] bg-white px-3.5 text-sm font-semibold text-[#4a3f3a] transition hover:bg-[#fff6f2]"
+                    onClick={closePanel}
+                    type="button"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="inline-flex h-9 items-center justify-center rounded-[0.82rem] bg-[linear-gradient(135deg,#ff5148_0%,#f40009_100%)] px-3.5 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(244,0,9,0.18)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-80"
+                    disabled={pending}
+                    onClick={applyDate}
+                    type="button"
+                  >
+                    Apply
+                  </button>
+                </div>
+              </div>
+            </HeaderMenu>
+          </HeaderMenuTrigger>
         </div>
       </div>
-    </header>
+    </div>
   );
 }
 
