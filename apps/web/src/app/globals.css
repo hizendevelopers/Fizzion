@@ -165,6 +165,17 @@ a {
   box-shadow: var(--shadow-card);
 }
 
+.surface-premium::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,0.26), transparent 26%),
+    radial-gradient(circle at 92% 14%, rgba(255, 86, 120, 0.14), transparent 18%),
+    radial-gradient(circle at 16% 82%, rgba(51, 199, 201, 0.12), transparent 18%);
+}
+
 .elevated-chip {
   border: 1px solid rgba(255,255,255,0.74);
   background: linear-gradient(180deg, rgba(255,255,255,0.94), rgba(255,244,240,0.88));

@@ -4,7 +4,7 @@ import Image from "next/image";
 
 export function Topbar() {
   return (
-    <header className="border-b border-white/8 bg-[linear-gradient(180deg,#12151c_0%,#181c25_100%)] backdrop-blur-xl">
+    <header className="border-b border-white/8 bg-[radial-gradient(circle_at_18%_0%,rgba(244,0,9,0.18),transparent_22%),radial-gradient(circle_at_84%_100%,rgba(51,199,201,0.14),transparent_20%),linear-gradient(180deg,#12151c_0%,#181c25_62%,#1e2330_100%)] backdrop-blur-xl">
       <div className="flex items-center justify-between px-4 py-4 lg:px-8">
         <Image
           alt="Media Intelligence Reimagined"
@@ -20,7 +20,7 @@ export function Topbar() {
         <div className="flex items-center justify-end gap-3">
           <Image
             alt="Coca-Cola logo"
-            className="h-9 w-auto rounded-full bg-white/72 p-1.5 object-contain shadow-[0_10px_22px_rgba(71,27,23,0.08)]"
+            className="h-9 w-auto rounded-full bg-[linear-gradient(135deg,rgba(255,255,255,0.92),rgba(255,240,236,0.78))] p-1.5 object-contain shadow-[0_10px_22px_rgba(0,0,0,0.22)]"
             height={38}
             onError={(event) => {
               event.currentTarget.style.display = "none";
