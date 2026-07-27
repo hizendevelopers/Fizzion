@@ -254,50 +254,6 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
   return (
     <div className="space-y-6 pb-2">
       {/* ─── Page Header ─── */}
-      <section className="relative overflow-hidden rounded-[2.1rem] border border-[#f3ddd8] bg-[radial-gradient(circle_at_92%_0%,rgba(244,0,9,0.2),transparent_19%),radial-gradient(circle_at_76%_84%,rgba(244,0,9,0.12),transparent_22%),linear-gradient(135deg,#fffdfc_0%,#fffaf7_54%,#fff4f1_100%)] p-5 shadow-[0_24px_60px_rgba(98,32,27,0.08)] lg:p-6">
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-[34%] bg-[radial-gradient(circle_at_top_right,rgba(244,0,9,0.26),transparent_36%)]" />
-        <div className="relative flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-          <div className="space-y-4">
-            <div>
-              <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#f40009]">Media Intelligence</p>
-              <Image
-                alt="Media Intelligence Reimagined"
-                className="mt-2 h-14 w-auto object-contain sm:h-16 lg:h-[4.8rem]"
-                height={78}
-                src="/assets/reimagined-logo.png"
-                width={420}
-              />
-            </div>
-
-            <div className="max-w-[30rem] rounded-[2rem] border border-[#f2dfda] bg-[linear-gradient(145deg,rgba(255,255,255,0.95)_0%,rgba(255,249,247,0.98)_100%)] px-6 py-6 shadow-[0_22px_46px_rgba(110,34,29,0.08)]">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#f40009]">Overview</p>
-              <h1 className="mt-3 text-[2rem] font-bold leading-tight tracking-[-0.04em] text-[#121826] sm:text-[2.5rem]">
-                Dashboard Overview
-              </h1>
-              <p className="mt-3 max-w-xl text-base leading-7 text-[#362c31]">
-                Coca-Cola Iraq media monitoring across brands, campaigns, and paid platforms.
-              </p>
-              <div className="mt-4 h-1 w-20 rounded-full bg-[linear-gradient(90deg,#f40009_0%,#ff7a72_100%)]" />
-            </div>
-          </div>
-
-          <div className="w-full max-w-[42rem] space-y-4">
-            <div className="flex flex-wrap justify-start gap-3 xl:justify-end">
-              <TopStatusPill icon={<GlobeIcon className="h-4 w-4" />} label="Language" value="English" />
-              <TopStatusPill icon={<BrandIcon className="h-4 w-4" />} label="Market" value="Asia/Baghdad" />
-              <TopStatusPill icon={<CalendarIcon className="h-4 w-4" />} label="Period" value={state.data.summary.rangeLabel} wide />
-            </div>
-
-            <div className="overflow-hidden rounded-[2rem] border border-white/6 bg-[radial-gradient(circle_at_bottom_right,rgba(244,0,9,0.28),transparent_30%),linear-gradient(135deg,#0b0a11_0%,#120d17_55%,#1f070b_100%)] shadow-[0_28px_50px_rgba(16,7,10,0.28)]">
-              <div className="grid gap-0 divide-y divide-white/6 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-                <HeroRailItem icon={<CalendarIcon className="h-4 w-4" />} label="Period" value={state.data.summary.rangeLabel} />
-                <HeroRailItem icon={<ReportIcon className="h-4 w-4" />} label="Currency" value={state.data.summary.currency} />
-                <HeroRailItem icon={<CampaignIcon className="h-4 w-4" />} label="Filters" value={String(state.data.summary.activeFilterCount)} />
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* ─── Filter Bar ─── */}
       <section className="overflow-hidden rounded-[1.85rem] border border-white/8 bg-[radial-gradient(circle_at_bottom_right,rgba(53,199,111,0.18),transparent_18%),radial-gradient(circle_at_bottom_left,rgba(244,0,9,0.18),transparent_18%),linear-gradient(135deg,#0c0c14_0%,#12111a_52%,#191117_100%)] p-4 shadow-[0_26px_60px_rgba(16,9,12,0.24)]">
@@ -648,57 +604,6 @@ function FilterPopoverShell({
       </div>
     </>,
     document.body,
-  );
-}
-
-function TopStatusPill({
-  icon,
-  label,
-  value,
-  wide = false,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  wide?: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        "flex min-h-[4.1rem] items-center gap-3 rounded-[1.25rem] border border-[#f1dbd6] bg-[linear-gradient(180deg,#ffffff_0%,#fff6f3_100%)] px-4 py-3 text-[#16151d] shadow-[0_16px_32px_rgba(96,31,27,0.08)]",
-        wide ? "min-w-[17rem]" : "min-w-[9.5rem]",
-      )}
-    >
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#fff1ef] text-[#f40009]">
-        {icon}
-      </span>
-      <span className="min-w-0">
-        <span className="block text-[0.67rem] font-semibold uppercase tracking-[0.18em] text-[#8d6a65]">{label}</span>
-        <span className="mt-1 block truncate text-sm font-semibold text-[#171821]">{value}</span>
-      </span>
-    </div>
-  );
-}
-
-function HeroRailItem({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex items-center gap-3 px-5 py-5">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#220d12] text-[#ff3a34] shadow-[0_10px_24px_rgba(0,0,0,0.24)]">
-        {icon}
-      </span>
-      <div className="min-w-0">
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-white/44">{label}</p>
-        <p className="mt-1 truncate text-base font-semibold text-white">{value}</p>
-      </div>
-    </div>
   );
 }
 
