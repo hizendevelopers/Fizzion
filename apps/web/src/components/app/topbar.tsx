@@ -4,7 +4,7 @@ import Image from "next/image";
 
 export function Topbar() {
   return (
-    <header className="border-b border-[#8d241d] bg-[linear-gradient(135deg,#6f1712_0%,#e7223a_100%)] backdrop-blur-xl">
+    <header className="border-b border-[#8d241d] bg-[#6f1712] backdrop-blur-xl">
       <div className="flex items-center justify-between px-4 py-4 lg:px-8">
         <Image
           alt="Media Intelligence Reimagined"
