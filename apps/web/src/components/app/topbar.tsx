@@ -204,17 +204,18 @@ export function Topbar({ locale, timezone }: TopbarProps) {
 
   return (
     <div className="relative w-full border-0">
-      <header className="relative w-full overflow-hidden border-0 bg-[linear-gradient(90deg,#f8f8f6_0%,#ffffff_30%,#fffafa_43%,#ffe9eb_56%,#ffb7bc_67%,#f4242d_82%,#d70712_100%)]">
+      <header className="relative w-full overflow-hidden border-0 bg-[linear-gradient(90deg,#f8f8f6_0%,#fffefd_18%,#fff7f8_32%,#ffeff1_46%,#ffd8dc_60%,#ff8f98_74%,#f4242d_88%,#d70712_100%)]">
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute inset-y-0 right-0 w-[70%] bg-[radial-gradient(circle_at_28%_62%,rgba(255,195,202,0.20),transparent_14%),radial-gradient(circle_at_76%_30%,rgba(255,255,255,0.24),transparent_10%),radial-gradient(circle_at_82%_100%,rgba(255,255,255,0.16),transparent_18%),linear-gradient(90deg,rgba(255,255,255,0)_0%,rgba(249,91,101,0.10)_24%,rgba(228,12,24,0.28)_55%,rgba(215,7,18,0.44)_100%)]" />
-          <div className="absolute -bottom-[2.4rem] right-[-2rem] h-[9.4rem] w-[38rem] rotate-[6deg] rounded-[999px] bg-[linear-gradient(180deg,rgba(126,0,10,0.20)_0%,rgba(175,0,12,0.82)_18%,rgba(235,18,30,0.92)_58%,rgba(235,18,30,0.12)_100%)] blur-[1px]" />
-          <div className="absolute bottom-[1.75rem] right-[6.5rem] h-[4.25rem] w-[22rem] rotate-[8deg] rounded-[999px] border-t border-white/44" />
-          <div className="absolute bottom-[1.15rem] right-[9.25rem] h-[3.3rem] w-[17rem] rotate-[9deg] rounded-[999px] border-t border-white/22" />
-          <div className="absolute bottom-[0.3rem] right-[8.7rem] h-[5.8rem] w-[23rem] rotate-[7deg] rounded-[999px] bg-[radial-gradient(ellipse_at_center,rgba(255,88,98,0.18)_0%,rgba(255,88,98,0.05)_50%,transparent_76%)] blur-[1px]" />
+          <div className="absolute inset-y-0 left-[18%] right-0 bg-[radial-gradient(circle_at_12%_58%,rgba(255,214,218,0.18),transparent_14%),radial-gradient(circle_at_76%_28%,rgba(255,255,255,0.24),transparent_10%),radial-gradient(circle_at_84%_100%,rgba(255,255,255,0.15),transparent_18%),linear-gradient(90deg,rgba(255,255,255,0)_0%,rgba(255,160,168,0.10)_18%,rgba(247,71,84,0.22)_42%,rgba(228,12,24,0.36)_68%,rgba(215,7,18,0.48)_100%)]" />
+          <div className="absolute -bottom-[2.2rem] right-[-2rem] h-[9.8rem] w-[52rem] rotate-[5deg] rounded-[999px] bg-[linear-gradient(180deg,rgba(126,0,10,0.10)_0%,rgba(175,0,12,0.66)_18%,rgba(235,18,30,0.88)_58%,rgba(235,18,30,0.16)_100%)] blur-[1px]" />
+          <div className="absolute bottom-[1.75rem] right-[5rem] h-[4.3rem] w-[29rem] rotate-[7deg] rounded-[999px] border-t border-white/42" />
+          <div className="absolute bottom-[1.1rem] right-[7.8rem] h-[3.5rem] w-[23rem] rotate-[8deg] rounded-[999px] border-t border-white/20" />
+          <div className="absolute bottom-[0.2rem] right-[7.2rem] h-[6rem] w-[31rem] rotate-[6deg] rounded-[999px] bg-[radial-gradient(ellipse_at_center,rgba(255,88,98,0.16)_0%,rgba(255,88,98,0.05)_52%,transparent_78%)] blur-[1px]" />
           <div className="absolute bottom-[4.1rem] right-[12.7rem] h-[0.9rem] w-[0.9rem] rounded-full bg-white/72 blur-[0.25px]" />
           <div className="absolute bottom-[3rem] right-[14.8rem] h-[0.36rem] w-[0.36rem] rounded-full bg-white/62" />
           <div className="absolute bottom-[3.7rem] right-[16.8rem] h-[0.55rem] w-[0.55rem] rounded-full bg-white/55" />
-          <div className="absolute inset-y-0 left-[32%] right-[22%] bg-[linear-gradient(90deg,rgba(255,255,255,0.28)_0%,rgba(255,245,246,0.12)_34%,rgba(255,228,231,0.04)_100%)] blur-[18px]" />
+          <div className="absolute inset-y-0 left-0 w-[33%] bg-[linear-gradient(90deg,rgba(248,248,246,0.92)_0%,rgba(255,251,251,0.84)_48%,rgba(255,246,247,0.28)_100%)]" />
+          <div className="absolute inset-y-0 left-[23%] right-[16%] bg-[linear-gradient(90deg,rgba(255,255,255,0.20)_0%,rgba(255,245,246,0.10)_36%,rgba(255,228,231,0.03)_100%)] blur-[22px]" />
         </div>
 
         <div className="relative z-[2] h-[118px] min-h-[118px] max-h-[118px] w-full px-[26px] box-border">
