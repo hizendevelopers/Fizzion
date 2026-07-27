@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { isBeverageScopedBrand } from "@/lib/beverage-scope";
 import { getOptionalSupabaseAdminClient } from "@/lib/supabase/server";
 
 const ORGANIZATION_SLUG = "coca_cola_iraq";
@@ -28,6 +29,7 @@ type OverviewBrand = {
   id: string;
   name: string;
   slug: string | null;
+  category?: string | null;
   logoUrl: string | null;
   color: string;
   competitorGroup: string | null;
@@ -1033,7 +1035,7 @@ export async function getOverviewAnalytics(rawFilters?: OverviewFilterInput) {
   const [brandsRes, platformsRes, campaignsRes, campaignPlatformsRes] = await Promise.all([
     client
       .from("brands")
-      .select("id,name,slug,logo_url,color,competitor_group,is_active")
+      .select("id,name,slug,category,logo_url,color,competitor_group,is_active")
       .eq("organization_id", organizationId)
       .in("id", relevantBrandIds)
       .order("name", { ascending: true }),
@@ -1065,11 +1067,19 @@ export async function getOverviewAnalytics(rawFilters?: OverviewFilterInput) {
     id: String(row.id),
     name: String(row.name),
     slug: row.slug ? String(row.slug) : null,
+    category: row.category ? String(row.category) : null,
     logoUrl: row.logo_url ? String(row.logo_url) : null,
     color: row.color ? String(row.color) : "",
     competitorGroup: row.competitor_group ? String(row.competitor_group) : null,
     isActive: Boolean(row.is_active),
-  }));
+  })).filter((brand) =>
+    isBeverageScopedBrand({
+      name: brand.name,
+      slug: brand.slug,
+      category: brand.category,
+    }),
+  );
+  const allowedBrandIds = new Set(brands.map((brand) => brand.id));
   const platforms = ((platformsRes.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
     id: String(row.id),
     name: String(row.name),
@@ -1085,13 +1095,15 @@ export async function getOverviewAnalytics(rawFilters?: OverviewFilterInput) {
     status: String(row.status ?? "draft"),
     startDate: row.start_date ? String(row.start_date) : null,
     endDate: row.end_date ? String(row.end_date) : null,
-  }));
+  })).filter((campaign) => campaign.brandId && allowedBrandIds.has(campaign.brandId));
+  const allowedCampaignIds = new Set(campaigns.map((campaign) => campaign.id));
   const campaignPlatforms = ((campaignPlatformsRes.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
     campaignId: String(row.campaign_id),
     platformId: String(row.platform_id),
   }));
 
   const filteredSpend = spendRecords.filter((record) => {
+      if (!allowedBrandIds.has(record.brandId) || !allowedCampaignIds.has(record.campaignId)) return false;
       if (filters.brandIds.length > 0 && !filters.brandIds.includes(record.brandId)) return false;
       if (filters.campaignIds.length > 0 && !filters.campaignIds.includes(record.campaignId)) return false;
       if (filters.platformIds.length > 0 && !filters.platformIds.includes(record.platformId)) return false;

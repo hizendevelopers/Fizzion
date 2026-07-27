@@ -1,6 +1,7 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import * as XLSX from "xlsx";
 
+import { isBeverageScopedBrand } from "@/lib/beverage-scope";
 import { getOptionalSupabaseAdminClient } from "@/lib/supabase/server";
 
 const ORGANIZATION_SLUG = "coca_cola_iraq";
@@ -278,15 +279,24 @@ export async function getCampaignReportingData(): Promise<CampaignReportingData>
   if (spendRes.error) throw spendRes.error;
   if (tvSpendRes.error) throw tvSpendRes.error;
 
-  const brands = ((brandsRes.data ?? []) as GenericRow[]).map<BrandRow>((row) => ({
-    id: rowString(row, "id"),
-    name: rowString(row, "name", "Unknown brand"),
-    slug: rowNullableString(row, "slug"),
-    category: rowString(row, "category", "Uncategorized"),
-    color: rowString(row, "color", "#D0D5DD"),
-    logoUrl: rowNullableString(row, "logo_url"),
-    isActive: rowBoolean(row, "is_active", true),
-  }));
+  const brands = ((brandsRes.data ?? []) as GenericRow[])
+    .map<BrandRow>((row) => ({
+      id: rowString(row, "id"),
+      name: rowString(row, "name", "Unknown brand"),
+      slug: rowNullableString(row, "slug"),
+      category: rowString(row, "category", "Uncategorized"),
+      color: rowString(row, "color", "#D0D5DD"),
+      logoUrl: rowNullableString(row, "logo_url"),
+      isActive: rowBoolean(row, "is_active", true),
+    }))
+    .filter((brand) =>
+      isBeverageScopedBrand({
+        name: brand.name,
+        slug: brand.slug,
+        category: brand.category,
+      }),
+    );
+  const allowedBrandIds = new Set(brands.map((brand) => brand.id));
 
   const campaigns = ((campaignsRes.data ?? []) as GenericRow[]).map<CampaignRow>((row) => ({
     id: rowString(row, "id"),
@@ -301,7 +311,8 @@ export async function getCampaignReportingData(): Promise<CampaignReportingData>
     budgetCurrency: rowNullableString(row, "budget_currency"),
     mediaTypes: rowArray(row, "media_types"),
     medium: rowNullableString(row, "medium"),
-  })).filter((campaign) => isCampaignRelevantToWindow(campaign));
+  })).filter((campaign) => campaign.brandId && allowedBrandIds.has(campaign.brandId) && isCampaignRelevantToWindow(campaign));
+  const allowedCampaignIds = new Set(campaigns.map((campaign) => campaign.id));
 
   const platforms = ((platformsRes.data ?? []) as GenericRow[]).map<PlatformRow>((row) => ({
     id: rowString(row, "id"),
@@ -331,6 +342,7 @@ export async function getCampaignReportingData(): Promise<CampaignReportingData>
   for (const row of (spendRes.data ?? []) as GenericRow[]) {
     const campaignId = rowString(row, "campaign_id");
     const brandId = rowString(row, "brand_id");
+    if (!allowedBrandIds.has(brandId) || !allowedCampaignIds.has(campaignId)) continue;
     const amount = rowNumber(row, "amount") ?? 0;
     const currency = rowString(row, "currency", "USD");
     resolvedCurrency = currency || resolvedCurrency;
@@ -345,7 +357,7 @@ export async function getCampaignReportingData(): Promise<CampaignReportingData>
   for (const row of (tvSpendRes.data ?? []) as GenericRow[]) {
     const campaignId = rowString(row, "campaign_id");
     const cost = rowNumber(row, "cost") ?? 0;
-    if (!campaignId) continue;
+    if (!campaignId || !allowedCampaignIds.has(campaignId)) continue;
     spendByCampaign.set(campaignId, roundMoney((spendByCampaign.get(campaignId) ?? 0) + cost));
     const campaign = campaigns.find((item) => item.id === campaignId);
     if (campaign?.brandId) {

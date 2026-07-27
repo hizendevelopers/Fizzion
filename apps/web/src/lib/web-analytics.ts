@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { z } from "zod";
+import { isBeverageScopedBrand } from "@/lib/beverage-scope";
 import { getOptionalSupabaseAdminClient } from "@/lib/supabase/server";
 
 const ORGANIZATION_SLUG = "coca_cola_iraq";
@@ -411,7 +412,7 @@ export async function getWebOverview(rawFilters?: Partial<WebFilters>): Promise<
   const prevStart = addDays(prevEnd, -(prevRangeLen - 1));
 
   const [brandsRes, websitesRes, campaignsRes, websiteMapRes, spendRes] = await Promise.all([
-    client.from("brands").select("id,name,slug,color,logo_url").eq("organization_id", orgId).order("name"),
+    client.from("brands").select("id,name,slug,category,color,logo_url").eq("organization_id", orgId).order("name"),
     client.from("websites").select("id,name,domain,logo_url,primary_language,category,is_active").eq("organization_id", orgId).eq("is_active", true),
     client.from("campaigns").select("id,brand_id,name,status,start_date,end_date,medium").eq("organization_id", orgId).eq("medium", "web"),
     client.from("web_campaign_websites").select("campaign_id,website_id").eq("organization_id", orgId),
@@ -426,8 +427,10 @@ export async function getWebOverview(rawFilters?: Partial<WebFilters>): Promise<
 
   const brands = ((brandsRes.data ?? []) as any[]).map((r: any) => ({
     id: String(r.id), name: String(r.name), slug: r.slug ? String(r.slug) : null,
+    category: r.category ? String(r.category) : null,
     color: r.color ? String(r.color) : "", logoUrl: r.logo_url ? String(r.logo_url) : null,
-  }));
+  })).filter((brand: any) => isBeverageScopedBrand(brand));
+  const allowedBrandIds = new Set(brands.map((brand: any) => brand.id));
   const websites = ((websitesRes.data ?? []) as any[]).map((r: any) => ({
     id: String(r.id), name: String(r.name), domain: String(r.domain),
     logoUrl: r.logo_url ? String(r.logo_url) : null, language: r.primary_language ? String(r.primary_language) : "Arabic",
@@ -436,7 +439,8 @@ export async function getWebOverview(rawFilters?: Partial<WebFilters>): Promise<
   const campaigns = ((campaignsRes.data ?? []) as any[]).map((r: any) => ({
     id: String(r.id), brandId: r.brand_id ? String(r.brand_id) : null, name: String(r.name),
     status: String(r.status ?? "draft"), startDate: r.start_date ? String(r.start_date) : null, endDate: r.end_date ? String(r.end_date) : null,
-  }));
+  })).filter((campaign: any) => campaign.brandId && allowedBrandIds.has(campaign.brandId));
+  const allowedCampaignIds = new Set(campaigns.map((campaign: any) => campaign.id));
 
   const websiteCampaignMap = new Map<string, Set<string>>();
   for (const row of (websiteMapRes.data ?? []) as any[]) {
@@ -472,6 +476,8 @@ export async function getWebOverview(rawFilters?: Partial<WebFilters>): Promise<
 
   const filteredDetections = ((webDetectionRows ?? []) as any[]).filter((row: any) => {
     const websiteId = String(row.website_id);
+    if (!row.brand_id || !row.campaign_id) return false;
+    if (!allowedBrandIds.has(String(row.brand_id)) || !allowedCampaignIds.has(String(row.campaign_id))) return false;
     if (hasWebsiteScopedFilters && !matchingWebsiteIds.has(websiteId)) return false;
     if (filters.brandIds.length > 0 && row.brand_id && !filters.brandIds.includes(String(row.brand_id))) return false;
     if (filters.campaignIds.length > 0 && row.campaign_id && !filters.campaignIds.includes(String(row.campaign_id))) return false;
@@ -512,6 +518,7 @@ export async function getWebOverview(rawFilters?: Partial<WebFilters>): Promise<
   }));
 
   const filteredSpend = allSpend.filter((r) => {
+    if (!allowedBrandIds.has(r.brandId) || !allowedCampaignIds.has(r.campaignId)) return false;
     if (filters.brandIds.length > 0 && !filters.brandIds.includes(r.brandId)) return false;
     if (filters.campaignIds.length > 0 && !filters.campaignIds.includes(r.campaignId)) return false;
     if (hasDetectionScopedFilters && !detectionScopedCampaignIds.has(r.campaignId)) return false;
@@ -681,6 +688,24 @@ export async function getWebDetections(rawFilters?: Partial<WebFilters> & { sear
     ? (rawFilters as { search?: string }).search?.trim().toLowerCase() ?? ""
     : "";
   const orgId = await resolveOrganizationId();
+  const { data: scopedBrands } = await client
+    .from("brands")
+    .select("id,name,slug,category")
+    .eq("organization_id", orgId);
+  const allowedBrandIds = new Set(
+    ((scopedBrands ?? []) as any[])
+      .map((brand: any) => ({
+        id: String(brand.id),
+        name: typeof brand.name === "string" ? brand.name : null,
+        slug: typeof brand.slug === "string" ? brand.slug : null,
+        category: typeof brand.category === "string" ? brand.category : null,
+      }))
+      .filter((brand: any) => isBeverageScopedBrand(brand))
+      .map((brand: any) => brand.id),
+  );
+  if (allowedBrandIds.size === 0) {
+    return { items: [], total: 0, page: filters.page, pageSize: filters.pageSize, hasMore: false };
+  }
   const { data: websites } = await client
     .from("websites")
     .select("id,primary_language,category")
@@ -708,7 +733,8 @@ export async function getWebDetections(rawFilters?: Partial<WebFilters> & { sear
     .select("id", { count: "exact", head: true })
     .eq("organization_id", orgId)
     .gte("detected_at", filters.startDate)
-    .lte("detected_at", filters.endDate);
+    .lte("detected_at", filters.endDate)
+    .in("brand_id", [...allowedBrandIds]);
 
   if (filters.brandIds.length > 0) countQuery = countQuery.in("brand_id", filters.brandIds);
   if (filters.campaignIds.length > 0) countQuery = countQuery.in("campaign_id", filters.campaignIds);
@@ -722,7 +748,8 @@ export async function getWebDetections(rawFilters?: Partial<WebFilters> & { sear
     .select("*")
     .eq("organization_id", orgId)
     .gte("detected_at", filters.startDate)
-    .lte("detected_at", filters.endDate);
+    .lte("detected_at", filters.endDate)
+    .in("brand_id", [...allowedBrandIds]);
 
   if (filters.brandIds.length > 0) dataQuery = dataQuery.in("brand_id", filters.brandIds);
   if (filters.campaignIds.length > 0) dataQuery = dataQuery.in("campaign_id", filters.campaignIds);

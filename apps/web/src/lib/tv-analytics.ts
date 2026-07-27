@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Brand, Campaign, TvCampaignChannel, TvChannel } from "../../../../packages/types/src/supabase";
 
+import { isBeverageScopedBrand } from "@/lib/beverage-scope";
 import { getOptionalSupabaseAdminClient } from "@/lib/supabase/server";
 
 const ORGANIZATION_SLUG = "coca_cola_iraq";
@@ -325,6 +326,7 @@ type BrandRecord = {
   id: string;
   name: string;
   slug: string | null;
+  category: string | null;
   color: string;
   logoUrl: string | null;
 };
@@ -713,7 +715,7 @@ async function loadTvDataset(startDate: string, endDate: string) {
     await Promise.all([
       client
         .from("brands")
-        .select("id,name,slug,color,logo_url")
+        .select("id,name,slug,category,color,logo_url")
         .eq("organization_id", organizationId)
         .eq("is_active", true)
         .order("name", { ascending: true }),
@@ -765,16 +767,27 @@ async function loadTvDataset(startDate: string, endDate: string) {
 
   if (lastBoundRes.error) throw lastBoundRes.error;
 
-  const brands = ((brandsRes.data ?? []) as Brand[]).map((row) => ({
+  const brands = ((brandsRes.data ?? []) as Brand[]).map((row) => {
+    const rawRow = row as unknown as Record<string, unknown>;
+    return {
     id: String(row.id),
     name: String(row.name),
     slug: row.slug ? String(row.slug) : null,
+    category: typeof rawRow.category === "string" ? rawRow.category : null,
     color: getBrandColor({
       slug: row.slug ? String(row.slug) : null,
       color: row.color ? String(row.color) : "",
     }),
     logoUrl: row.logo_url ? String(row.logo_url) : null,
-  }));
+  };
+  }).filter((brand) =>
+    isBeverageScopedBrand({
+      name: brand.name,
+      slug: brand.slug,
+      category: brand.category,
+    }),
+  );
+  const allowedBrandIds = new Set(brands.map((brand) => brand.id));
 
   const channels = ((channelsRes.data ?? []) as TvChannel[]).map((row) => ({
     id: String(row.id),
@@ -800,7 +813,8 @@ async function loadTvDataset(startDate: string, endDate: string) {
       endDate: row.end_date ? String(row.end_date) : null,
       includesTv: medium === "tv" || mediaTypes.includes("tv"),
     };
-  });
+  }).filter((campaign) => campaign.brandId && allowedBrandIds.has(campaign.brandId));
+  const allowedCampaignIds = new Set(campaigns.map((campaign) => campaign.id));
 
   const campaignChannels = new Map<string, Set<string>>();
   for (const row of (campaignChannelsRes.data ?? []) as TvCampaignChannel[]) {
@@ -830,7 +844,12 @@ async function loadTvDataset(startDate: string, endDate: string) {
     previewPosterUrl: typeof row.preview_poster_url === "string" ? row.preview_poster_url : null,
     isUploadedAsset: Boolean(row.is_uploaded_asset),
     source: typeof row.source === "string" ? row.source : "tv_dashboard_seed_v2",
-  }));
+  })).filter((detection) =>
+    detection.brandId !== null &&
+    detection.campaignId !== null &&
+    allowedBrandIds.has(detection.brandId) &&
+    allowedCampaignIds.has(detection.campaignId),
+  );
 
   return {
     organizationId,
