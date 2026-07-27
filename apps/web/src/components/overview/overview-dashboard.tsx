@@ -252,28 +252,56 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
   }, []);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6 pb-2">
       {/* ─── Page Header ─── */}
-      <Section dark>
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/50">Overview</p>
-            <h1 className="mt-2 text-2xl font-bold tracking-tight text-white lg:text-3xl">Dashboard Overview</h1>
-            <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-[#AEB5C2]">
-              Coca-Cola Iraq media monitoring across brands, campaigns, and paid platforms.
-            </p>
+      <section className="relative overflow-hidden rounded-[2.1rem] border border-[#f3ddd8] bg-[radial-gradient(circle_at_92%_0%,rgba(244,0,9,0.2),transparent_19%),radial-gradient(circle_at_76%_84%,rgba(244,0,9,0.12),transparent_22%),linear-gradient(135deg,#fffdfc_0%,#fffaf7_54%,#fff4f1_100%)] p-5 shadow-[0_24px_60px_rgba(98,32,27,0.08)] lg:p-6">
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-[34%] bg-[radial-gradient(circle_at_top_right,rgba(244,0,9,0.26),transparent_36%)]" />
+        <div className="relative flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="space-y-4">
+            <div>
+              <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#f40009]">Media Intelligence</p>
+              <Image
+                alt="Media Intelligence Reimagined"
+                className="mt-2 h-14 w-auto object-contain sm:h-16 lg:h-[4.8rem]"
+                height={78}
+                src="/assets/reimagined-logo.png"
+                width={420}
+              />
+            </div>
+
+            <div className="max-w-[30rem] rounded-[2rem] border border-[#f2dfda] bg-[linear-gradient(145deg,rgba(255,255,255,0.95)_0%,rgba(255,249,247,0.98)_100%)] px-6 py-6 shadow-[0_22px_46px_rgba(110,34,29,0.08)]">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#f40009]">Overview</p>
+              <h1 className="mt-3 text-[2rem] font-bold leading-tight tracking-[-0.04em] text-[#121826] sm:text-[2.5rem]">
+                Dashboard Overview
+              </h1>
+              <p className="mt-3 max-w-xl text-base leading-7 text-[#362c31]">
+                Coca-Cola Iraq media monitoring across brands, campaigns, and paid platforms.
+              </p>
+              <div className="mt-4 h-1 w-20 rounded-full bg-[linear-gradient(90deg,#f40009_0%,#ff7a72_100%)]" />
+            </div>
           </div>
-          <div className="shrink-0 rounded-xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm leading-relaxed text-[#AEB5C2]">
-            <p><span className="text-white/70">Period:</span> {state.data.summary.rangeLabel}</p>
-            <p><span className="text-white/70">Currency:</span> USD</p>
-            <p><span className="text-white/70">Filters:</span> {state.data.summary.activeFilterCount}</p>
+
+          <div className="w-full max-w-[42rem] space-y-4">
+            <div className="flex flex-wrap justify-start gap-3 xl:justify-end">
+              <TopStatusPill icon={<GlobeIcon className="h-4 w-4" />} label="Language" value="English" />
+              <TopStatusPill icon={<BrandIcon className="h-4 w-4" />} label="Market" value="Asia/Baghdad" />
+              <TopStatusPill icon={<CalendarIcon className="h-4 w-4" />} label="Period" value={state.data.summary.rangeLabel} wide />
+            </div>
+
+            <div className="overflow-hidden rounded-[2rem] border border-white/6 bg-[radial-gradient(circle_at_bottom_right,rgba(244,0,9,0.28),transparent_30%),linear-gradient(135deg,#0b0a11_0%,#120d17_55%,#1f070b_100%)] shadow-[0_28px_50px_rgba(16,7,10,0.28)]">
+              <div className="grid gap-0 divide-y divide-white/6 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+                <HeroRailItem icon={<CalendarIcon className="h-4 w-4" />} label="Period" value={state.data.summary.rangeLabel} />
+                <HeroRailItem icon={<ReportIcon className="h-4 w-4" />} label="Currency" value={state.data.summary.currency} />
+                <HeroRailItem icon={<CampaignIcon className="h-4 w-4" />} label="Filters" value={String(state.data.summary.activeFilterCount)} />
+              </div>
+            </div>
           </div>
         </div>
-      </Section>
+      </section>
 
       {/* ─── Filter Bar ─── */}
-      <section className="rounded-2xl border border-white/[0.07] bg-[#12151C] p-4 shadow-[0_8px_24px_rgba(0,0,0,0.24)]">
-        <div className="grid gap-2.5 xl:grid-cols-[1.25fr_1fr_1fr_1fr_auto]">
+      <section className="overflow-hidden rounded-[1.85rem] border border-white/8 bg-[radial-gradient(circle_at_bottom_right,rgba(53,199,111,0.18),transparent_18%),radial-gradient(circle_at_bottom_left,rgba(244,0,9,0.18),transparent_18%),linear-gradient(135deg,#0c0c14_0%,#12111a_52%,#191117_100%)] p-4 shadow-[0_26px_60px_rgba(16,9,12,0.24)]">
+        <div className="grid gap-3 xl:grid-cols-[1.1fr_1fr_1fr_1fr_auto_auto] xl:items-end">
           <DateRangeFilter
             preset={pendingFilters.preset}
             startDate={pendingFilters.startDate}
@@ -317,7 +345,7 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
           />
           <div className="flex items-end gap-2">
             <button
-              className="inline-flex h-11 items-center justify-center rounded-xl bg-[#F40009] px-5 text-sm font-semibold text-white transition hover:bg-[#d60008] disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-12 items-center justify-center rounded-[1.1rem] bg-[linear-gradient(135deg,#ff4d45_0%,#f40009_52%,#b10a10_100%)] px-6 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(244,0,9,0.28)] transition hover:-translate-y-0.5 hover:shadow-[0_24px_42px_rgba(244,0,9,0.32)] disabled:cursor-not-allowed disabled:opacity-50"
               disabled={state.loading || !hasDirtyFilters}
               onClick={applyFilters}
               type="button"
@@ -325,7 +353,7 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
               {state.loading ? "Applying…" : "Apply"}
             </button>
             <button
-              className="inline-flex h-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] px-4 text-sm font-semibold text-white/70 transition hover:bg-white/10"
+              className="inline-flex h-12 items-center justify-center rounded-[1.1rem] border border-white/10 bg-white/[0.04] px-5 text-sm font-semibold text-white/78 transition hover:bg-white/10"
               disabled={state.loading}
               onClick={resetFilters}
               type="button"
@@ -333,23 +361,25 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
               Reset
             </button>
           </div>
+          <div className="flex items-end">
+            <button
+              className="inline-flex h-12 items-center justify-center rounded-[1.1rem] border border-[#2f6d3f] bg-[linear-gradient(135deg,rgba(25,33,28,0.92)_0%,rgba(16,31,22,0.96)_100%)] px-5 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(0,0,0,0.2)] transition hover:-translate-y-0.5"
+              disabled={state.loading}
+              onClick={() => void loadData(state.data.filters)}
+              type="button"
+            >
+              {state.loading ? "Refreshing..." : "Refresh Data"}
+            </button>
+          </div>
         </div>
 
         {/* Filter chips */}
-        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+        <div className="mt-4 flex flex-wrap items-center gap-2">
           <FilterChip label={`${state.data.summary.activeFilterCount} active`} tone="accent" />
           <FilterChip label={`${state.data.filterOptions.brands.length} brands`} />
           <FilterChip label={`${state.data.activeCampaigns.total} campaigns`} />
           <FilterChip label={`${state.data.platformSplit.length || state.data.filterOptions.platforms.length} platforms`} />
-          <FilterChip label={formatCurrency(state.data.spending.total, state.data.summary.currency)} />
-          <button
-            className="rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1 text-xs font-medium text-white/60 transition hover:bg-white/10"
-            disabled={state.loading}
-            onClick={() => void loadData(state.data.filters)}
-            type="button"
-          >
-            Retry
-          </button>
+          <FilterChip label={`${formatCurrency(state.data.spending.total, state.data.summary.currency)} total spending`} tone="metric" />
         </div>
       </section>
 
@@ -388,6 +418,7 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
       </section>
 
       <section className="space-y-4">
+        <div className="overflow-hidden rounded-[2rem] border border-white/8 bg-[radial-gradient(circle_at_bottom_right,rgba(244,0,9,0.2),transparent_24%),linear-gradient(135deg,#090911_0%,#120d17_52%,#1c0b10_100%)] p-4 shadow-[0_28px_60px_rgba(16,9,12,0.26)]">
         <StackedSpendingChartCard
           title="Total Spending"
           subtitle="Brand spending trend over time"
@@ -436,6 +467,7 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
           svgHeight={340}
           plotHeight={228}
         />
+        </div>
 
         <div className="grid gap-3 xl:grid-cols-[minmax(0,1.24fr)_minmax(300px,0.76fr)] xl:items-start">
           <div className="grid gap-3">
@@ -616,6 +648,57 @@ function FilterPopoverShell({
       </div>
     </>,
     document.body,
+  );
+}
+
+function TopStatusPill({
+  icon,
+  label,
+  value,
+  wide = false,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  wide?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex min-h-[4.1rem] items-center gap-3 rounded-[1.25rem] border border-[#f1dbd6] bg-[linear-gradient(180deg,#ffffff_0%,#fff6f3_100%)] px-4 py-3 text-[#16151d] shadow-[0_16px_32px_rgba(96,31,27,0.08)]",
+        wide ? "min-w-[17rem]" : "min-w-[9.5rem]",
+      )}
+    >
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#fff1ef] text-[#f40009]">
+        {icon}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-[0.67rem] font-semibold uppercase tracking-[0.18em] text-[#8d6a65]">{label}</span>
+        <span className="mt-1 block truncate text-sm font-semibold text-[#171821]">{value}</span>
+      </span>
+    </div>
+  );
+}
+
+function HeroRailItem({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 px-5 py-5">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#220d12] text-[#ff3a34] shadow-[0_10px_24px_rgba(0,0,0,0.24)]">
+        {icon}
+      </span>
+      <div className="min-w-0">
+        <p className="text-xs font-medium uppercase tracking-[0.18em] text-white/44">{label}</p>
+        <p className="mt-1 truncate text-base font-semibold text-white">{value}</p>
+      </div>
+    </div>
   );
 }
 
@@ -876,28 +959,33 @@ function KpiCard({
   trend: Array<{ value: number }>;
 }) {
   return (
-    <article className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-[0_4px_16px_rgba(0,0,0,0.04)] transition hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)]" title={tooltip}>
+    <article
+      className="relative overflow-hidden rounded-[1.9rem] border border-[#ead7d2] bg-[linear-gradient(145deg,#ffffff_0%,#fff9f7_100%)] p-5 shadow-[0_16px_34px_rgba(93,31,27,0.08)] transition hover:-translate-y-0.5 hover:shadow-[0_22px_42px_rgba(93,31,27,0.12)]"
+      title={tooltip}
+    >
+      <div className="pointer-events-none absolute left-0 top-0 h-full w-3 rounded-l-[1.9rem]" style={{ background: `linear-gradient(180deg, ${color}, ${color}22)` }} />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-[radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.02),transparent_48%)]" />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-wider text-[#6B7280]">{title}</p>
-          <p className="mt-1.5 text-2xl font-bold tracking-tight text-[#111827]">
-            {loading ? <span className="inline-block h-7 w-24 animate-pulse rounded-md bg-[#E5E7EB]" /> : value}
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6f5d59]">{title}</p>
+          <p className="mt-2 text-[2.35rem] font-bold leading-none tracking-[-0.05em] text-[#0f1724]">
+            {loading ? <span className="inline-block h-9 w-24 animate-pulse rounded-md bg-[#E5E7EB]" /> : value}
           </p>
         </div>
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white" style={{ backgroundColor: color }}>
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-white shadow-[0_12px_24px_rgba(0,0,0,0.12)]" style={{ backgroundColor: color }}>
           {icon}
         </span>
       </div>
-      <div className="mt-3 h-10">
+      <div className="mt-4 h-12">
         {loading ? (
           <div className="h-full w-full animate-pulse rounded-lg bg-[#F3F4F6]" />
         ) : (
           <MiniSparkline color={color} data={trend} />
         )}
       </div>
-      <div className="mt-2 flex items-center justify-between">
-        <span className="text-xs text-[#6B7280]">vs previous period</span>
-        <span className={cn("text-xs font-semibold", delta == null ? "text-[#9CA3AF]" : delta >= 0 ? "text-[#15803D]" : "text-[#DC2626]")}>
+      <div className="mt-3 flex items-center justify-between">
+        <span className="text-sm text-[#675961]">vs previous period</span>
+        <span className={cn("rounded-full px-3 py-1 text-sm font-semibold", delta == null ? "bg-[#f2f4f7] text-[#9CA3AF]" : delta >= 0 ? "bg-[#ebf9ef] text-[#15803D]" : "bg-[#fff1f1] text-[#DC2626]")}>
           {formatDelta(delta)}
         </span>
       </div>
@@ -1357,11 +1445,15 @@ function ErrorBanner({ message, onRetry }: { message: string; onRetry: () => voi
 
 /* ──────────────────── Filter Chip ──────────────────────── */
 
-function FilterChip({ label, tone = "default" }: { label: string; tone?: "default" | "accent" }) {
+function FilterChip({ label, tone = "default" }: { label: string; tone?: "default" | "accent" | "metric" }) {
   return (
     <span className={cn(
-      "inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium",
-      tone === "accent" ? "bg-[#F40009] text-white" : "border border-white/[0.08] bg-white/[0.04] text-white/60",
+      "inline-flex rounded-full px-3.5 py-2 text-xs font-medium",
+      tone === "accent"
+        ? "bg-[linear-gradient(135deg,#ff493f_0%,#f40009_100%)] text-white shadow-[0_10px_24px_rgba(244,0,9,0.24)]"
+        : tone === "metric"
+          ? "border border-[#5a1b1e] bg-[linear-gradient(135deg,rgba(42,10,14,0.96)_0%,rgba(67,10,14,0.96)_100%)] text-white"
+          : "border border-white/[0.08] bg-white/[0.04] text-white/68",
     )}>
       {label}
     </span>

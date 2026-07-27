@@ -34,15 +34,15 @@ export function AppShell({
   copy,
 }: AppShellProps) {
   return (
-    <div className="min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,#fff3e7_0%,#fff9f4_24%,#f7f0ff_58%,#edf8fb_100%)] px-3 py-3 text-foreground lg:px-4 lg:py-4">
-      <div className="surface-premium flex min-h-[calc(100vh-1.5rem)] items-start overflow-hidden rounded-[2.15rem] border border-white/70 bg-white/86 shadow-[0_30px_80px_rgba(15,23,42,0.1)] backdrop-blur-xl">
+    <div className="min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,#fff4ea_0%,#fffaf6_24%,#fff1ee_58%,#fef8f5_100%)] px-3 py-3 text-foreground lg:px-4 lg:py-4">
+      <div className="surface-premium flex min-h-[calc(100vh-1.5rem)] items-start overflow-hidden rounded-[2.15rem] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.95)_0%,rgba(255,252,251,0.92)_100%)] shadow-[0_30px_80px_rgba(73,18,16,0.1)] backdrop-blur-xl">
         <Sidebar labels={copy.nav} />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <div className="sticky top-0 z-40 shrink-0">
             <Topbar />
           </div>
 
-          <div className="flex shrink-0 items-center justify-end gap-2 border-b border-[#E9DDD6] bg-[radial-gradient(circle_at_left,rgba(244,0,9,0.10),transparent_22%),radial-gradient(circle_at_right,rgba(51,199,201,0.10),transparent_18%),linear-gradient(135deg,rgba(255,250,246,0.98)_0%,rgba(255,243,238,0.98)_52%,rgba(242,249,255,0.98)_100%)] px-4 py-3 lg:px-8">
+          <div className="flex shrink-0 items-center justify-end gap-2 border-b border-[#f1ded8] bg-[linear-gradient(180deg,rgba(255,252,251,0.92)_0%,rgba(255,248,246,0.92)_100%)] px-4 py-3 lg:px-8">
             <PreferenceSwitchers
               copy={{
                 languageLabel: copy.languageLabel,
@@ -51,7 +51,7 @@ export function AppShell({
               locale={locale}
               timezone={timezone}
             />
-            <span className="inline-flex h-9 items-center gap-2 rounded-full border border-[#F0D8D0] bg-[linear-gradient(135deg,#fffdfc_0%,#fff2ee_52%,#f1fbff_100%)] px-4 text-sm font-medium text-[#6B4B43] shadow-[0_10px_24px_rgba(71,27,23,0.08)]">
+            <span className="inline-flex h-9 items-center gap-2 rounded-full border border-[#f0d7cf] bg-[linear-gradient(180deg,#ffffff_0%,#fff5f1_100%)] px-4 text-sm font-medium text-[#6B4B43] shadow-[0_10px_24px_rgba(71,27,23,0.08)]">
               <ClockIcon className="h-4 w-4 text-[#F04438]" />
               {timezone}
             </span>
