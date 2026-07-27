@@ -889,7 +889,6 @@ function buildFilterOptions(dataset: TvDataset, filters: NormalizedTvFilters): T
   const detectedChannelIds = new Set(dataset.detections.map((row) => row.channelId));
 
   const brands = dataset.brands
-    .filter((brand) => detectedBrandIds.has(brand.id) || filters.brandIds.includes(brand.id))
     .map((brand) => ({
       id: brand.id,
       name: brand.name,
@@ -897,7 +896,16 @@ function buildFilterOptions(dataset: TvDataset, filters: NormalizedTvFilters): T
       color: brand.color,
       logoUrl: brand.logoUrl,
       initials: getInitials(brand.name),
-    }));
+    }))
+    .sort((left, right) => {
+      const leftOwned = left.name.toLowerCase().includes("coca-cola") ? 0 : 1;
+      const rightOwned = right.name.toLowerCase().includes("coca-cola") ? 0 : 1;
+      if (leftOwned !== rightOwned) return leftOwned - rightOwned;
+      const leftDetected = detectedBrandIds.has(left.id) ? 0 : 1;
+      const rightDetected = detectedBrandIds.has(right.id) ? 0 : 1;
+      if (leftDetected !== rightDetected) return leftDetected - rightDetected;
+      return left.name.localeCompare(right.name);
+    });
 
   const matchingCampaigns = dataset.campaigns.filter((campaign) => {
     if (!campaign.includesTv) return false;
