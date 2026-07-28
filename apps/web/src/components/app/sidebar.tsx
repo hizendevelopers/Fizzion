@@ -56,12 +56,12 @@ export function Sidebar({ labels }: SidebarProps) {
   }
 
   return (
-    <aside className="relative hidden h-full w-[16.25rem] shrink-0 self-stretch overflow-hidden border-r border-white/10 bg-[linear-gradient(180deg,#09090f_0%,#090810_38%,#0b0811_68%,#16070a_100%)] text-[#F6F7FB] lg:sticky lg:top-0 lg:flex">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(244,0,9,0.18),transparent_22%),linear-gradient(180deg,rgba(255,255,255,0.02)_0%,rgba(255,255,255,0)_24%,rgba(255,255,255,0)_100%)]" />
-      <div className="pointer-events-none absolute inset-y-0 right-0 w-px bg-[linear-gradient(180deg,rgba(255,255,255,0.04)_0%,rgba(244,0,9,0.30)_50%,rgba(255,255,255,0.04)_100%)]" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[12.75rem] bg-[url('/assets/header-splash-background.svg')] bg-[length:165%_auto] bg-bottom bg-no-repeat opacity-[0.9]" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[9.5rem] bg-[linear-gradient(180deg,rgba(12,8,18,0)_0%,rgba(22,7,10,0.16)_28%,rgba(20,6,8,0.78)_100%)]" />
-      <div className="relative flex h-full min-h-0 w-full flex-col gap-4 px-4 pb-4 pt-5">
+    <aside className="relative hidden h-full w-[16.25rem] shrink-0 self-stretch overflow-hidden border-r border-white/10 bg-[linear-gradient(180deg,#08070d_0%,#090811_34%,#0c0914_70%,#17070a_100%)] text-[#F6F7FB] lg:sticky lg:top-0 lg:flex">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(244,0,9,0.12),transparent_18%),linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0)_18%,rgba(255,255,255,0)_100%)]" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-px bg-[linear-gradient(180deg,rgba(255,255,255,0.04)_0%,rgba(244,0,9,0.22)_50%,rgba(255,255,255,0.04)_100%)]" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[13.5rem] bg-[url('/assets/header-splash-background.svg')] bg-[length:170%_auto] bg-bottom bg-no-repeat opacity-[0.92]" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[10rem] bg-[linear-gradient(180deg,rgba(12,8,18,0)_0%,rgba(22,7,10,0.12)_24%,rgba(20,6,8,0.82)_100%)]" />
+      <div className="relative flex h-full min-h-0 w-full flex-col gap-4 px-4 pb-4 pt-6">
         <div className="px-0">
           <SidebarBranding />
         </div>
@@ -75,17 +75,18 @@ export function Sidebar({ labels }: SidebarProps) {
             const icon = navIconMap[item.key] ?? <SparkleIcon />;
 
             return (
-              <div key={item.href} className="space-y-2">
+              <div key={item.href} className="space-y-2.5">
                 {hasChildren ? (
                   <button
                     aria-expanded={isOpen}
                     className={cn(
-                      "flex w-full items-center justify-between rounded-[1.05rem] px-3.5 py-2.75 text-left text-[0.96rem] font-semibold leading-[1.15] transition duration-300",
+                      "flex w-full items-center justify-between rounded-[1.08rem] px-3.5 py-2.75 text-left text-[0.95rem] font-semibold leading-[1.15] transition duration-300",
                       active || isOpen
                         ? "bg-[linear-gradient(135deg,#ff5343_0%,#ff241f_52%,#f40009_100%)] text-white shadow-[0_16px_28px_rgba(244,0,9,0.34)] ring-1 ring-white/16"
-                        : "text-white/92 hover:bg-white/5 hover:text-white",
+                        : "text-white/92 hover:bg-white/4 hover:text-white",
                     )}
                     onClick={() => toggleSection(item.key)}
+                    style={{ fontFamily: "Montserrat, var(--font-geist-sans), sans-serif" }}
                     type="button"
                   >
                     <span className="flex min-w-0 items-center gap-3">
@@ -100,11 +101,12 @@ export function Sidebar({ labels }: SidebarProps) {
                   <Link
                     href={item.href}
                     className={cn(
-                      "flex items-center gap-3 rounded-[1.05rem] px-3.5 py-2.75 text-[0.96rem] font-semibold leading-[1.15] transition duration-300",
+                      "flex items-center gap-3 rounded-[1.08rem] px-3.5 py-2.75 text-[0.95rem] font-semibold leading-[1.15] transition duration-300",
                       active
                         ? "bg-[linear-gradient(135deg,#ff5343_0%,#ff241f_52%,#f40009_100%)] text-white shadow-[0_16px_28px_rgba(244,0,9,0.34)] ring-1 ring-white/16"
-                        : "text-white/92 hover:bg-white/5 hover:text-white",
+                        : "text-white/92 hover:bg-white/4 hover:text-white",
                     )}
+                    style={{ fontFamily: "Montserrat, var(--font-geist-sans), sans-serif" }}
                   >
                     <span className={cn("flex h-[2.35rem] w-[2.35rem] shrink-0 items-center justify-center rounded-[0.95rem]", active ? "bg-white/14" : "bg-white/6 text-white/92 shadow-[0_8px_16px_rgba(0,0,0,0.16)]")}>
                       {icon}
@@ -128,6 +130,7 @@ export function Sidebar({ labels }: SidebarProps) {
                               ? "bg-white/12 text-white ring-1 ring-white/18 shadow-[0_10px_20px_rgba(0,0,0,0.22)]"
                               : "text-white/66 hover:bg-white/8 hover:text-white",
                           )}
+                          style={{ fontFamily: "Montserrat, var(--font-geist-sans), sans-serif" }}
                         >
                           <span className="h-2 w-2 shrink-0 rounded-full bg-brand-green shadow-[0_0_0_4px_rgba(53,199,111,0.10)]" />
                           {labels[child.key] ?? child.key}
@@ -141,10 +144,16 @@ export function Sidebar({ labels }: SidebarProps) {
           })}
         </div>
 
-        <div className="relative mt-auto overflow-hidden rounded-[1.3rem] border border-white/14 bg-[linear-gradient(135deg,rgba(255,255,255,0.09)_0%,rgba(255,255,255,0.04)_100%)] px-4 py-4 shadow-[0_16px_30px_rgba(0,0,0,0.28)] backdrop-blur-sm">
-          <div className="pointer-events-none absolute inset-y-0 right-[-18%] w-[88%] bg-[radial-gradient(circle_at_center,rgba(244,0,9,0.42)_0%,rgba(244,0,9,0.24)_34%,rgba(244,0,9,0.08)_60%,transparent_82%)]" />
-          <div className="pointer-events-none absolute -bottom-10 right-[-8%] h-28 w-40 rounded-full bg-[radial-gradient(circle_at_center,rgba(255,92,76,0.34)_0%,rgba(255,45,30,0.18)_40%,transparent_74%)] blur-[2px]" />
-          <div className="flex items-center justify-center">
+        <div className="relative mt-auto overflow-hidden rounded-[1.35rem] border border-white/14 bg-[linear-gradient(135deg,rgba(255,255,255,0.09)_0%,rgba(255,255,255,0.04)_100%)] px-4 py-4 shadow-[0_16px_30px_rgba(0,0,0,0.28)] backdrop-blur-sm">
+          <div className="pointer-events-none absolute inset-x-0 bottom-[-22%] h-[112%] bg-[radial-gradient(circle_at_70%_92%,rgba(244,0,9,0.48)_0%,rgba(244,0,9,0.26)_34%,rgba(244,0,9,0.10)_62%,transparent_84%)]" />
+          <div className="pointer-events-none absolute -bottom-10 right-[-6%] h-28 w-44 rounded-full bg-[radial-gradient(circle_at_center,rgba(255,92,76,0.30)_0%,rgba(255,45,30,0.14)_42%,transparent_74%)] blur-[2px]" />
+          <p
+            className="relative text-[10px] font-medium tracking-[0.05em] text-white/48"
+            style={{ fontFamily: "Montserrat, var(--font-geist-sans), sans-serif" }}
+          >
+            Built by
+          </p>
+          <div className="relative mt-2 flex items-center justify-center">
             <Image
               alt="Hizen logo"
               className="h-[2.05rem] w-auto object-contain"
@@ -156,9 +165,6 @@ export function Sidebar({ labels }: SidebarProps) {
               width={92}
             />
           </div>
-          <p className="mt-2 text-center text-[10.5px] font-medium tracking-[0.02em] text-white/58">
-            Built by Hizen
-          </p>
         </div>
       </div>
     </aside>
