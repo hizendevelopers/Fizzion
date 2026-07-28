@@ -211,8 +211,19 @@ export function Topbar({ locale, timezone }: TopbarProps) {
         />
 
         <div className="relative z-[2] h-[118px] min-h-[118px] max-h-[118px] w-full px-[26px] box-border">
-          <div className="grid h-full w-full grid-cols-1 items-center lg:grid-cols-[1fr_170px]">
-            <div className="hidden lg:block" />
+          <div className="grid h-full w-full grid-cols-1 items-center lg:grid-cols-[minmax(260px,1fr)_170px]">
+            <div className="relative z-[3] hidden h-full items-center lg:flex">
+              <Image
+                alt="Reimagined logo"
+                className="h-auto max-h-[84px] w-[430px] max-w-full object-contain object-left"
+                height={84}
+                onError={(event) => {
+                  event.currentTarget.style.display = "none";
+                }}
+                src="/assets/reimagined-logo.png"
+                width={430}
+              />
+            </div>
 
             <div className="relative z-[4] hidden h-full items-center justify-center min-[992px]:flex">
               <Image
