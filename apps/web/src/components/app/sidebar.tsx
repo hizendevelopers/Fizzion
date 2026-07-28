@@ -141,7 +141,9 @@ export function Sidebar({ labels }: SidebarProps) {
           })}
         </div>
 
-        <div className="mt-auto rounded-[1.3rem] border border-white/14 bg-[linear-gradient(135deg,rgba(255,255,255,0.09)_0%,rgba(255,255,255,0.04)_100%)] px-4 py-4 shadow-[0_16px_30px_rgba(0,0,0,0.28)] backdrop-blur-sm">
+        <div className="relative mt-auto overflow-hidden rounded-[1.3rem] border border-white/14 bg-[linear-gradient(135deg,rgba(255,255,255,0.09)_0%,rgba(255,255,255,0.04)_100%)] px-4 py-4 shadow-[0_16px_30px_rgba(0,0,0,0.28)] backdrop-blur-sm">
+          <div className="pointer-events-none absolute inset-y-0 right-[-18%] w-[88%] bg-[radial-gradient(circle_at_center,rgba(244,0,9,0.42)_0%,rgba(244,0,9,0.24)_34%,rgba(244,0,9,0.08)_60%,transparent_82%)]" />
+          <div className="pointer-events-none absolute -bottom-10 right-[-8%] h-28 w-40 rounded-full bg-[radial-gradient(circle_at_center,rgba(255,92,76,0.34)_0%,rgba(255,45,30,0.18)_40%,transparent_74%)] blur-[2px]" />
           <div className="flex items-center justify-center">
             <Image
               alt="Hizen logo"
