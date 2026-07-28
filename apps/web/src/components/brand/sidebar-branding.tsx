@@ -16,7 +16,7 @@ export function SidebarBranding({ compact = false }: SidebarBrandingProps) {
         aria-label="FizZion"
         className={cn(
           "relative flex-shrink-0",
-          compact ? "h-10 w-10" : "h-[3.1rem] w-[7.6rem]",
+          compact ? "h-10 w-10" : "h-[3.45rem] w-[9.4rem]",
         )}
         role="img"
       >
@@ -32,7 +32,7 @@ export function SidebarBranding({ compact = false }: SidebarBrandingProps) {
 
       {/* Attribution text - hidden in compact mode */}
       {!compact && (
-        <p className="mt-3 max-w-[128px] text-center text-[10.5px] font-medium leading-[1.45] tracking-[0.01em] text-white/66">
+        <p className="mt-3 max-w-[172px] text-center text-[11px] font-medium leading-[1.45] tracking-[0.01em] text-white/66">
           Coca-Cola Iraq media intelligence workspace
         </p>
       )}
