@@ -148,7 +148,7 @@ export function YouTubeTvMonitor({ initialChannels }: YouTubeTvMonitorProps) {
       }
 
       setChannels(refreshedPayload.items as ConnectedYouTubeTvChannel[]);
-      setStatus(`${channel.title} is now connected to TV Intelligence.`);
+      setStatus(`${channel.title} is now connected to TV.`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Unable to connect this YouTube channel.");
     } finally {
@@ -215,7 +215,7 @@ export function YouTubeTvMonitor({ initialChannels }: YouTubeTvMonitorProps) {
       }
 
       setChannels((current) => current.filter((item) => item.id !== channelId));
-      setStatus(`${channelTitle} disconnected from TV Intelligence.`);
+      setStatus(`${channelTitle} disconnected from TV.`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Unable to disconnect this channel.");
     } finally {
@@ -233,7 +233,7 @@ export function YouTubeTvMonitor({ initialChannels }: YouTubeTvMonitorProps) {
             </span>
             <h2 className="mt-3 text-2xl font-semibold text-foreground">Connect any YouTube channel you want to monitor</h2>
             <p className="mt-2 text-sm leading-7 text-muted-foreground">
-              Search for a channel, connect it once, and TV Intelligence will show the channel&apos;s current live stream,
+              Search for a channel, connect it once, and TV will show the channel&apos;s current live stream,
               upcoming broadcasts, and recent uploaded videos on this platform.
             </p>
           </div>

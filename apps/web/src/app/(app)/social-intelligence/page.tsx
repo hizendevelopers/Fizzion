@@ -2,6 +2,7 @@ import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 
 import { ConnectAccountWizard } from "@/components/social/connect-account-wizard";
+import { SocialAccountActions } from "@/components/social/social-account-actions";
 import { SocialExportButton } from "@/components/social/social-export-button";
 import { SocialProfileAvatar } from "@/components/social/social-profile-avatar";
 import { SocialTrendChart } from "@/components/social/social-trend-chart";
@@ -13,7 +14,9 @@ import {
   listSocialContent,
   type SocialAccountDetail,
   type SocialDashboardAccount,
+  type SocialPortfolioSummary,
 } from "@/lib/social-data";
+import { listSocialProviderAvailability } from "@/lib/social-providers";
 import { formatNumber } from "@/lib/social-utils";
 
 type TabKey = "brands" | "influencers" | "report";
@@ -49,6 +52,12 @@ function rangeToDays(range: RangeKey) {
 }
 
 function classifyPersona(account: SocialDashboardAccount) {
+  if (account.personaHint === "influencer") {
+    return "influencer" as const;
+  }
+  if (account.personaHint === "brand") {
+    return "brand" as const;
+  }
   const haystack = `${account.accountType} ${account.accountName} ${account.username}`.toLowerCase();
   if (/(creator|influencer|blogger|artist|personal|public figure|talent)/.test(haystack)) {
     return "influencer" as const;
@@ -84,6 +93,15 @@ function formatDisplayDate(value: string | null | undefined) {
   return new Date(value).toLocaleDateString("en-US", {
     day: "2-digit",
     month: "short",
+    year: "numeric",
+  });
+}
+
+function formatGeneratedDate() {
+  return new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
     year: "numeric",
   });
 }
@@ -213,58 +231,104 @@ export default async function SocialIntelligencePage({
   const q = getSingleSearchParam(resolvedSearchParams.q) ?? "";
   const contentType = getSingleSearchParam(resolvedSearchParams.contentType) ?? "all";
   const days = rangeToDays(range);
+  const providers = listSocialProviderAvailability();
+  const availableProviders = providers.filter((provider) => provider.available);
+  let dashboardError: string | null = null;
+  let summary: SocialPortfolioSummary = {
+    connectedAccounts: 0,
+    totalFollowers: 0,
+    totalFollowing: 0,
+    totalPublishedContent: 0,
+    totalReach: 0,
+    totalImpressions: 0,
+    totalViews: 0,
+    totalEngagements: 0,
+    averageEngagementRate: null,
+    followersGrowth: null,
+    totalLikes: 0,
+    totalComments: 0,
+    totalShares: 0,
+    totalSaves: 0,
+    totalWatchTimeSeconds: 0,
+    comparisonLabel: "Availability-aware totals",
+  };
+  let connections: SocialDashboardAccount[] = [];
+  let filteredConnections: SocialDashboardAccount[] = [];
+  let brands: SocialDashboardAccount[] = [];
+  let influencers: SocialDashboardAccount[] = [];
+  let activeConnections: SocialDashboardAccount[] = [];
+  let selectedConnection: SocialDashboardAccount | null = null;
+  let availableDetails: SocialAccountDetail[] = [];
+  let selectedDetail: SocialAccountDetail | null = null;
+  let selectedContent: Awaited<ReturnType<typeof listSocialContent>> = { items: [], total: 0 };
+  let reportDetails: SocialAccountDetail[] = [];
+  let aggregateTrend: ReturnType<typeof aggregateDetailTrend> = [];
+  let platformBars: ReturnType<typeof buildPlatformBars> = [];
+  let contentTypeShare: ReturnType<typeof buildContentTypeShare> = [];
+  let brandShare: ReturnType<typeof buildBrandShare> = [];
+  let totalReach = 0;
+  let totalEngagements = 0;
+  let totalViews = 0;
+  let totalFollowers = 0;
 
-  const [summary, connections] = await Promise.all([getSocialPortfolioSummary(), listSocialConnections()]);
-  const filteredConnections = connections
-    .filter((connection) => (platform === "all" ? true : connection.provider === platform))
-    .filter((connection) => passesPerformanceFilter(connection, performance));
+  try {
+    [summary, connections] = await Promise.all([getSocialPortfolioSummary(), listSocialConnections()]);
+    filteredConnections = connections
+      .filter((connection) => (platform === "all" ? true : connection.provider === platform))
+      .filter((connection) => passesPerformanceFilter(connection, performance));
 
-  const brands = filteredConnections.filter((connection) => classifyPersona(connection) === "brand");
-  const influencers = filteredConnections.filter((connection) => classifyPersona(connection) === "influencer");
-  const activeConnections = activeTab === "influencers" ? influencers : brands;
-  const selectedConnection = activeConnections.find((connection) => connection.id === selectedId) ?? activeConnections[0] ?? null;
+    brands = filteredConnections.filter((connection) => classifyPersona(connection) === "brand");
+    influencers = filteredConnections.filter((connection) => classifyPersona(connection) === "influencer");
+    activeConnections = activeTab === "influencers" ? influencers : brands;
+    selectedConnection = activeConnections.find((connection) => connection.id === selectedId) ?? activeConnections[0] ?? null;
 
-  const detailTargets =
-    activeTab === "report"
-      ? brands.slice(0, 5)
-      : selectedConnection
-        ? [selectedConnection]
+    const detailTargets =
+      activeTab === "report"
+        ? brands.slice(0, 5)
+        : selectedConnection
+          ? [selectedConnection]
+          : [];
+
+    const detailRecords = await Promise.all(
+      detailTargets.map((connection) => getSocialAccountDetail(connection.id, { days })),
+    );
+    availableDetails = detailRecords.filter((detail): detail is SocialAccountDetail => Boolean(detail));
+    selectedDetail = activeTab === "report" ? null : availableDetails[0] ?? null;
+    selectedContent =
+      selectedDetail != null
+        ? await listSocialContent(selectedDetail.id, {
+            days,
+            page: 1,
+            limit: 250,
+            sort: "engagements",
+            q: q || undefined,
+            contentType: contentType === "all" ? undefined : contentType,
+          })
+        : { items: [], total: 0 };
+
+    reportDetails =
+      activeTab === "report"
+        ? (
+            await Promise.all(
+              brands.slice(0, 5).map((connection) => getSocialAccountDetail(connection.id, { days })),
+            )
+          ).filter((detail): detail is SocialAccountDetail => Boolean(detail))
         : [];
 
-  const detailRecords = await Promise.all(
-    detailTargets.map((connection) => getSocialAccountDetail(connection.id, { days })),
-  );
-  const availableDetails = detailRecords.filter((detail): detail is SocialAccountDetail => Boolean(detail));
-  const selectedDetail = activeTab === "report" ? null : availableDetails[0] ?? null;
-  const selectedContent =
-    selectedDetail != null
-      ? await listSocialContent(selectedDetail.id, {
-          days,
-          page: 1,
-          limit: 8,
-          sort: "engagements",
-          q: q || undefined,
-          contentType: contentType === "all" ? undefined : contentType,
-        })
-      : { items: [], total: 0 };
-
-  const reportDetails =
-    activeTab === "report"
-      ? (
-          await Promise.all(
-            brands.slice(0, 5).map((connection) => getSocialAccountDetail(connection.id, { days })),
-          )
-        ).filter((detail): detail is SocialAccountDetail => Boolean(detail))
-      : [];
-
-  const aggregateTrend = aggregateDetailTrend(activeTab === "report" ? reportDetails : availableDetails);
-  const platformBars = buildPlatformBars(activeTab === "report" ? reportDetails : availableDetails);
-  const contentTypeShare = buildContentTypeShare(selectedContent.items);
-  const brandShare = buildBrandShare(reportDetails);
-  const totalReach = (activeTab === "report" ? reportDetails : availableDetails).reduce((sum, detail) => sum + (detail.reach ?? 0), 0);
-  const totalEngagements = (activeTab === "report" ? reportDetails : availableDetails).reduce((sum, detail) => sum + (detail.engagements ?? 0), 0);
-  const totalViews = (activeTab === "report" ? reportDetails : availableDetails).reduce((sum, detail) => sum + (detail.views ?? 0), 0);
-  const totalFollowers = (activeTab === "report" ? reportDetails : availableDetails).reduce((sum, detail) => sum + (detail.followers ?? 0), 0);
+    aggregateTrend = aggregateDetailTrend(activeTab === "report" ? reportDetails : availableDetails);
+    platformBars = buildPlatformBars(activeTab === "report" ? reportDetails : availableDetails);
+    contentTypeShare = buildContentTypeShare(selectedContent.items);
+    brandShare = buildBrandShare(reportDetails);
+    totalReach = (activeTab === "report" ? reportDetails : availableDetails).reduce((sum, detail) => sum + (detail.reach ?? 0), 0);
+    totalEngagements = (activeTab === "report" ? reportDetails : availableDetails).reduce((sum, detail) => sum + (detail.engagements ?? 0), 0);
+    totalViews = (activeTab === "report" ? reportDetails : availableDetails).reduce((sum, detail) => sum + (detail.views ?? 0), 0);
+    totalFollowers = (activeTab === "report" ? reportDetails : availableDetails).reduce((sum, detail) => sum + (detail.followers ?? 0), 0);
+  } catch (error) {
+    dashboardError =
+      error instanceof Error
+        ? error.message
+        : "Social data could not be loaded right now.";
+  }
 
   const commonParams = {
     range,
@@ -280,10 +344,10 @@ export default async function SocialIntelligencePage({
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-red">Unified social monitoring</p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground">Social Intelligence</h1>
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground">Social</h1>
             <p className="mt-3 max-w-4xl text-sm leading-7 text-muted-foreground">
-              Connect brand and influencer accounts, review content and performance from supported
-              connected sources, and generate comparison-ready reports without leaving the platform.
+              Connect brand and influencer accounts for Facebook, Instagram, YouTube, and TikTok,
+              then review imported content and performance without leaving the platform.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -291,6 +355,22 @@ export default async function SocialIntelligencePage({
             <PillStat label="Total followers" value={formatNumber(summary.totalFollowers)} />
             <PillStat label="Total engagements" value={formatNumber(summary.totalEngagements)} />
           </div>
+        </div>
+
+        <div className="mt-5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+          <span>{availableProviders.length} providers ready</span>
+          {providers.map((provider) => (
+            <span
+              key={provider.provider}
+              className={`rounded-full border px-3 py-1 ${
+                provider.available
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : "border-amber-200 bg-amber-50 text-amber-700"
+              }`}
+            >
+              {provider.label}
+            </span>
+          ))}
         </div>
 
         <div className="mt-6 flex flex-wrap gap-3 rounded-[1.5rem] border border-border bg-panel-soft/65 p-2">
@@ -342,6 +422,13 @@ export default async function SocialIntelligencePage({
         </form>
       </section>
 
+      {dashboardError ? (
+        <section className="rounded-[1.8rem] border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900 shadow-[var(--shadow-soft)]">
+          Social analytics data is temporarily unavailable right now.
+          <div className="mt-2 text-xs text-amber-800">{dashboardError}</div>
+        </section>
+      ) : null}
+
       {activeTab === "report" ? (
         <div className="space-y-6">
           <section className="grid gap-4 xl:grid-cols-5">
@@ -357,7 +444,7 @@ export default async function SocialIntelligencePage({
               <div>
                 <h2 className="text-xl font-semibold text-foreground">Executive summary</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Period: {range.replace("last", "Last ").replace("today", "Today")} | Generated on Thursday, July 23, 2026
+                  Period: {range.replace("last", "Last ").replace("today", "Today")} | Generated on {formatGeneratedDate()}
                 </p>
                 <p className="mt-3 max-w-4xl text-sm leading-7 text-muted-foreground">
                   This report compares connected brand accounts only. Unsupported metrics remain hidden instead of being zero-filled.
@@ -371,14 +458,14 @@ export default async function SocialIntelligencePage({
           </section>
 
           <section className="grid gap-6 xl:grid-cols-2">
-            <SocialTrendChart title="Reach comparison" metric="reach" points={aggregateTrend} color="#f40009" fill="rgba(244,0,9,0.12)" valueFormatter={formatNumber} />
-            <SocialTrendChart title="Engagement comparison" metric="engagements" points={aggregateTrend} color="#18a957" fill="rgba(24,169,87,0.14)" valueFormatter={formatNumber} />
-            <SocialTrendChart title="Views comparison" metric="views" points={aggregateTrend} color="#06b6d4" fill="rgba(6,182,212,0.14)" valueFormatter={formatNumber} />
-            <SocialTrendChart title="Followers growth" metric="followers" points={aggregateTrend} color="#8b5cf6" fill="rgba(139,92,246,0.14)" valueFormatter={formatNumber} />
+            <SocialTrendChart title="Reach comparison" metric="reach" points={aggregateTrend} color="#f40009" fill="rgba(244,0,9,0.12)" />
+            <SocialTrendChart title="Engagement comparison" metric="engagements" points={aggregateTrend} color="#18a957" fill="rgba(24,169,87,0.14)" />
+            <SocialTrendChart title="Views comparison" metric="views" points={aggregateTrend} color="#06b6d4" fill="rgba(6,182,212,0.14)" />
+            <SocialTrendChart title="Followers growth" metric="followers" points={aggregateTrend} color="#8b5cf6" fill="rgba(139,92,246,0.14)" />
           </section>
 
           <section className="grid gap-6 xl:grid-cols-2">
-            <CategoryBarCard title="Platform contribution" subtitle="Engagement contribution by connected platform" data={platformBars} formatter={formatNumber} />
+            <CategoryBarCard title="Platform contribution" subtitle="Engagement contribution by connected platform" data={platformBars} />
             <ShareOfVoiceCard title="Brand share" subtitle="Engagement-weighted brand share for the selected reporting scope" data={brandShare} />
           </section>
 
@@ -415,14 +502,17 @@ export default async function SocialIntelligencePage({
             <SummaryCard label="Views" value={formatNumber(totalViews)} note="Imported views and plays" />
           </section>
 
-          <ConnectAccountWizard />
+          <ConnectAccountWizard
+            personaHint={activeTab === "influencers" ? "influencer" : "brand"}
+            redirectTab={activeTab === "influencers" ? "influencers" : "brands"}
+          />
 
           <section className="rounded-[1.8rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-xl font-semibold text-foreground">{activeTab === "brands" ? "Connected brand accounts" : "Connected influencer accounts"}</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Select an account to review its overview and synchronized content without leaving the main Social Intelligence page.
+                  Select an account to review its overview and synchronized content without leaving the main Social page.
                 </p>
               </div>
               <SocialExportButton dateRange={range} format="pdf" label="Download PDF" />
@@ -466,6 +556,9 @@ export default async function SocialIntelligencePage({
                       <Link className="rounded-full border border-border bg-white px-4 py-2 text-sm font-medium text-foreground" href={`/social/accounts/${connection.id}`}>
                         Deep detail
                       </Link>
+                    </div>
+                    <div className="mt-4 border-t border-border pt-4">
+                      <SocialAccountActions connectionId={connection.id} />
                     </div>
                   </article>
                 ))
@@ -515,14 +608,14 @@ export default async function SocialIntelligencePage({
               {activeSubTab === "overview" ? (
                 <>
                   <section className="grid gap-6 xl:grid-cols-2">
-                    <SocialTrendChart title="Reach trend" metric="reach" points={selectedDetail.trend} color="#f40009" fill="rgba(244,0,9,0.12)" valueFormatter={formatNumber} />
-                    <SocialTrendChart title="Engagement trend" metric="engagements" points={selectedDetail.trend} color="#18a957" fill="rgba(24,169,87,0.14)" valueFormatter={formatNumber} />
-                    <SocialTrendChart title="Followers growth" metric="followers" points={selectedDetail.trend} color="#8b5cf6" fill="rgba(139,92,246,0.14)" valueFormatter={formatNumber} />
-                    <SocialTrendChart title="Views trend" metric="views" points={selectedDetail.trend} color="#06b6d4" fill="rgba(6,182,212,0.14)" valueFormatter={formatNumber} />
+                    <SocialTrendChart title="Reach trend" metric="reach" points={selectedDetail.trend} color="#f40009" fill="rgba(244,0,9,0.12)" />
+                    <SocialTrendChart title="Engagement trend" metric="engagements" points={selectedDetail.trend} color="#18a957" fill="rgba(24,169,87,0.14)" />
+                    <SocialTrendChart title="Followers growth" metric="followers" points={selectedDetail.trend} color="#8b5cf6" fill="rgba(139,92,246,0.14)" />
+                    <SocialTrendChart title="Views trend" metric="views" points={selectedDetail.trend} color="#06b6d4" fill="rgba(6,182,212,0.14)" />
                   </section>
 
                   <section className="grid gap-6 xl:grid-cols-2">
-                    <CategoryBarCard title="Platform performance" subtitle="Performance concentration for the selected account scope" data={platformBars} formatter={formatNumber} />
+                    <CategoryBarCard title="Platform performance" subtitle="Performance concentration for the selected account scope" data={platformBars} />
                     <ShareOfVoiceCard title="Content-type performance" subtitle="Current filtered mix of synchronized content" data={contentTypeShare} />
                   </section>
                 </>
@@ -530,27 +623,23 @@ export default async function SocialIntelligencePage({
                 <section className="rounded-[1.8rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <h2 className="text-xl font-semibold text-foreground">Synchronized Content</h2>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Published, tagged, collaboration, and mentioned content returned by the connected source where available.
-                      </p>
+                      <h2 className="text-xl font-semibold text-foreground">Content</h2>
                     </div>
-                    <span className="rounded-full bg-panel-soft px-3 py-2 text-xs text-muted-foreground">
-                      {selectedContent.total} matching items
-                    </span>
                   </div>
 
                   <div className="mt-5 grid gap-4 xl:grid-cols-2">
                     {selectedContent.items.length > 0 ? (
                       selectedContent.items.map((item) => (
                         <article className="rounded-[1.5rem] border border-border bg-panel-soft p-4" key={item.id}>
-                          {item.thumbnailUrl || item.mediaUrl ? (
+                          {resolveContentPreviewUrl(item.thumbnailUrl, item.mediaUrl) ? (
                             <div className="mb-4 overflow-hidden rounded-[1.2rem] border border-border bg-white">
-                              {item.mediaUrl && /\.(mp4|webm|mov)(\?|$)/i.test(item.mediaUrl) ? (
-                                <video className="h-64 w-full object-cover" controls poster={item.thumbnailUrl ?? undefined} preload="metadata" src={item.mediaUrl} />
-                              ) : (
-                                <img alt={item.title || item.caption || "Social content"} className="h-64 w-full object-cover" src={item.thumbnailUrl ?? item.mediaUrl ?? undefined} />
-                              )}
+                              <img
+                                alt={item.title || item.caption || "Social content"}
+                                className="h-64 w-full object-cover"
+                                loading="lazy"
+                                referrerPolicy="no-referrer"
+                                src={resolveContentPreviewUrl(item.thumbnailUrl, item.mediaUrl) ?? undefined}
+                              />
                             </div>
                           ) : null}
                           <div className="flex items-start justify-between gap-3">
@@ -653,4 +742,16 @@ function EmptyPanel({ title, description }: { title: string; description: string
       <p className="mt-2 leading-7">{description}</p>
     </div>
   );
+}
+
+function resolveContentPreviewUrl(thumbnailUrl: string | null, mediaUrl: string | null) {
+  if (thumbnailUrl) {
+    return thumbnailUrl;
+  }
+
+  if (mediaUrl && !/\.(mp4|webm|mov)(\?|$)/i.test(mediaUrl)) {
+    return mediaUrl;
+  }
+
+  return null;
 }

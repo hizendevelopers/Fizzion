@@ -25,7 +25,7 @@ export const moduleDefinitions: Record<string, ModuleDefinition> = {
     ],
   },
   tv: {
-    title: "TV Intelligence",
+    title: "TV",
     description:
       "Monitor Iraqi linear television with verified recordings, ad occurrence detection, five-second context clips, review queues, and channel-health monitoring.",
     status: "TV ingestion foundation",
@@ -42,10 +42,10 @@ export const moduleDefinitions: Record<string, ModuleDefinition> = {
     ],
   },
   social: {
-    title: "Social Intelligence",
+    title: "Social",
     description:
-      "Track owned and public social accounts through a connector architecture that clearly separates authorized analytics from legitimately public metrics.",
-    status: "Connector-ready social shell",
+      "Track owned and public social accounts through APIFY-backed Facebook, Instagram, TikTok, and YouTube scrapers while clearly separating authorized analytics from legitimately public metrics.",
+    status: "APIFY-backed social monitoring",
     dependencies: [
       "Approved OAuth apps for Meta, YouTube, TikTok, and X",
       "Platform-specific scopes and account authorization",
@@ -59,7 +59,7 @@ export const moduleDefinitions: Record<string, ModuleDefinition> = {
     ],
   },
   websites: {
-    title: "Web Advertising",
+    title: "Web",
     description:
       "Run Iraq-local website crawls, detect display units and native ads, preserve screenshot context, and deduplicate creatives while keeping every occurrence.",
     status: "Crawler orchestration shell",
@@ -76,7 +76,7 @@ export const moduleDefinitions: Record<string, ModuleDefinition> = {
     ],
   },
   ooh: {
-    title: "OOH Intelligence",
+    title: "OOH",
     description:
       "Manage manual OOH inventory, location mapping, vendor assignments, verification visits, and proof-of-display evidence.",
     status: "Manual inventory workflow",

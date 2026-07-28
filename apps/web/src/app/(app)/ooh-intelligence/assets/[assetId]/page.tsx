@@ -127,7 +127,7 @@ export default async function OohAssetDetailPage({ params }: PageProps) {
               </div>
               <div className="mt-6">
                 <Link href="/ooh-intelligence" className="text-sm font-medium text-brand-red">
-                  Back to OOH Intelligence
+                  Back to OOH
                 </Link>
               </div>
             </div>

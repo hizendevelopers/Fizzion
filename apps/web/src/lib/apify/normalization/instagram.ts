@@ -136,6 +136,9 @@ export function normalizeInstagramContent(
           : mt.includes("IMAGE") || mt.includes("image")
             ? "image"
             : "post";
+      const permalink =
+        toString(item.url ?? item.permalink ?? item.postUrl) ??
+        `https://www.instagram.com/${contentType === "reel" ? "reel" : "p"}/${code}/`;
 
       const hashtags = toStringArray(item.hashtags).length > 0
         ? toStringArray(item.hashtags)
@@ -191,7 +194,7 @@ export function normalizeInstagramContent(
         title: captionText ? captionText.split("\n")[0].slice(0, 120) : undefined,
         caption: captionText,
         description: captionText,
-        permalink: `https://www.instagram.com/p/${code}/`,
+        permalink,
         thumbnailUrl: firstImage,
         mediaUrls,
         hashtags,
@@ -201,6 +204,8 @@ export function normalizeInstagramContent(
         publishedAt: toDate(item.timestamp ?? item.taken_at_timestamp ?? item.createdAt),
         durationSeconds: toNumber(item.videoDuration ?? item.duration ?? item.video_duration),
         views: views ?? plays,
+        reach: toNumber(item.reach) ?? toNumber(item.accountsReached) ?? views ?? plays,
+        impressions: toNumber(item.impressions),
         likes,
         comments,
         shares,
@@ -222,11 +227,17 @@ export function normalizeInstagramComments(
 
   for (const item of items) {
     const commentData = item.comments as Record<string, unknown> | undefined;
+    const latestComments = Array.isArray(item.latestComments)
+      ? (item.latestComments as Record<string, unknown>[])
+      : [];
     const edges = (getNested(commentData ?? {}, "data") ?? item.edge_media_to_comment) as
       | Record<string, unknown>[]
       | { edges?: Record<string, unknown>[] }
       | undefined;
-    const edgeList = Array.isArray(edges) ? edges : edges?.edges ?? [];
+    const edgeList = [
+      ...(Array.isArray(edges) ? edges : edges?.edges ?? []),
+      ...latestComments,
+    ];
 
     for (const edge of edgeList) {
       const node = (edge.node ?? edge) as Record<string, unknown>;

@@ -155,10 +155,10 @@ class BaseSocialProvider implements SocialProvider {
         profileImageUrl: "",
         publicProfileUrl: normalized.normalizedUrl,
         verified: false,
-        description: "This is a normalized scrape target. Real profile details will appear after Apify import completes.",
+        description: "This is a normalized import target. Real profile details will appear after synchronization completes.",
       },
       mode: "live",
-      warnings: hasApifyToken ? [] : ["APIFY_API_TOKEN is not configured."],
+      warnings: hasApifyToken ? [] : ["The social data source token is not configured."],
     };
   }
 

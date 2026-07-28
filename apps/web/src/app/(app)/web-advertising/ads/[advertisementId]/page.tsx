@@ -50,7 +50,7 @@ export default async function WebAdvertisingAdDetailPage(
             </p>
           </div>
           <Link className="text-sm font-semibold text-brand-red" href="/web-advertising">
-            Back to Web Advertising
+            Back to Web
           </Link>
         </div>
       </section>

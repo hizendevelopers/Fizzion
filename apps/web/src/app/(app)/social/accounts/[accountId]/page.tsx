@@ -9,7 +9,7 @@ import { CategoryBarCard, RadialStatCard, ShareOfVoiceCard } from "@/components/
 import { getSocialAccountDetail, listSocialContent } from "@/lib/social-data";
 import { formatNumber } from "@/lib/social-utils";
 
-const CONTENT_PAGE_SIZE = 12;
+const CONTENT_PAGE_SIZE = 250;
 
 export default async function SocialAccountDetailPage({
   params,
@@ -100,12 +100,6 @@ export default async function SocialAccountDetailPage({
       note: "Based on currently filtered content",
     }))
     .sort((left, right) => right.share - left.share);
-  const followersRatioDisplay =
-    detail.insights.followersToFollowingRatio != null
-      ? `${detail.insights.followersToFollowingRatio.toFixed(2)}x`
-      : detail.following === 0 && detail.followers != null
-        ? `${formatNumber(detail.followers)}:0`
-        : "Not available";
   const currentRangeLabel =
     days === 1
       ? "Today"
@@ -178,24 +172,6 @@ export default async function SocialAccountDetailPage({
                 delta={formatDelta(detail.historyRows[0]?.mediaCountDelta ?? null)}
                 positive={detail.historyRows[0]?.mediaCountDelta != null ? (detail.historyRows[0]?.mediaCountDelta ?? 0) >= 0 : null}
               />
-            </div>
-
-            <div className="rounded-[1.6rem] border border-border bg-panel-soft p-4" id="overview">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Real data coverage</p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Imported through Apify public scraping. Original profile picture, synchronized content,
-                    captions, hashtags, and metrics only appear when the source actually returns them.
-                  </p>
-                </div>
-                <a
-                  className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-foreground transition hover:bg-brand-red hover:text-white"
-                  href="#connection-health"
-                >
-                  View sync health
-                </a>
-              </div>
             </div>
 
             <div className="flex flex-wrap items-center justify-end gap-3">
@@ -291,66 +267,46 @@ export default async function SocialAccountDetailPage({
         </form>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-6" id="insights">
+      <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-4" id="insights">
         <InsightCard
-          label="30-Day Follower Growth"
-          note="Real snapshot delta"
-          value={formatPercent(detail.insights.followerGrowthRate30Days)}
+          label="Total Followers"
+          note="Current account total"
+          value={formatNumber(detail.followers)}
         />
         <InsightCard
-          label="60-Day Follower Growth"
-          note="Real snapshot delta"
-          value={formatPercent(detail.insights.followerGrowthRate60Days)}
+          label="Total Following"
+          note="Current account total"
+          value={formatNumber(detail.following)}
         />
         <InsightCard
-          label="30-Day ER"
-          note="Derived from imported actions"
-          value={formatPercent(detail.insights.averageEngagementRateLast30Days)}
+          label="Total Posts"
+          note="Imported published content"
+          value={formatNumber(detail.contentCount)}
         />
         <InsightCard
-          label="60-Day ER"
-          note="Derived from imported actions"
-          value={formatPercent(detail.insights.averageEngagementRateLast60Days)}
+          label="Reach"
+          note="Current available total"
+          value={formatNumber(detail.reach)}
         />
         <InsightCard
-          label="Posts in 30 Days"
-          note="Published content"
-          value={formatNumber(detail.insights.postsLast30Days)}
+          label="Engagement"
+          note="Likes divided by views when the source does not return a rate"
+          value={formatPercent(detail.engagementRateByFollowers)}
         />
         <InsightCard
-          label="Posts in 60 Days"
-          note="Published content"
-          value={formatNumber(detail.insights.postsLast60Days)}
+          label="Total Likes"
+          note="Imported total likes"
+          value={formatNumber(detail.totalLikes)}
         />
         <InsightCard
-          label="Weekly Followers"
-          note="Net gain over 7 days"
-          value={formatNumber(detail.insights.weeklyFollowerGain)}
+          label="Total Comments"
+          note="Imported total comments"
+          value={formatNumber(detail.totalComments)}
         />
         <InsightCard
-          label="Weekly Posts"
-          note="Published in last 7 days"
-          value={formatNumber(detail.insights.weeklyPosts)}
-        />
-        <InsightCard
-          label="Average Likes"
-          note="Last 30 days"
-          value={formatNumber(detail.insights.averageLikesLast30Days)}
-        />
-        <InsightCard
-          label="Average Comments"
-          note="Last 30 days"
-          value={formatNumber(detail.insights.averageCommentsLast30Days)}
-        />
-        <InsightCard
-          label="Followers Ratio"
-          note="Followers / following"
-          value={followersRatioDisplay}
-        />
-        <InsightCard
-          label="Comments / Post"
-          note="Last 30 days"
-          value={detail.insights.commentsPerPostLast30Days != null ? detail.insights.commentsPerPostLast30Days.toFixed(2) : "Not available"}
+          label="Total Mentions"
+          note="Mentions and tags across imported content"
+          value={formatNumber(detail.insights.totalMentions)}
         />
       </section>
 
@@ -361,7 +317,6 @@ export default async function SocialAccountDetailPage({
           points={detail.trend}
           color="#22c55e"
           fill="rgba(34,197,94,0.14)"
-          valueFormatter={formatNumber}
         />
         <SocialTrendChart
           title={`Following | ${currentRangeLabel}`}
@@ -369,7 +324,6 @@ export default async function SocialAccountDetailPage({
           points={detail.trend}
           color="#06b6d4"
           fill="rgba(6,182,212,0.14)"
-          valueFormatter={formatNumber}
         />
         <SocialTrendChart
           title={`Engagement Rate | ${currentRangeLabel}`}
@@ -377,7 +331,6 @@ export default async function SocialAccountDetailPage({
           points={detail.trend}
           color="#fb923c"
           fill="rgba(251,146,60,0.14)"
-          valueFormatter={(value) => formatPercent(value)}
         />
         <SocialTrendChart
           title={`Average Likes | ${currentRangeLabel}`}
@@ -385,7 +338,6 @@ export default async function SocialAccountDetailPage({
           points={detail.trend}
           color="#ef4444"
           fill="rgba(239,68,68,0.14)"
-          valueFormatter={formatNumber}
         />
         <SocialTrendChart
           title={`Average Comments | ${currentRangeLabel}`}
@@ -393,7 +345,6 @@ export default async function SocialAccountDetailPage({
           points={detail.trend}
           color="#8b5cf6"
           fill="rgba(139,92,246,0.14)"
-          valueFormatter={formatNumber}
         />
         <SocialTrendChart
           title={`Engagements | ${currentRangeLabel}`}
@@ -401,7 +352,6 @@ export default async function SocialAccountDetailPage({
           points={detail.trend}
           color="#f59e0b"
           fill="rgba(245,158,11,0.16)"
-          valueFormatter={formatNumber}
         />
       </section>
 
@@ -410,7 +360,6 @@ export default async function SocialAccountDetailPage({
           data={hashtagPerformance}
           subtitle="Top hashtags ranked by real imported engagement totals"
           title="Hashtag Performance"
-          formatter={formatNumber}
           emptyLabel="No hashtag performance data is available for this account yet."
         />
         <RadialStatCard
@@ -428,7 +377,6 @@ export default async function SocialAccountDetailPage({
           data={metricAvailability}
           subtitle="Current imported totals across the account summary"
           title="Account Metric Mix"
-          formatter={formatNumber}
           emptyLabel="No account-level metric mix is available yet."
         />
         <ShareOfVoiceCard
@@ -515,7 +463,7 @@ export default async function SocialAccountDetailPage({
               <p>Next sync: {detail.nextSyncAt ?? "Not scheduled"}</p>
             </div>
             <div className="mt-5 border-t border-border pt-4">
-              <SocialAccountActions connectionId={detail.id} />
+              <SocialAccountActions connectionId={detail.id} redirectToOnRemove="/social-intelligence" />
             </div>
           </div>
 
@@ -547,17 +495,7 @@ export default async function SocialAccountDetailPage({
       <section className="rounded-[1.9rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]" id="content-feed">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <h2 className="text-xl font-semibold text-foreground">Synchronized Content</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Real imported posts and reels with original captions, hashtags, likes, views, comments,
-              shares, saves, and any other source-returned metrics.
-            </p>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Showing {content.items.length} of {content.total} matching records for the current filters.
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Account summary currently reports {formatNumber(detail.contentCount)} total published items from the connected source.
-            </p>
+            <h2 className="text-xl font-semibold text-foreground">Content</h2>
           </div>
           <span className="rounded-full bg-panel-soft px-3 py-2 text-xs text-muted-foreground">
             Sorted by {sort.replaceAll("_", " ")}
@@ -568,13 +506,14 @@ export default async function SocialAccountDetailPage({
           {content.items.length > 0 ? (
             content.items.map((item) => (
               <article className="rounded-[1.5rem] border border-border bg-panel-soft p-4" key={item.id}>
-                {item.thumbnailUrl || item.mediaUrl ? (
+                {resolvePreviewUrl(item) ? (
                   <div className="mb-4 overflow-hidden rounded-[1.25rem] border border-border bg-white">
                     <img
                       alt={item.title || item.caption || "Synchronized social content preview"}
                       className="h-64 w-full object-cover"
                       loading="lazy"
-                      src={item.thumbnailUrl ?? item.mediaUrl ?? undefined}
+                      referrerPolicy="no-referrer"
+                      src={resolvePreviewUrl(item) ?? undefined}
                     />
                   </div>
                 ) : null}
@@ -877,4 +816,19 @@ function buildAccountHref(accountId: string, params: Record<string, string>) {
   }
   const query = search.toString();
   return query ? `/social/accounts/${accountId}?${query}#content-feed` : `/social/accounts/${accountId}#content-feed`;
+}
+
+function resolvePreviewUrl(item: {
+  thumbnailUrl: string | null;
+  mediaUrl: string | null;
+}) {
+  if (item.thumbnailUrl) {
+    return item.thumbnailUrl;
+  }
+
+  if (item.mediaUrl && !/\.(mp4|webm|mov)(\?|$)/i.test(item.mediaUrl)) {
+    return item.mediaUrl;
+  }
+
+  return null;
 }

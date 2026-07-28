@@ -1,17 +1,60 @@
 import { z } from "zod";
+import type { Brand, Campaign, TvCampaignChannel, TvChannel } from "../../../../packages/types/src/supabase";
 
+import { isBeverageScopedBrand } from "@/lib/beverage-scope";
 import { getOptionalSupabaseAdminClient } from "@/lib/supabase/server";
 
 const ORGANIZATION_SLUG = "coca_cola_iraq";
+const BAGHDAD_OFFSET = "+03:00";
+const DEFAULT_TIMEZONE = "Asia/Baghdad";
+const DEFAULT_CURRENCY = "PKR";
+const TV_DATA_SOURCES = ["tv_dashboard_seed_v2", "uploaded_asset_seed"] as const;
+const TV_SORT_FIELDS = [
+  "detected_at",
+  "brand",
+  "channel",
+  "duration",
+  "cost",
+  "sov",
+] as const;
+const DAYPARTS = [
+  "Morning",
+  "Afternoon",
+  "Evening",
+  "Pre Prime Time",
+  "Prime Time",
+  "Late Prime Time",
+] as const;
+const DEMO_PREVIEW_URL = "/demo/tv/manual-detections/bonus-02.mp4";
+const DEMO_PREVIEW_POSTER = "/demo/tv/manual-detections/bonus-02.jpg";
+const TV_LATEST_AVAILABLE_DATA_DATE = "2026-07-25";
+const TV_WATCHLIST_BRANDS = [
+  { name: "Coca-Cola", color: "#DC2626" },
+  { name: "Pepsi", color: "#2563EB" },
+  { name: "7UP", color: "#16A34A" },
+  { name: "Mirinda", color: "#F58220" },
+  { name: "Mountain Dew", color: "#78BE20" },
+  { name: "RC Cola", color: "#7A1F2B" },
+] as const;
 
-// ────────────────── Zod Schemas ──────────────────
+export const tvPresetSchema = z.enum([
+  "last7",
+  "last30",
+  "last90",
+  "last6m",
+  "last12m",
+  "last2y",
+  "custom",
+]);
 
-export const tvPresetSchema = z.enum(["last7", "last30", "last90", "thisMonth", "previousMonth", "custom"]);
 const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const uuidArraySchema = z.array(z.string().uuid());
+const sortFieldSchema = z.enum(TV_SORT_FIELDS);
+const sortDirectionSchema = z.enum(["asc", "desc"]);
 
 export type TvPreset = z.infer<typeof tvPresetSchema>;
-
-// ────────────────── Types ──────────────────
+export type TvSortField = z.infer<typeof sortFieldSchema>;
+export type TvSortDirection = z.infer<typeof sortDirectionSchema>;
 
 export type TvFilters = {
   preset: TvPreset;
@@ -20,310 +63,520 @@ export type TvFilters = {
   brandIds: string[];
   campaignIds: string[];
   channelIds: string[];
-  genres: string[];
-  dayparts: string[];
-  languages: string[];
-  page: number;
-  pageSize: number;
-  sortBy: string;
-  sortDirection: string;
+  timezone: string;
   activeFilterCount: number;
 };
 
-export type TvFilterOptions = {
-  brands: Array<{ id: string; name: string; color: string; logoUrl: string | null }>;
-  campaigns: Array<{ id: string; name: string; brandId: string | null; brandName: string; status: string }>;
-  channels: Array<{ id: string; name: string; slug: string; logoUrl: string | null; genre: string; language: string }>;
-  genres: string[];
-  dayparts: string[];
-  languages: string[];
+export type TvDetectedAdsFilters = TvFilters & {
+  search?: string;
+  sortBy: TvSortField;
+  sortDirection: TvSortDirection;
+  page: number;
+  pageSize: number;
+};
+
+type NormalizedTvFilters = TvFilters & {
+  start: Date;
+  end: Date;
+};
+
+type NormalizedDetectedAdsFilters = TvDetectedAdsFilters & {
+  start: Date;
+  end: Date;
+};
+
+type TvBrandOption = {
+  id: string;
+  name: string;
+  slug: string | null;
+  color: string;
+  logoUrl: string | null;
+  initials: string;
+};
+
+type TvCampaignOption = {
+  id: string;
+  name: string;
+  brandId: string | null;
+  brandName: string;
+  status: string;
+  startDate: string | null;
+  endDate: string | null;
+  includesTv: boolean;
+  selectedButUnavailable?: boolean;
+};
+
+type TvChannelOption = {
+  id: string;
+  name: string;
+  slug: string;
+  genre: string;
+  language: string;
+  initials: string;
+};
+
+type TvFilterOptionsResponse = {
+  brands: TvBrandOption[];
+  campaigns: TvCampaignOption[];
+  channels: TvChannelOption[];
+  dateBounds: {
+    min: string;
+    max: string;
+  };
   presets: Array<{ id: TvPreset; label: string }>;
 };
 
-export type TvKpi = {
+type TvKpiResponse = {
   value: number;
   previousValue: number;
   changePercent: number | null;
   description: string;
-  trend: Array<{ key: string; label: string; value: number }>;
+  comparisonLabel: string;
 };
 
-export type TvTimeSeriesPoint = {
+type TvTrendBucket = {
   key: string;
   label: string;
-  total: number;
-  brands: Array<{ brandId: string; brandName: string; color: string; value: number }>;
+  startDate: string;
+  endDate: string;
+  totalSpend: number;
+  brands: Array<{
+    brandId: string;
+    brandName: string;
+    color: string;
+    spend: number;
+    shareOfBucket: number;
+  }>;
 };
 
-export type TvSovEntry = {
+type TvBrandBreakdownItem = {
+  brandId: string;
+  brandName: string;
+  color: string;
+  logoUrl: string | null;
+  initials: string;
+  spend: number;
+  shareOfTotal: number;
+  previousSpend: number;
+  changePercent: number | null;
+};
+
+type TvBrandSovItem = {
   brandId: string;
   brandName: string;
   color: string;
   spend: number;
   percentage: number;
+  displayPercentage: number;
   activeCampaignCount: number;
 };
 
-export type TvChannelSplitEntry = {
-  channelId: string;
-  channelName: string;
-  spend: number;
-  percentage: number;
-  detectionCount: number;
-  activeCampaignCount: number;
-};
-
-export type TvActiveCampaign = {
+type TvActiveCampaignItem = {
   id: string;
   name: string;
   brandId: string | null;
   brandName: string;
   brandColor: string;
-  brandLogo: string | null;
+  brandLogoUrl: string | null;
+  initials: string;
   status: string;
   startDate: string | null;
   endDate: string | null;
-  channels: Array<{ id: string; name: string }>;
+  connectedChannels: Array<{ id: string; name: string }>;
+  connectedChannelCount: number;
+  detectedAdsCount: number;
   totalSpend: number;
-  detectionCount: number;
 };
 
-export type TvActiveBrand = {
+type TvChannelSplitItem = {
+  channelId: string;
+  channelName: string;
+  slug: string;
+  genre: string;
+  language: string;
+  initials: string;
+  spend: number;
+  percentage: number;
+  displayPercentage: number;
+  detectedAdsCount: number;
+};
+
+type TvActiveBrandItem = {
   brandId: string;
   brandName: string;
   brandColor: string;
   logoUrl: string | null;
+  initials: string;
   activeCampaignCount: number;
+  connectedChannelCount: number;
   totalSpend: number;
-  channelCount: number;
-  detectionCount: number;
-  status: "Active";
+  status: "Active" | "Tracked";
 };
 
 export type TvDetectedAd = {
   id: string;
-  channelId: string;
   channelName: string;
   channelSlug: string;
   genre: string;
-  detectedAt: string;
   date: string;
   time: string;
   month: string;
-  brandName: string | null;
-  brandColor: string | null;
+  brandName: string;
   daypart: string;
   language: string;
   durationSeconds: number;
-  copyName: string | null;
+  copyName: string;
   cost: number;
-  currency: string;
   sovPercentage: number;
-  creativeUrl: string | null;
-  confidenceScore: number;
-  reviewStatus: string;
+  previewUrl: string;
+  previewPosterUrl: string | null;
+  isDemoMedia: boolean;
+  isUploadedAsset: boolean;
   campaignName: string | null;
+  sortDetectedAt: string;
+};
+
+export type TvDetectedAdsResponse = {
+  items: TvDetectedAd[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    totalItems: number;
+    totalPages: number;
+  };
+  totals: {
+    filteredCost: number;
+  };
 };
 
 export type TvOverviewResponse = {
   filters: TvFilters;
   summary: {
-    title: string;
+    title: "TV";
     description: string;
     currency: string;
     rangeLabel: string;
     activeFilterCount: number;
+    lastUpdatedAt: string | null;
+    latestDataDate: string | null;
   };
-  filterOptions: TvFilterOptions;
+  filterOptions: TvFilterOptionsResponse;
   kpis: {
-    activeBrands: TvKpi;
-    activeCampaigns: TvKpi;
-    totalSpending: TvKpi;
+    activeBrands: TvKpiResponse;
+    activeCampaigns: TvKpiResponse;
+    activeChannels: TvKpiResponse;
+    totalSpend: TvKpiResponse;
   };
-  spending: {
-    timeSeries: TvTimeSeriesPoint[];
-    totalsByBrand: Array<{
-      brandId: string;
-      brandName: string;
-      color: string;
-      totalSpend: number;
-      percentage: number;
-      previousTotalSpend: number;
-      previousChangePercent: number | null;
-    }>;
-    total: number;
-    currency: string;
+  spendingTrend: {
+    granularity: "daily" | "weekly" | "monthly";
+    totalSpend: number;
+    previousTotalSpend: number;
+    changePercent: number | null;
+    representedBrandCount: number;
+    buckets: TvTrendBucket[];
   };
-  shareOfVoice: TvSovEntry[];
-  channelSplit: TvChannelSplitEntry[];
-  activeCampaigns: {
-    items: TvActiveCampaign[];
-    total: number;
-    page: number;
-    pageSize: number;
-    hasMore: boolean;
+  brandSpendBreakdown: TvBrandBreakdownItem[];
+  brandSov: TvBrandSovItem[];
+  activeCampaigns: TvActiveCampaignItem[];
+  channelSplit: TvChannelSplitItem[];
+  activeBrands: TvActiveBrandItem[];
+  reconciliation: {
+    totalSpend: number;
+    chartTotal: number;
+    brandBreakdownTotal: number;
+    channelSplitTotal: number;
+    detectedAdsCostTotal: number;
   };
-  activeBrands: TvActiveBrand[];
   states: {
     isEmpty: boolean;
     emptyReason: string | null;
   };
 };
 
-// ────────────────── Helpers ──────────────────
+type DetectionRow = {
+  id: string;
+  brandId: string | null;
+  campaignId: string | null;
+  channelId: string;
+  detectedAt: string;
+  durationSeconds: number;
+  cost: number;
+  currency: string;
+  genre: string;
+  language: string;
+  daypart: string;
+  copyName: string;
+  creativeUrl: string | null;
+  previewPosterUrl: string | null;
+  isUploadedAsset: boolean;
+  source: string;
+};
 
-function startOfDay(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+type CampaignRecord = {
+  id: string;
+  brandId: string | null;
+  name: string;
+  status: string;
+  startDate: string | null;
+  endDate: string | null;
+  includesTv: boolean;
+};
+
+type ChannelRecord = {
+  id: string;
+  name: string;
+  slug: string;
+  genre: string;
+  language: string;
+};
+
+type BrandRecord = {
+  id: string;
+  name: string;
+  slug: string | null;
+  category: string | null;
+  color: string;
+  logoUrl: string | null;
+};
+
+type TvDataset = {
+  organizationId: string;
+  brands: BrandRecord[];
+  channels: ChannelRecord[];
+  campaigns: CampaignRecord[];
+  campaignChannels: Map<string, Set<string>>;
+  detections: DetectionRow[];
+  dateBounds: {
+    min: string | null;
+    max: string | null;
+  };
+};
+
+function startOfDayUtc(date: Date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 }
 
-function endOfDay(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
+function endOfDayUtc(date: Date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 23, 59, 59, 999));
 }
 
-function formatIsoDate(date: Date): string {
+function parseIsoDate(value: string) {
+  return new Date(`${value}T00:00:00.000Z`);
+}
+
+function formatIsoDate(date: Date) {
   return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, "0"),
-    String(date.getDate()).padStart(2, "0"),
+    date.getUTCFullYear(),
+    String(date.getUTCMonth() + 1).padStart(2, "0"),
+    String(date.getUTCDate()).padStart(2, "0"),
   ].join("-");
 }
 
-function addDays(date: Date, value: number): Date {
+function addDaysUtc(date: Date, days: number) {
   const next = new Date(date);
-  next.setDate(next.getDate() + value);
+  next.setUTCDate(next.getUTCDate() + days);
   return next;
 }
 
-function daysBetweenInclusive(start: Date, end: Date): number {
-  return Math.max(1, Math.floor((endOfDay(end).getTime() - startOfDay(start).getTime()) / 86_400_000) + 1);
+function daysBetweenInclusive(start: Date, end: Date) {
+  return Math.max(1, Math.floor((endOfDayUtc(end).getTime() - startOfDayUtc(start).getTime()) / 86_400_000) + 1);
 }
 
-function safePercentChange(current: number, previous: number): number | null {
-  if (previous === 0) return current === 0 ? 0 : null;
-  return ((current - previous) / previous) * 100;
-}
-
-function sumAmounts(records: Array<{ amount: number }>): number {
-  return Number(records.reduce((sum, r) => sum + r.amount, 0).toFixed(2));
-}
-
-function formatRangeLabel(startDate: Date, endDate: Date): string {
-  return `${formatIsoDate(startDate)} to ${formatIsoDate(endDate)}`;
-}
-
-// ────────────────── Date Range Builder ──────────────────
-
-function buildDateRange(preset: TvPreset, customStart?: string, customEnd?: string): { start: Date; end: Date } {
-  const today = startOfDay(new Date());
-  if (preset === "custom") {
-    const start = customStart ? startOfDay(new Date(`${customStart}T00:00:00`)) : addDays(today, -29);
-    const end = customEnd ? endOfDay(new Date(`${customEnd}T00:00:00`)) : endOfDay(today);
-    return { start, end };
+function safePercentChange(current: number, previous: number) {
+  if (previous === 0) {
+    return current === 0 ? 0 : null;
   }
-  if (preset === "last7") return { start: addDays(today, -6), end: endOfDay(today) };
-  if (preset === "last90") return { start: addDays(today, -89), end: endOfDay(today) };
-  if (preset === "thisMonth") {
-    const start = new Date(today.getFullYear(), today.getMonth(), 1);
-    return { start, end: endOfDay(today) };
-  }
-  if (preset === "previousMonth") {
-    const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-    const end = new Date(today.getFullYear(), today.getMonth(), 0, 23, 59, 59, 999);
-    return { start, end };
-  }
-  return { start: addDays(today, -29), end: endOfDay(today) };
+  return Number((((current - previous) / previous) * 100).toFixed(2));
 }
 
-// ────────────────── Bucket Builder ──────────────────
+export function calculateDetectedAdSov(cost: number, totalCost: number) {
+  if (totalCost <= 0) return 0;
+  return Number(((cost / totalCost) * 100).toFixed(4));
+}
 
-function buildBuckets(startDate: Date, endDate: Date): Array<{ key: string; label: string; start: Date; end: Date }> {
+function sumMoney(values: number[]) {
+  return Number(values.reduce((sum, value) => sum + value, 0).toFixed(2));
+}
+
+function getInitials(name: string) {
+  const parts = name.split(/[\s/-]+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return parts.slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("");
+  }
+  return name.slice(0, 2).toUpperCase();
+}
+
+function getBrandColor(brand: Pick<BrandRecord, "slug" | "color">) {
+  const fallbackMap: Record<string, string> = {
+    "zain-iraq": "#7C3AED",
+    asiacell: "#F59E0B",
+    "korek-telecom": "#E11D48",
+    pepsi: "#2563EB",
+    "coca-cola": "#DC2626",
+    samsung: "#1D4ED8",
+    lg: "#C026D3",
+    toyota: "#EA580C",
+    kia: "#B45309",
+    hyundai: "#0F766E",
+    nestle: "#0891B2",
+    unilever: "#4F46E5",
+    huawei: "#BE123C",
+    careem: "#16A34A",
+    talabat: "#F97316",
+    carrefour: "#0284C7",
+    visa: "#1E3A8A",
+    mastercard: "#D97706",
+    tapal: "#92400E",
+    lifebuoy: "#047857",
+    bonus: "#EAB308",
+  };
+  if (brand.slug && fallbackMap[brand.slug]) {
+    return fallbackMap[brand.slug];
+  }
+  if (brand.color.trim().length > 0) {
+    return brand.color;
+  }
+  return "#EF4444";
+}
+
+function formatRangeLabel(startDate: string, endDate: string) {
+  return `${startDate} to ${endDate}`;
+}
+
+function getBaghdadDateTimeParts(value: string) {
+  const formatter = new Intl.DateTimeFormat("en-GB", {
+    timeZone: DEFAULT_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+  const parts = formatter.formatToParts(new Date(value));
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? "";
+  return {
+    day: get("day"),
+    month: get("month"),
+    year: get("year"),
+    hour: get("hour"),
+    minute: get("minute"),
+    dayPeriod: get("dayPeriod").toUpperCase(),
+  };
+}
+
+export function deriveTvDaypart(value: string | Date) {
+  const date = value instanceof Date ? value : new Date(value);
+  const hour = Number(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: DEFAULT_TIMEZONE,
+      hour: "2-digit",
+      hour12: false,
+    }).format(date),
+  );
+
+  if (hour >= 5 && hour < 12) return "Morning";
+  if (hour >= 12 && hour < 17) return "Afternoon";
+  if (hour >= 17 && hour < 19) return "Evening";
+  if (hour >= 19 && hour < 20) return "Pre Prime Time";
+  if (hour >= 20 && hour < 23) return "Prime Time";
+  return "Late Prime Time";
+}
+
+export function campaignOverlapsSelectedRange(
+  campaign: Pick<CampaignRecord, "startDate" | "endDate" | "status" | "includesTv">,
+  startDate: Date,
+  endDate: Date,
+) {
+  if (!campaign.includesTv) return false;
+  if (campaign.status.toLowerCase() !== "active") return false;
+
+  const startsAt = campaign.startDate ? parseIsoDate(campaign.startDate) : null;
+  const endsAt = campaign.endDate ? endOfDayUtc(parseIsoDate(campaign.endDate)) : null;
+
+  if (startsAt && startsAt.getTime() > endDate.getTime()) return false;
+  if (endsAt && endsAt.getTime() < startDate.getTime()) return false;
+  return true;
+}
+
+export function getTvGranularity(startDate: Date, endDate: Date) {
   const totalDays = daysBetweenInclusive(startDate, endDate);
-  const strategy = totalDays <= 31 ? "day" : totalDays <= 120 ? "week" : "month";
-  const buckets: Array<{ key: string; label: string; start: Date; end: Date }> = [];
-  let cursor = startOfDay(startDate);
-
-  while (cursor.getTime() <= endDate.getTime()) {
-    if (strategy === "day") {
-      buckets.push({
-        key: formatIsoDate(cursor),
-        label: cursor.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-        start: startOfDay(cursor),
-        end: endOfDay(cursor),
-      });
-      cursor = addDays(cursor, 1);
-    } else if (strategy === "week") {
-      const bucketStart = startOfDay(cursor);
-      const bucketEnd = endOfDay(addDays(bucketStart, 6));
-      const clippedEnd = bucketEnd.getTime() > endDate.getTime() ? endOfDay(endDate) : bucketEnd;
-      buckets.push({
-        key: `${formatIsoDate(bucketStart)}-${formatIsoDate(clippedEnd)}`,
-        label: `${bucketStart.toLocaleDateString("en-US", { month: "short", day: "numeric" })}-${clippedEnd.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
-        start: bucketStart,
-        end: clippedEnd,
-      });
-      cursor = addDays(bucketStart, 7);
-    } else {
-      const bucketStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
-      const bucketEnd = endOfDay(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0));
-      const clippedEnd = bucketEnd.getTime() > endDate.getTime() ? endOfDay(endDate) : bucketEnd;
-      buckets.push({
-        key: `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`,
-        label: cursor.toLocaleDateString("en-US", { month: "short", year: "2-digit" }),
-        start: bucketStart,
-        end: clippedEnd,
-      });
-      cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
-    }
-  }
-  return buckets;
+  if (totalDays <= 45) return "daily" as const;
+  if (totalDays <= 180) return "weekly" as const;
+  return "monthly" as const;
 }
 
-// ────────────────── Filter Normalization ──────────────────
+function buildDateRange(preset: TvPreset, customStart?: string, customEnd?: string) {
+  const latestAvailableDate = startOfDayUtc(parseIsoDate(TV_LATEST_AVAILABLE_DATA_DATE));
+  if (preset === "custom") {
+    const start = customStart ? startOfDayUtc(parseIsoDate(customStart)) : addDaysUtc(latestAvailableDate, -29);
+    const end = customEnd ? endOfDayUtc(parseIsoDate(customEnd)) : endOfDayUtc(latestAvailableDate);
+    return { start, end };
+  }
 
-type NormalizedTvFilters = TvFilters & { start: Date; end: Date };
+  if (preset === "last7") return { start: addDaysUtc(latestAvailableDate, -6), end: endOfDayUtc(latestAvailableDate) };
+  if (preset === "last90") return { start: addDaysUtc(latestAvailableDate, -89), end: endOfDayUtc(latestAvailableDate) };
+  if (preset === "last6m") return { start: addDaysUtc(latestAvailableDate, -181), end: endOfDayUtc(latestAvailableDate) };
+  if (preset === "last12m") return { start: addDaysUtc(latestAvailableDate, -364), end: endOfDayUtc(latestAvailableDate) };
+  if (preset === "last2y") return { start: addDaysUtc(latestAvailableDate, -729), end: endOfDayUtc(latestAvailableDate) };
+  return { start: addDaysUtc(latestAvailableDate, -29), end: endOfDayUtc(latestAvailableDate) };
+}
+
+function countActiveFilterGroups(filters: {
+  brandIds: string[];
+  campaignIds: string[];
+  channelIds: string[];
+  preset: TvPreset;
+  startDate?: string;
+  endDate?: string;
+}) {
+  return (
+    (filters.brandIds.length > 0 ? 1 : 0) +
+    (filters.campaignIds.length > 0 ? 1 : 0) +
+    (filters.channelIds.length > 0 ? 1 : 0) +
+    (filters.preset !== "last30" || Boolean(filters.startDate) || Boolean(filters.endDate) ? 1 : 0)
+  );
+}
 
 export function normalizeTvFilters(raw?: Partial<TvFilters>): NormalizedTvFilters {
-  const schema = z.object({
-    preset: tvPresetSchema.default("last30"),
-    startDate: isoDateSchema.optional(),
-    endDate: isoDateSchema.optional(),
-    brandIds: z.array(z.string()).default([]),
-    campaignIds: z.array(z.string()).default([]),
-    channelIds: z.array(z.string()).default([]),
-    genres: z.array(z.string()).default([]),
-    dayparts: z.array(z.string()).default([]),
-    languages: z.array(z.string()).default([]),
-    page: z.number().int().min(1).default(1),
-    pageSize: z.number().int().min(1).max(50).default(10),
-    sortBy: z.string().default("detected_at"),
-    sortDirection: z.string().default("desc"),
-  });
+  const schema = z
+    .object({
+      preset: tvPresetSchema.default("last30"),
+      startDate: isoDateSchema.optional(),
+      endDate: isoDateSchema.optional(),
+      brandIds: uuidArraySchema.default([]),
+      campaignIds: uuidArraySchema.default([]),
+      channelIds: uuidArraySchema.default([]),
+      timezone: z.string().trim().min(2).max(64).default(DEFAULT_TIMEZONE),
+    })
+    .superRefine((value, ctx) => {
+      if (value.preset === "custom" && (!value.startDate || !value.endDate)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["startDate"],
+          message: "Custom date ranges require both a start date and an end date.",
+        });
+      }
+      if (value.startDate && value.endDate && value.startDate > value.endDate) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["endDate"],
+          message: "End date must be on or after the start date.",
+        });
+      }
+    });
 
   const parsed = schema.parse({
-    preset: raw?.preset ?? "last30",
+    preset: raw?.preset,
     startDate: raw?.startDate,
     endDate: raw?.endDate,
     brandIds: raw?.brandIds ?? [],
     campaignIds: raw?.campaignIds ?? [],
     channelIds: raw?.channelIds ?? [],
-    genres: raw?.genres ?? [],
-    dayparts: raw?.dayparts ?? [],
-    languages: raw?.languages ?? [],
-    page: raw?.page ?? 1,
-    pageSize: raw?.pageSize ?? 10,
-    sortBy: raw?.sortBy ?? "detected_at",
-    sortDirection: raw?.sortDirection ?? "desc",
+    timezone: raw?.timezone ?? DEFAULT_TIMEZONE,
   });
-
   const { start, end } = buildDateRange(parsed.preset, parsed.startDate, parsed.endDate);
-  const activeFilterCount =
-    (parsed.brandIds.length > 0 ? 1 : 0) +
-    (parsed.campaignIds.length > 0 ? 1 : 0) +
-    (parsed.channelIds.length > 0 ? 1 : 0) +
-    (parsed.genres.length > 0 ? 1 : 0) +
-    (parsed.dayparts.length > 0 ? 1 : 0) +
-    (parsed.languages.length > 0 ? 1 : 0) +
-    (parsed.preset !== "last30" || parsed.startDate ? 1 : 0);
 
   return {
     ...parsed,
@@ -331,530 +584,929 @@ export function normalizeTvFilters(raw?: Partial<TvFilters>): NormalizedTvFilter
     endDate: formatIsoDate(end),
     start,
     end,
-    activeFilterCount,
+    activeFilterCount: countActiveFilterGroups(parsed),
   };
 }
 
-export function parseTvFiltersFromSearchParams(params: URLSearchParams | Record<string, string | string[] | undefined>) {
+function normalizeDetectedAdsFilters(raw?: Partial<TvDetectedAdsFilters> & { search?: string }) {
+  const base = normalizeTvFilters(raw);
+  const schema = z.object({
+    sortBy: sortFieldSchema.default("detected_at"),
+    sortDirection: sortDirectionSchema.default("desc"),
+    page: z.number().int().min(1).default(1),
+    pageSize: z.number().int().min(5).max(100).default(20),
+    search: z.string().trim().max(120).optional().default(""),
+  });
+  const parsed = schema.parse({
+    sortBy: raw?.sortBy,
+    sortDirection: raw?.sortDirection,
+    page: raw?.page,
+    pageSize: raw?.pageSize,
+    search: raw?.search,
+  });
+  return {
+    ...base,
+    ...parsed,
+  } satisfies NormalizedDetectedAdsFilters;
+}
+
+export function parseTvFiltersFromSearchParams(
+  params: URLSearchParams | Record<string, string | string[] | undefined>,
+) {
   const getValue = (key: string) => {
-    if (params instanceof URLSearchParams) return params.get(key) ?? undefined;
+    if (params instanceof URLSearchParams) {
+      return params.get(key) ?? undefined;
+    }
     return params[key];
   };
 
-  const parseArray = (key: string): string[] => {
-    const v = getValue(key);
-    if (!v) return [];
-    if (Array.isArray(v)) return v.flatMap((x) => x.split(",")).filter(Boolean);
-    return v.split(",").filter(Boolean);
+  const parseArray = (key: string) => {
+    const raw = getValue(key);
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw.flatMap((item) => item.split(",")).filter(Boolean);
+    return raw.split(",").filter(Boolean);
   };
 
   return normalizeTvFilters({
     preset: (Array.isArray(getValue("preset")) ? getValue("preset")?.[0] : getValue("preset")) as TvPreset | undefined,
-    startDate: Array.isArray(getValue("startDate")) ? getValue("startDate")?.[0] : (getValue("startDate") as string | undefined),
-    endDate: Array.isArray(getValue("endDate")) ? getValue("endDate")?.[0] : (getValue("endDate") as string | undefined),
+    startDate: Array.isArray(getValue("startDate"))
+      ? getValue("startDate")?.[0]
+      : (getValue("startDate") as string | undefined),
+    endDate: Array.isArray(getValue("endDate"))
+      ? getValue("endDate")?.[0]
+      : (getValue("endDate") as string | undefined),
     brandIds: parseArray("brands"),
     campaignIds: parseArray("campaigns"),
     channelIds: parseArray("channels"),
-    genres: parseArray("genres"),
-    dayparts: parseArray("dayparts"),
-    languages: parseArray("languages"),
-    page: Number(getValue("page")) || 1,
-    pageSize: Number(getValue("pageSize")) || 10,
-    sortBy: (Array.isArray(getValue("sortBy")) ? getValue("sortBy")?.[0] : getValue("sortBy")) as string | undefined,
-    sortDirection: (Array.isArray(getValue("sortDirection")) ? getValue("sortDirection")?.[0] : getValue("sortDirection")) as string | undefined,
+    timezone: Array.isArray(getValue("timezone"))
+      ? getValue("timezone")?.[0]
+      : (getValue("timezone") as string | undefined),
   });
 }
 
-// ────────────────── Main Analytics Function ──────────────────
-
-const BRAND_COLOR_FALLBACKS: Record<string, string> = {
-  "coca-cola": "#F40009",
-  pepsi: "#005CB4",
-  "7up": "#16A34A",
-  "mountain-dew": "#78BE20",
-  "rc-cola": "#7A1F2B",
-  mirinda: "#F58220",
-  tapal: "#8B4513",
-  lifebuoy: "#006400",
-  bonus: "#FFD700",
-};
-
-function getBrandColor(brand: { slug?: string | null; color?: string | null }): string {
-  if (brand.color) return brand.color;
-  if (brand.slug && BRAND_COLOR_FALLBACKS[brand.slug]) return BRAND_COLOR_FALLBACKS[brand.slug];
-  return "#F40009";
+function parseDetectedAdsFiltersFromSearchParams(
+  params: URLSearchParams | Record<string, string | string[] | undefined>,
+) {
+  const base = parseTvFiltersFromSearchParams(params);
+  const getValue = (key: string) => {
+    if (params instanceof URLSearchParams) {
+      return params.get(key) ?? undefined;
+    }
+    return params[key];
+  };
+  return normalizeDetectedAdsFilters({
+    ...base,
+    search: Array.isArray(getValue("search")) ? getValue("search")?.[0] : (getValue("search") as string | undefined),
+    sortBy: (Array.isArray(getValue("sortBy")) ? getValue("sortBy")?.[0] : getValue("sortBy")) as TvSortField | undefined,
+    sortDirection: (Array.isArray(getValue("sortDirection")) ? getValue("sortDirection")?.[0] : getValue("sortDirection")) as TvSortDirection | undefined,
+    page: Number(Array.isArray(getValue("page")) ? getValue("page")?.[0] : getValue("page")) || 1,
+    pageSize: Number(Array.isArray(getValue("pageSize")) ? getValue("pageSize")?.[0] : getValue("pageSize")) || 20,
+  });
 }
 
-async function resolveOrganizationId(): Promise<string> {
+function buildPercentageDisplay(values: Array<{ key: string; value: number }>) {
+  if (values.length === 0) return new Map<string, number>();
+  const basis = values.map((item) => ({
+    ...item,
+    raw: item.value * 10,
+  }));
+  const floorTotal = basis.reduce((sum, item) => sum + Math.floor(item.raw), 0);
+  let remainder = Math.round(1000 - floorTotal);
+  const sortedRemainders = [...basis].sort((left, right) => {
+    const diff = (right.raw - Math.floor(right.raw)) - (left.raw - Math.floor(left.raw));
+    return diff !== 0 ? diff : left.key.localeCompare(right.key);
+  });
+
+  const lookup = new Map<string, number>(basis.map((item) => [item.key, Math.floor(item.raw)]));
+  for (const item of sortedRemainders) {
+    if (remainder <= 0) break;
+    lookup.set(item.key, (lookup.get(item.key) ?? 0) + 1);
+    remainder -= 1;
+  }
+
+  return new Map<string, number>(
+    [...lookup.entries()].map(([key, raw]) => [key, Number((raw / 10).toFixed(1))]),
+  );
+}
+
+async function resolveOrganizationId() {
   const client = getOptionalSupabaseAdminClient();
   if (!client) throw new Error("Supabase admin client is not configured.");
 
-  const { data: org } = await client
+  const organizationResponse = await client
     .from("organizations")
     .select("id")
     .eq("slug", ORGANIZATION_SLUG)
     .maybeSingle();
 
-  if (org?.id) return org.id as string;
+  if (organizationResponse.error) throw organizationResponse.error;
+  if (organizationResponse.data?.id) return organizationResponse.data.id as string;
 
-  const { data: fallback } = await client
+  const fallback = await client
     .from("organizations")
     .select("id")
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
 
-  if (fallback?.id) return fallback.id as string;
-  throw new Error("No organization found.");
+  if (fallback.error) throw fallback.error;
+  if (!fallback.data?.id) throw new Error("No organization was available for TV analytics.");
+  return fallback.data.id as string;
 }
 
-export async function getTvOverview(rawFilters?: Partial<TvFilters>): Promise<TvOverviewResponse> {
+async function loadTvDataset(startDate: string, endDate: string) {
   const client = getOptionalSupabaseAdminClient();
   if (!client) throw new Error("Supabase admin client is not configured.");
+  const organizationId = await resolveOrganizationId();
 
-  const filters = normalizeTvFilters(rawFilters);
-  const currency = "USD";
-  const orgId = await resolveOrganizationId();
-
-  // Previous period
-  const prevRangeLen = daysBetweenInclusive(filters.start, filters.end);
-  const prevEnd = addDays(startOfDay(filters.start), -1);
-  const prevStart = addDays(prevEnd, -(prevRangeLen - 1));
-
-  // Fetch data
-  const [brandsRes, channelsRes, campaignsRes, channelMapRes, spendRes] = await Promise.all([
-    client.from("brands").select("id,name,slug,color,logo_url").eq("organization_id", orgId).order("name"),
-    client.from("tv_channels").select("id,name,slug,genre,primary_language,logo_url,country").eq("organization_id", orgId).eq("is_active", true),
-    client.from("campaigns").select("id,brand_id,name,status,start_date,end_date,medium").eq("organization_id", orgId).eq("medium", "tv"),
-    client.from("tv_campaign_channels").select("campaign_id,channel_id").eq("organization_id", orgId),
-    client.from("spend_records")
-      .select("brand_id,campaign_id,platform_id,spend_date,amount,currency")
-      .eq("organization_id", orgId)
-      .gte("spend_date", formatIsoDate(prevStart))
-      .lte("spend_date", filters.endDate),
-  ]);
+  const [brandsRes, channelsRes, campaignsRes, campaignChannelsRes, detectionsRes, boundsRes] =
+    await Promise.all([
+      client
+        .from("brands")
+        .select("id,name,slug,category,color,logo_url")
+        .eq("organization_id", organizationId)
+        .eq("is_active", true)
+        .order("name", { ascending: true }),
+      client
+        .from("tv_channels")
+        .select("id,name,slug,genre,primary_language")
+        .eq("organization_id", organizationId)
+        .eq("is_active", true)
+        .order("name", { ascending: true }),
+      client
+        .from("campaigns")
+        .select("id,brand_id,name,status,start_date,end_date,media_types,medium")
+        .eq("organization_id", organizationId)
+        .order("name", { ascending: true }),
+      client
+        .from("tv_campaign_channels")
+        .select("campaign_id,channel_id")
+        .eq("organization_id", organizationId),
+      client
+        .from("tv_ad_detections")
+        .select("id,brand_id,campaign_id,channel_id,detected_at,duration_seconds,cost,currency,genre,language,daypart,copy_name,creative_url,preview_poster_url,is_uploaded_asset,source")
+        .eq("organization_id", organizationId)
+        .in("source", [...TV_DATA_SOURCES])
+        .gte("detected_at", `${startDate}T00:00:00${BAGHDAD_OFFSET}`)
+        .lte("detected_at", `${endDate}T23:59:59.999${BAGHDAD_OFFSET}`),
+      client
+        .from("tv_ad_detections")
+        .select("detected_at")
+        .eq("organization_id", organizationId)
+        .in("source", [...TV_DATA_SOURCES])
+        .order("detected_at", { ascending: true })
+        .limit(1),
+    ]);
 
   if (brandsRes.error) throw brandsRes.error;
   if (channelsRes.error) throw channelsRes.error;
   if (campaignsRes.error) throw campaignsRes.error;
-  if (channelMapRes.error) throw channelMapRes.error;
-  if (spendRes.error) throw spendRes.error;
+  if (campaignChannelsRes.error) throw campaignChannelsRes.error;
+  if (detectionsRes.error) throw detectionsRes.error;
+  if (boundsRes.error) throw boundsRes.error;
 
-  // Transform data
-  const brands = ((brandsRes.data ?? []) as any[]).map((r: any) => ({
-    id: String(r.id),
-    name: String(r.name),
-    slug: r.slug ? String(r.slug) : null,
-    color: r.color ? String(r.color) : "",
-    logoUrl: r.logo_url ? String(r.logo_url) : null,
-  }));
-
-  const channels = ((channelsRes.data ?? []) as any[]).map((r: any) => ({
-    id: String(r.id),
-    name: String(r.name),
-    slug: String(r.slug),
-    genre: r.genre ? String(r.genre) : "General",
-    language: r.primary_language ? String(r.primary_language) : "Arabic",
-    logoUrl: r.logo_url ? String(r.logo_url) : null,
-    country: r.country ? String(r.country) : "IQ",
-  }));
-
-  const campaigns = ((campaignsRes.data ?? []) as any[]).map((r: any) => ({
-    id: String(r.id),
-    brandId: r.brand_id ? String(r.brand_id) : null,
-    name: String(r.name),
-    status: String(r.status ?? "draft"),
-    startDate: r.start_date ? String(r.start_date) : null,
-    endDate: r.end_date ? String(r.end_date) : null,
-  }));
-
-  const channelCampaignMap = new Map<string, Set<string>>();
-  for (const row of (channelMapRes.data ?? []) as any[]) {
-    const cid = String(row.campaign_id);
-    const existing = channelCampaignMap.get(cid) ?? new Set<string>();
-    existing.add(String(row.channel_id));
-    channelCampaignMap.set(cid, existing);
-  }
-
-  const brandsById = new Map(brands.map((b) => [b.id, { ...b, color: getBrandColor(b) }]));
-  const channelsById = new Map(channels.map((c) => [c.id, c]));
-
-  // Filter campaigns
-  const matchingCampaigns = campaigns.filter((c) => {
-    if (filters.brandIds.length > 0 && c.brandId && !filters.brandIds.includes(c.brandId)) return false;
-    if (filters.campaignIds.length > 0 && !filters.campaignIds.includes(c.id)) return false;
-    if (filters.channelIds.length > 0) {
-      const linkedChannels = channelCampaignMap.get(c.id) ?? new Set<string>();
-      if (!filters.channelIds.some((ch) => linkedChannels.has(ch))) return false;
-    }
-    // Date overlap
-    const cStart = c.startDate ? new Date(`${c.startDate}T00:00:00`) : null;
-    const cEnd = c.endDate ? endOfDay(new Date(`${c.endDate}T00:00:00`)) : null;
-    if (cStart && cStart.getTime() > filters.end.getTime()) return false;
-    if (cEnd && cEnd.getTime() < filters.start.getTime()) return false;
-    return true;
-  });
-
-  // Filter spend records
-  const allSpend = ((spendRes.data ?? []) as any[]).map((r: any) => ({
-    brandId: String(r.brand_id),
-    campaignId: String(r.campaign_id),
-    platformId: String(r.platform_id),
-    spendDate: String(r.spend_date),
-    amount: Number(r.amount ?? 0),
-    currency: String(r.currency ?? "USD"),
-  }));
-
-  const filteredSpend = allSpend.filter((r) => {
-    if (filters.brandIds.length > 0 && !filters.brandIds.includes(r.brandId)) return false;
-    if (filters.campaignIds.length > 0 && !filters.campaignIds.includes(r.campaignId)) return false;
-    return true;
-  });
-
-  const currentSpend = filteredSpend.filter((r) => r.spendDate >= filters.startDate && r.spendDate <= filters.endDate);
-  const previousSpend = filteredSpend.filter((r) => r.spendDate >= formatIsoDate(prevStart) && r.spendDate <= formatIsoDate(prevEnd));
-
-  // Compute KPIs
-  const activeCampaigns = matchingCampaigns.filter((c) => c.status === "active");
-  const activeBrandIds = new Set(activeCampaigns.map((c) => c.brandId).filter(Boolean) as string[]);
-
-  const spendByCampaign = new Map<string, number>();
-  const spendByBrand = new Map<string, number>();
-  const previousSpendByBrand = new Map<string, number>();
-
-  for (const r of currentSpend) {
-    spendByCampaign.set(r.campaignId, Number(((spendByCampaign.get(r.campaignId) ?? 0) + r.amount).toFixed(2)));
-    spendByBrand.set(r.brandId, Number(((spendByBrand.get(r.brandId) ?? 0) + r.amount).toFixed(2)));
-  }
-  for (const r of previousSpend) {
-    previousSpendByBrand.set(r.brandId, Number(((previousSpendByBrand.get(r.brandId) ?? 0) + r.amount).toFixed(2)));
-  }
-
-  const totalSpending = sumAmounts(currentSpend);
-  const previousTotalSpending = sumAmounts(previousSpend);
-
-  // Spend time series
-  const buckets = buildBuckets(filters.start, filters.end);
-  const timeSeries: TvTimeSeriesPoint[] = buckets.map((bucket) => {
-    const recordsInBucket = currentSpend.filter((r) => {
-      const d = new Date(`${r.spendDate}T00:00:00`);
-      return d.getTime() >= bucket.start.getTime() && d.getTime() <= bucket.end.getTime();
-    });
-    const byBrand = new Map<string, number>();
-    for (const r of recordsInBucket) {
-      byBrand.set(r.brandId, Number(((byBrand.get(r.brandId) ?? 0) + r.amount).toFixed(2)));
-    }
-    return {
-      key: bucket.key,
-      label: bucket.label,
-      total: sumAmounts(recordsInBucket),
-      brands: [...byBrand.entries()].map(([bid, val]) => {
-        const b = brandsById.get(bid);
-        return { brandId: bid, brandName: b?.name ?? bid, color: b?.color ?? "#F40009", value: val };
-      }),
-    };
-  });
-
-  // Brand totals
-  type BrandTotalEntry = {
-    brandId: string;
-    brandName: string;
-    color: string;
-    totalSpend: number;
-    percentage: number;
-    previousTotalSpend: number;
-    previousChangePercent: number | null;
-  };
-  const brandTotals: BrandTotalEntry[] = [...spendByBrand.entries()]
-    .map(([bid, total]) => {
-      const b = brandsById.get(bid);
-      if (!b) return null as BrandTotalEntry | null;
-      const prev = previousSpendByBrand.get(bid) ?? 0;
-      return {
-        brandId: bid,
-        brandName: b.name,
-        color: b.color,
-        totalSpend: total,
-        percentage: totalSpending > 0 ? Number(((total / totalSpending) * 100).toFixed(2)) : 0,
-        previousTotalSpend: prev,
-        previousChangePercent: safePercentChange(total, prev),
-      };
-    })
-    .filter((x): x is BrandTotalEntry => x !== null);
-
-  // SOV
-  const shareOfVoice: TvSovEntry[] = brandTotals.map((bt) => ({
-    brandId: bt.brandId,
-    brandName: bt.brandName,
-    color: bt.color,
-    spend: bt.totalSpend,
-    percentage: bt.percentage,
-    activeCampaignCount: activeCampaigns.filter((c) => c.brandId === bt.brandId).length,
-  }));
-
-  // Channel split
-  const spendByChannel = new Map<string, { spend: number; detections: number; campaigns: Set<string> }>();
-  // Use tv_ad_detections for channel-level data
-  const { data: detections } = await client
+  const lastBoundRes = await client
     .from("tv_ad_detections")
-    .select("channel_id,campaign_id,cost,currency")
-    .eq("organization_id", orgId)
-    .gte("detected_at", filters.startDate)
-    .lte("detected_at", filters.endDate);
+    .select("detected_at")
+    .eq("organization_id", organizationId)
+    .in("source", [...TV_DATA_SOURCES])
+    .order("detected_at", { ascending: false })
+    .limit(1);
 
-  for (const row of (detections ?? []) as any[]) {
-    const chId = String(row.channel_id);
-    const existing = spendByChannel.get(chId) ?? { spend: 0, detections: 0, campaigns: new Set<string>() };
-    existing.spend += Number(row.cost ?? 0);
-    existing.detections += 1;
-    if (row.campaign_id) existing.campaigns.add(String(row.campaign_id));
-    spendByChannel.set(chId, existing);
+  if (lastBoundRes.error) throw lastBoundRes.error;
+
+  const brands = ((brandsRes.data ?? []) as Brand[]).map((row) => {
+    const rawRow = row as unknown as Record<string, unknown>;
+    return {
+    id: String(row.id),
+    name: String(row.name),
+    slug: row.slug ? String(row.slug) : null,
+    category: typeof rawRow.category === "string" ? rawRow.category : null,
+    color: getBrandColor({
+      slug: row.slug ? String(row.slug) : null,
+      color: row.color ? String(row.color) : "",
+    }),
+    logoUrl: row.logo_url ? String(row.logo_url) : null,
+  };
+  }).filter((brand) =>
+    isBeverageScopedBrand({
+      name: brand.name,
+      slug: brand.slug,
+      category: brand.category,
+    }),
+  );
+  const allowedBrandIds = new Set(brands.map((brand) => brand.id));
+
+  const channels = ((channelsRes.data ?? []) as TvChannel[]).map((row) => ({
+    id: String(row.id),
+    name: String(row.name),
+    slug: String(row.slug),
+    genre: row.genre ? String(row.genre) : "General Entertainment",
+    language: row.primary_language ? String(row.primary_language) : "Arabic",
+  }));
+
+  const campaigns = ((campaignsRes.data ?? []) as Array<
+    Campaign & { media_types?: string[] | null; medium?: string | null }
+  >).map((row) => {
+    const mediaTypes = Array.isArray(row.media_types)
+      ? row.media_types.map((item) => String(item).toLowerCase())
+      : [];
+    const medium = row.medium ? String(row.medium).toLowerCase() : null;
+    return {
+      id: String(row.id),
+      brandId: row.brand_id ? String(row.brand_id) : null,
+      name: String(row.name),
+      status: String(row.status ?? "draft"),
+      startDate: row.start_date ? String(row.start_date) : null,
+      endDate: row.end_date ? String(row.end_date) : null,
+      includesTv: medium === "tv" || mediaTypes.includes("tv"),
+    };
+  }).filter((campaign) => campaign.brandId && allowedBrandIds.has(campaign.brandId));
+  const allowedCampaignIds = new Set(campaigns.map((campaign) => campaign.id));
+
+  const campaignChannels = new Map<string, Set<string>>();
+  for (const row of (campaignChannelsRes.data ?? []) as TvCampaignChannel[]) {
+    const campaignId = String(row.campaign_id);
+    const current = campaignChannels.get(campaignId) ?? new Set<string>();
+    current.add(String(row.channel_id));
+    campaignChannels.set(campaignId, current);
   }
 
-  const totalChannelSpend = [...spendByChannel.values()].reduce((s, v) => s + v.spend, 0) || 1;
-  const channelSplit: TvChannelSplitEntry[] = channels
-    .map((ch) => {
-      const data = spendByChannel.get(ch.id);
-      if (!data || data.spend <= 0) return null;
-      return {
-        channelId: ch.id,
-        channelName: ch.name,
-        spend: Number(data.spend.toFixed(2)),
-        percentage: Number(((data.spend / totalChannelSpend) * 100).toFixed(2)),
-        detectionCount: data.detections,
-        activeCampaignCount: data.campaigns.size,
-      };
-    })
-    .filter(Boolean)
-    .sort((a, b) => (b?.spend ?? 0) - (a?.spend ?? 0)) as TvChannelSplitEntry[];
+  const detections = ((detectionsRes.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+    id: String(row.id),
+    brandId: typeof row.brand_id === "string" ? row.brand_id : null,
+    campaignId: typeof row.campaign_id === "string" ? row.campaign_id : null,
+    channelId: String(row.channel_id),
+    detectedAt: String(row.detected_at),
+    durationSeconds: Number(row.duration_seconds ?? 0),
+    cost: Number(row.cost ?? 0),
+    currency: String(row.currency ?? DEFAULT_CURRENCY),
+    genre: String(row.genre ?? "General Entertainment"),
+    language: String(row.language ?? "Arabic"),
+    daypart:
+      typeof row.daypart === "string" && DAYPARTS.includes(row.daypart as (typeof DAYPARTS)[number])
+        ? row.daypart
+        : deriveTvDaypart(String(row.detected_at)),
+    copyName: String(row.copy_name ?? "Untitled creative"),
+    creativeUrl: typeof row.creative_url === "string" ? row.creative_url : null,
+    previewPosterUrl: typeof row.preview_poster_url === "string" ? row.preview_poster_url : null,
+    isUploadedAsset: Boolean(row.is_uploaded_asset),
+    source: typeof row.source === "string" ? row.source : "tv_dashboard_seed_v2",
+  })).filter((detection) =>
+    detection.brandId !== null &&
+    detection.campaignId !== null &&
+    allowedBrandIds.has(detection.brandId) &&
+    allowedCampaignIds.has(detection.campaignId),
+  );
 
-  // Active Campaigns list
-  const campaignItems: TvActiveCampaign[] = activeCampaigns.map((c) => {
-    const b = c.brandId ? brandsById.get(c.brandId) : null;
-    const linkedChannels = [...(channelCampaignMap.get(c.id) ?? new Set<string>())]
-      .map((chId) => channelsById.get(chId))
-      .filter(Boolean)
-      .map((ch) => ({ id: ch!.id, name: ch!.name }));
-    return {
-      id: c.id,
-      name: c.name,
-      brandId: c.brandId,
-      brandName: b?.name ?? "Unassigned",
-      brandColor: b?.color ?? "#64748B",
-      brandLogo: b?.logoUrl ?? null,
-      status: c.status,
-      startDate: c.startDate,
-      endDate: c.endDate,
-      channels: linkedChannels,
-      totalSpend: spendByCampaign.get(c.id) ?? 0,
-      detectionCount: (detections ?? []).filter((d: any) => String(d.campaign_id) === c.id).length,
-    };
+  return {
+    organizationId,
+    brands,
+    channels,
+    campaigns,
+    campaignChannels,
+    detections,
+    dateBounds: {
+      min: boundsRes.data?.[0]?.detected_at
+        ? formatIsoDate(startOfDayUtc(new Date(String(boundsRes.data[0].detected_at))))
+        : null,
+      max: lastBoundRes.data?.[0]?.detected_at
+        ? formatIsoDate(startOfDayUtc(new Date(String(lastBoundRes.data[0].detected_at))))
+        : null,
+    },
+  } satisfies TvDataset;
+}
+
+function matchesSharedFilters(
+  row: DetectionRow,
+  filters: NormalizedTvFilters,
+) {
+  if (filters.brandIds.length > 0 && (!row.brandId || !filters.brandIds.includes(row.brandId))) return false;
+  if (filters.campaignIds.length > 0 && (!row.campaignId || !filters.campaignIds.includes(row.campaignId))) return false;
+  if (filters.channelIds.length > 0 && !filters.channelIds.includes(row.channelId)) return false;
+
+  const detectedAt = new Date(row.detectedAt).getTime();
+  return detectedAt >= filters.start.getTime() && detectedAt <= filters.end.getTime();
+}
+
+function buildFilterOptions(dataset: TvDataset, filters: NormalizedTvFilters): TvFilterOptionsResponse {
+  const brandMap = new Map(dataset.brands.map((brand) => [brand.id, brand]));
+  const campaignMap = new Map(dataset.campaigns.map((campaign) => [campaign.id, campaign]));
+  const detectedBrandIds = new Set(dataset.detections.map((row) => row.brandId).filter(Boolean) as string[]);
+  const detectedCampaignIds = new Set(dataset.detections.map((row) => row.campaignId).filter(Boolean) as string[]);
+  const detectedChannelIds = new Set(dataset.detections.map((row) => row.channelId));
+
+  const brands = dataset.brands
+    .map((brand) => ({
+      id: brand.id,
+      name: brand.name,
+      slug: brand.slug,
+      color: brand.color,
+      logoUrl: brand.logoUrl,
+      initials: getInitials(brand.name),
+    }))
+    .sort((left, right) => {
+      const leftOwned = left.name.toLowerCase().includes("coca-cola") ? 0 : 1;
+      const rightOwned = right.name.toLowerCase().includes("coca-cola") ? 0 : 1;
+      if (leftOwned !== rightOwned) return leftOwned - rightOwned;
+      const leftDetected = detectedBrandIds.has(left.id) ? 0 : 1;
+      const rightDetected = detectedBrandIds.has(right.id) ? 0 : 1;
+      if (leftDetected !== rightDetected) return leftDetected - rightDetected;
+      return left.name.localeCompare(right.name);
+    });
+
+  const matchingCampaigns = dataset.campaigns.filter((campaign) => {
+    if (!campaign.includesTv) return false;
+    if (!detectedCampaignIds.has(campaign.id) && !filters.campaignIds.includes(campaign.id)) return false;
+    if (filters.brandIds.length > 0 && (!campaign.brandId || !filters.brandIds.includes(campaign.brandId))) return false;
+    if (filters.channelIds.length > 0) {
+      const linkedChannels = dataset.campaignChannels.get(campaign.id) ?? new Set<string>();
+      if (!filters.channelIds.some((channelId) => linkedChannels.has(channelId))) return false;
+    }
+    return true;
   });
 
-  const sortedCampaigns = [...campaignItems].sort((a, b) => b.totalSpend - a.totalSpend);
-  const paginatedCampaigns = sortedCampaigns.slice((filters.page - 1) * filters.pageSize, filters.page * filters.pageSize);
+  const selectedCampaigns = filters.campaignIds
+    .map((campaignId) => campaignMap.get(campaignId))
+    .filter(Boolean) as CampaignRecord[];
 
-  // Active Brands list
-  const activeBrandList: TvActiveBrand[] = [...activeBrandIds]
-    .map((bid) => {
-      const b = brandsById.get(bid);
-      if (!b) return null;
-      const brandCampaigns = activeCampaigns.filter((c) => c.brandId === bid);
-      const brandChannels = new Set(brandCampaigns.flatMap((c) => [...(channelCampaignMap.get(c.id) ?? new Set<string>())]));
-      const brandDetections = (detections ?? []).filter((d: any) => String(d.brand_id) === bid);
+  const campaigns = [...matchingCampaigns, ...selectedCampaigns]
+    .filter((campaign, index, array) => array.findIndex((item) => item.id === campaign.id) === index)
+    .map((campaign) => {
+      const brand = campaign.brandId ? brandMap.get(campaign.brandId) : null;
+      const unavailable = !matchingCampaigns.some((item) => item.id === campaign.id);
       return {
-        brandId: bid,
-        brandName: b.name,
-        brandColor: b.color,
-        logoUrl: b.logoUrl,
-        activeCampaignCount: brandCampaigns.length,
-        totalSpend: spendByBrand.get(bid) ?? 0,
-        channelCount: brandChannels.size,
-        detectionCount: brandDetections.length,
-        status: "Active" as const,
+        id: campaign.id,
+        name: campaign.name,
+        brandId: campaign.brandId,
+        brandName: brand?.name ?? "Unassigned",
+        status: campaign.status,
+        startDate: campaign.startDate,
+        endDate: campaign.endDate,
+        includesTv: campaign.includesTv,
+        selectedButUnavailable: unavailable || undefined,
       };
     })
-    .filter(Boolean)
-    .sort((a, b) => (b?.totalSpend ?? 0) - (a?.totalSpend ?? 0)) as TvActiveBrand[];
+    .sort((left, right) => left.name.localeCompare(right.name));
 
-  // Trend for KPIs
-  const trendBuilder = () =>
-    buckets.map((b) => ({
-      key: b.key,
-      label: b.label,
-      value: 0,
+  const channels = dataset.channels
+    .filter((channel) => detectedChannelIds.has(channel.id) || filters.channelIds.includes(channel.id))
+    .map((channel) => ({
+      id: channel.id,
+      name: channel.name,
+      slug: channel.slug,
+      genre: channel.genre,
+      language: channel.language,
+      initials: getInitials(channel.name),
     }));
 
   return {
-    filters,
-    summary: {
-      title: "TV",
-      description: "Real-time TV advertising monitoring across Iraqi channels.",
-      currency,
-      rangeLabel: formatRangeLabel(filters.start, filters.end),
-      activeFilterCount: filters.activeFilterCount,
+    brands,
+    campaigns,
+    channels,
+    dateBounds: {
+      min: dataset.dateBounds.min ?? filters.startDate,
+      max: dataset.dateBounds.max ?? filters.endDate,
     },
-    filterOptions: {
-      brands: brands
-        .filter((b) => activeBrandIds.has(b.id))
-        .map((b) => ({ id: b.id, name: b.name, color: b.color, logoUrl: b.logoUrl })),
-      campaigns: matchingCampaigns.map((c) => {
-        const b = c.brandId ? brandsById.get(c.brandId) : null;
-        return { id: c.id, name: c.name, brandId: c.brandId, brandName: b?.name ?? "Unassigned", status: c.status };
-      }),
-      channels: channels.map((c) => ({
-        id: c.id,
-        name: c.name,
-        slug: c.slug,
-        logoUrl: c.logoUrl,
-        genre: c.genre,
-        language: c.language,
-      })),
-      genres: [...new Set(channels.map((c) => c.genre))].sort(),
-      dayparts: ["Early Morning", "Morning", "Afternoon", "Evening", "Pre-Prime Time", "Prime Time", "Late Prime Time", "Overnight"],
-      languages: [...new Set(channels.map((c) => c.language))].sort(),
-      presets: [
-        { id: "last7", label: "Last 7 Days" },
-        { id: "last30", label: "Last 30 Days" },
-        { id: "last90", label: "Last 90 Days" },
-        { id: "thisMonth", label: "This Month" },
-        { id: "previousMonth", label: "Previous Month" },
-        { id: "custom", label: "Custom Range" },
-      ],
-    },
-    kpis: {
-      activeBrands: {
-        value: activeBrandIds.size,
-        previousValue: 0,
-        changePercent: null,
-        description: "Unique brands with active TV campaigns in the selected period.",
-        trend: trendBuilder(),
-      },
-      activeCampaigns: {
-        value: activeCampaigns.length,
-        previousValue: 0,
-        changePercent: null,
-        description: "Unique active TV campaigns, deduplicated across channels.",
-        trend: trendBuilder(),
-      },
-      totalSpending: {
-        value: totalSpending,
-        previousValue: previousTotalSpending,
-        changePercent: safePercentChange(totalSpending, previousTotalSpending),
-        description: "Total TV advertising spend for the selected period.",
-        trend: timeSeries.map((p) => ({ key: p.key, label: p.label, value: p.total })),
-      },
-    },
-    spending: {
-      timeSeries,
-      totalsByBrand: brandTotals,
-      total: totalSpending,
-      currency,
-    },
-    shareOfVoice,
-    channelSplit,
-    activeCampaigns: {
-      items: paginatedCampaigns,
-      total: sortedCampaigns.length,
-      page: filters.page,
-      pageSize: filters.pageSize,
-      hasMore: filters.page * filters.pageSize < sortedCampaigns.length,
-    },
-    activeBrands: activeBrandList,
-    states: {
-      isEmpty: totalSpending === 0 && activeCampaigns.length === 0 && activeBrandIds.size === 0,
-      emptyReason:
-        totalSpending === 0 && activeCampaigns.length === 0 && activeBrandIds.size === 0
-          ? "No TV spending data is available for the selected filters."
-          : null,
-    },
+    presets: [
+      { id: "last7", label: "Last 7 days" },
+      { id: "last30", label: "Last 30 days" },
+      { id: "last90", label: "Last 90 days" },
+      { id: "last6m", label: "Last 6 months" },
+      { id: "last12m", label: "Last 12 months" },
+      { id: "last2y", label: "Last 2 years" },
+      { id: "custom", label: "Custom range" },
+    ],
   };
 }
 
-// ────────────────── Detected Ads ──────────────────
+function buildTrendBuckets(
+  detections: DetectionRow[],
+  brandsById: Map<string, BrandRecord>,
+  startDate: Date,
+  endDate: Date,
+) {
+  const granularity = getTvGranularity(startDate, endDate);
+  const buckets: Array<{ key: string; label: string; start: Date; end: Date }> = [];
+  let cursor = startOfDayUtc(startDate);
 
-export async function getTvDetectedAds(rawFilters?: Partial<TvFilters>) {
-  const client = getOptionalSupabaseAdminClient();
-  if (!client) throw new Error("Supabase admin client is not configured.");
+  while (cursor.getTime() <= endDate.getTime()) {
+    if (granularity === "daily") {
+      buckets.push({
+        key: formatIsoDate(cursor),
+        label: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(cursor),
+        start: startOfDayUtc(cursor),
+        end: endOfDayUtc(cursor),
+      });
+      cursor = addDaysUtc(cursor, 1);
+      continue;
+    }
 
-  const filters = normalizeTvFilters(rawFilters);
-  const orgId = await resolveOrganizationId();
+    if (granularity === "weekly") {
+      const bucketStart = startOfDayUtc(cursor);
+      const bucketEnd = endOfDayUtc(addDaysUtc(bucketStart, 6));
+      const clippedEnd = bucketEnd.getTime() > endDate.getTime() ? endOfDayUtc(endDate) : bucketEnd;
+      buckets.push({
+        key: `${formatIsoDate(bucketStart)}-${formatIsoDate(clippedEnd)}`,
+        label: `${new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(bucketStart)}-${new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(clippedEnd)}`,
+        start: bucketStart,
+        end: clippedEnd,
+      });
+      cursor = addDaysUtc(bucketStart, 7);
+      continue;
+    }
 
-  let query = client
-    .from("tv_ad_detections")
-    .select("*")
-    .eq("organization_id", orgId)
-    .gte("detected_at", filters.startDate)
-    .lte("detected_at", filters.endDate);
+    const bucketStart = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), 1));
+    const bucketEnd = endOfDayUtc(new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 0)));
+    const clippedEnd = bucketEnd.getTime() > endDate.getTime() ? endOfDayUtc(endDate) : bucketEnd;
+    buckets.push({
+      key: `${cursor.getUTCFullYear()}-${String(cursor.getUTCMonth() + 1).padStart(2, "0")}`,
+      label: new Intl.DateTimeFormat("en-US", { month: "short", year: "2-digit" }).format(cursor),
+      start: bucketStart,
+      end: clippedEnd,
+    });
+    cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1));
+  }
 
-  // Apply filters
-  if (filters.brandIds.length > 0) query = query.in("brand_id", filters.brandIds);
-  if (filters.campaignIds.length > 0) query = query.in("campaign_id", filters.campaignIds);
-  if (filters.channelIds.length > 0) query = query.in("channel_id", filters.channelIds);
-  if (filters.genres.length > 0) query = query.in("genre", filters.genres);
-  if (filters.dayparts.length > 0) query = query.in("daypart", filters.dayparts);
-  if (filters.languages.length > 0) query = query.in("language", filters.languages);
-
-  // Count total
-  const { count: totalCount } = await query.select("id", { count: "exact", head: true });
-
-  // Fetch paginated
-  const { data: rows } = await query
-    .order(filters.sortBy, { ascending: filters.sortDirection === "asc" })
-    .range((filters.page - 1) * filters.pageSize, filters.page * filters.pageSize - 1);
-
-  // Resolve brand/channel names
-  const brandIds = [...new Set((rows ?? []).map((r: any) => r.brand_id).filter(Boolean))];
-  const channelIds = [...new Set((rows ?? []).map((r: any) => r.channel_id).filter(Boolean))];
-  const campaignIds = [...new Set((rows ?? []).map((r: any) => r.campaign_id).filter(Boolean))];
-
-  const [brandsRes, channelsRes, campaignsRes] = await Promise.all([
-    brandIds.length > 0 ? client.from("brands").select("id,name,color").in("id", brandIds) : { data: [] },
-    channelIds.length > 0 ? client.from("tv_channels").select("id,name,slug").in("id", channelIds) : { data: [] },
-    campaignIds.length > 0 ? client.from("campaigns").select("id,name").in("id", campaignIds) : { data: [] },
-  ]);
-
-  const brandMap = new Map((brandsRes.data ?? []).map((r: any) => [String(r.id), r]));
-  const channelMap = new Map((channelsRes.data ?? []).map((r: any) => [String(r.id), r]));
-  const campaignMap = new Map((campaignsRes.data ?? []).map((r: any) => [String(r.id), r]));
-
-  const ads: TvDetectedAd[] = ((rows ?? []) as any[]).map((r: any) => {
-    const dt = new Date(r.detected_at);
-    const ch = channelMap.get(String(r.channel_id));
-    const br = r.brand_id ? brandMap.get(String(r.brand_id)) : null;
-    const ca = r.campaign_id ? campaignMap.get(String(r.campaign_id)) : null;
+  const bucketRows: TvTrendBucket[] = buckets.map((bucket) => {
+    const bucketDetections = detections.filter((row) => {
+      const detectedAt = new Date(row.detectedAt).getTime();
+      return detectedAt >= bucket.start.getTime() && detectedAt <= bucket.end.getTime();
+    });
+    const spendByBrand = new Map<string, number>();
+    for (const row of bucketDetections) {
+      if (!row.brandId) continue;
+      spendByBrand.set(row.brandId, Number(((spendByBrand.get(row.brandId) ?? 0) + row.cost).toFixed(2)));
+    }
+    const totalSpend = sumMoney(bucketDetections.map((row) => row.cost));
     return {
-      id: String(r.id),
-      channelId: String(r.channel_id),
-      channelName: ch?.name ?? "Unknown Channel",
-      channelSlug: ch?.slug ?? "",
-      genre: String(r.genre ?? "General"),
-      detectedAt: String(r.detected_at),
-      date: formatIsoDate(dt),
-      time: dt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true }),
-      month: dt.toLocaleDateString("en-US", { month: "short", year: "numeric" }),
-      brandName: br?.name ?? null,
-      brandColor: br?.color ?? null,
-      daypart: String(r.daypart ?? "Afternoon"),
-      language: String(r.language ?? "Arabic"),
-      durationSeconds: Number(r.duration_seconds ?? 0),
-      copyName: r.copy_name ? String(r.copy_name) : null,
-      cost: Number(r.cost ?? 0),
-      currency: String(r.currency ?? "USD"),
-      sovPercentage: Number(r.sov_percentage ?? 0),
-      creativeUrl: r.creative_url ? String(r.creative_url) : null,
-      confidenceScore: Number(r.confidence_score ?? 0),
-      reviewStatus: String(r.review_status ?? "pending"),
-      campaignName: ca?.name ?? null,
+      key: bucket.key,
+      label: bucket.label,
+      startDate: formatIsoDate(bucket.start),
+      endDate: formatIsoDate(bucket.end),
+      totalSpend,
+      brands: [...spendByBrand.entries()]
+        .map(([brandId, spend]) => {
+          const brand = brandsById.get(brandId);
+          return {
+            brandId,
+            brandName: brand?.name ?? "Unknown brand",
+            color: brand?.color ?? "#EF4444",
+            spend,
+            shareOfBucket: totalSpend > 0 ? Number(((spend / totalSpend) * 100).toFixed(2)) : 0,
+          };
+        })
+        .sort((left, right) => right.spend - left.spend),
     };
   });
 
   return {
-    items: ads,
-    total: totalCount ?? 0,
-    page: filters.page,
-    pageSize: filters.pageSize,
-    hasMore: ((filters.page) * filters.pageSize) < (totalCount ?? 0),
+    granularity,
+    buckets: bucketRows,
   };
 }
 
+function slugifyBrandName(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+function computeCurrentAndPreviousScope(
+  dataset: TvDataset,
+  filters: NormalizedTvFilters,
+) {
+  const { previousStart, previousEnd } = getPreviousPeriodRange(filters.start, filters.end);
+
+  const previousFilters: NormalizedTvFilters = {
+    ...filters,
+    startDate: formatIsoDate(previousStart),
+    endDate: formatIsoDate(previousEnd),
+    start: previousStart,
+    end: previousEnd,
+  };
+
+  const currentDetections = dataset.detections.filter((row) => matchesSharedFilters(row, filters));
+  const previousDetections = dataset.detections.filter((row) => matchesSharedFilters(row, previousFilters));
+
+  return {
+    previousStart,
+    previousEnd,
+    currentDetections,
+    previousDetections,
+  };
+}
+
+export function getPreviousPeriodRange(start: Date, end: Date) {
+  const previousRangeDays = daysBetweenInclusive(start, end);
+  const previousEnd = endOfDayUtc(addDaysUtc(start, -1));
+  const previousStart = startOfDayUtc(addDaysUtc(previousEnd, -(previousRangeDays - 1)));
+  return { previousStart, previousEnd };
+}
+
+function validateDateBounds(filters: NormalizedTvFilters, bounds: TvDataset["dateBounds"]) {
+  if (!bounds.max) return;
+  if (filters.endDate > bounds.max) {
+    throw new Error(`End date cannot be later than ${bounds.max}, which is the latest available TV data date.`);
+  }
+}
+
+export async function getTvFilterOptions(rawFilters?: Partial<TvFilters>) {
+  const filters = normalizeTvFilters(rawFilters);
+  const previousStart = formatIsoDate(addDaysUtc(filters.start, -730));
+  const dataset = await loadTvDataset(previousStart, filters.endDate);
+  return buildFilterOptions(dataset, filters);
+}
+
+export async function getTvAnalytics(rawFilters?: Partial<TvFilters>): Promise<TvOverviewResponse> {
+  const filters = normalizeTvFilters(rawFilters);
+  const { previousStart } = getPreviousPeriodRange(filters.start, filters.end);
+  const previousSeedStart = formatIsoDate(previousStart);
+  const dataset = await loadTvDataset(previousSeedStart, filters.endDate);
+  validateDateBounds(filters, dataset.dateBounds);
+
+  const brandsById = new Map(dataset.brands.map((brand) => [brand.id, brand]));
+  const channelsById = new Map(dataset.channels.map((channel) => [channel.id, channel]));
+  const filterOptions = buildFilterOptions(dataset, filters);
+  const { previousEnd, previousStart: previousStartDate, currentDetections, previousDetections } =
+    computeCurrentAndPreviousScope(dataset, filters);
+
+  const activeCampaigns = dataset.campaigns.filter((campaign) => {
+    if (!campaignOverlapsSelectedRange(campaign, filters.start, filters.end)) return false;
+    if (filters.brandIds.length > 0 && (!campaign.brandId || !filters.brandIds.includes(campaign.brandId))) return false;
+    if (filters.campaignIds.length > 0 && !filters.campaignIds.includes(campaign.id)) return false;
+    if (filters.channelIds.length > 0) {
+      const linkedChannels = dataset.campaignChannels.get(campaign.id) ?? new Set<string>();
+      if (!filters.channelIds.some((channelId) => linkedChannels.has(channelId))) return false;
+    }
+    return currentDetections.some((row) => row.campaignId === campaign.id);
+  });
+
+  const previousActiveCampaigns = dataset.campaigns.filter((campaign) => {
+    if (!campaignOverlapsSelectedRange(campaign, previousStartDate, previousEnd)) return false;
+    if (filters.brandIds.length > 0 && (!campaign.brandId || !filters.brandIds.includes(campaign.brandId))) return false;
+    if (filters.campaignIds.length > 0 && !filters.campaignIds.includes(campaign.id)) return false;
+    if (filters.channelIds.length > 0) {
+      const linkedChannels = dataset.campaignChannels.get(campaign.id) ?? new Set<string>();
+      if (!filters.channelIds.some((channelId) => linkedChannels.has(channelId))) return false;
+    }
+    return previousDetections.some((row) => row.campaignId === campaign.id);
+  });
+
+  const activeBrandIds = new Set(activeCampaigns.map((campaign) => campaign.brandId).filter(Boolean) as string[]);
+  const previousActiveBrandIds = new Set(
+    previousActiveCampaigns.map((campaign) => campaign.brandId).filter(Boolean) as string[],
+  );
+  const activeChannelIds = new Set(currentDetections.map((row) => row.channelId));
+  const previousActiveChannelIds = new Set(previousDetections.map((row) => row.channelId));
+
+  const currentSpendTotal = sumMoney(currentDetections.map((row) => row.cost));
+  const previousSpendTotal = sumMoney(previousDetections.map((row) => row.cost));
+
+  const currentSpendByBrand = new Map<string, number>();
+  const previousSpendByBrand = new Map<string, number>();
+  const currentSpendByCampaign = new Map<string, number>();
+  const currentSpendByChannel = new Map<string, number>();
+
+  for (const row of currentDetections) {
+    if (row.brandId) currentSpendByBrand.set(row.brandId, Number(((currentSpendByBrand.get(row.brandId) ?? 0) + row.cost).toFixed(2)));
+    if (row.campaignId) currentSpendByCampaign.set(row.campaignId, Number(((currentSpendByCampaign.get(row.campaignId) ?? 0) + row.cost).toFixed(2)));
+    currentSpendByChannel.set(row.channelId, Number(((currentSpendByChannel.get(row.channelId) ?? 0) + row.cost).toFixed(2)));
+  }
+  for (const row of previousDetections) {
+    if (row.brandId) previousSpendByBrand.set(row.brandId, Number(((previousSpendByBrand.get(row.brandId) ?? 0) + row.cost).toFixed(2)));
+  }
+
+  const trend = buildTrendBuckets(currentDetections, brandsById, filters.start, filters.end);
+  const chartTotal = sumMoney(trend.buckets.map((bucket) => bucket.totalSpend));
+
+  const brandBreakdown = [...currentSpendByBrand.entries()]
+    .map(([brandId, spend]) => {
+      const brand = brandsById.get(brandId);
+      if (!brand) return null;
+      const previousSpend = previousSpendByBrand.get(brandId) ?? 0;
+      return {
+        brandId,
+        brandName: brand.name,
+        color: brand.color,
+        logoUrl: brand.logoUrl,
+        initials: getInitials(brand.name),
+        spend,
+        shareOfTotal: currentSpendTotal > 0 ? Number(((spend / currentSpendTotal) * 100).toFixed(2)) : 0,
+        previousSpend,
+        changePercent: safePercentChange(spend, previousSpend),
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => (right?.spend ?? 0) - (left?.spend ?? 0)) as TvBrandBreakdownItem[];
+
+  const brandPercentageDisplay = buildPercentageDisplay(
+    brandBreakdown.map((item) => ({ key: item.brandId, value: item.shareOfTotal })),
+  );
+  const brandSov = brandBreakdown.map((item) => ({
+    brandId: item.brandId,
+    brandName: item.brandName,
+    color: item.color,
+    spend: item.spend,
+    percentage: item.shareOfTotal,
+    displayPercentage: brandPercentageDisplay.get(item.brandId) ?? Number(item.shareOfTotal.toFixed(1)),
+    activeCampaignCount: activeCampaigns.filter((campaign) => campaign.brandId === item.brandId).length,
+  }));
+
+  const channelPercentageDisplay = buildPercentageDisplay(
+    [...currentSpendByChannel.entries()].map(([channelId, spend]) => ({
+      key: channelId,
+      value: currentSpendTotal > 0 ? (spend / currentSpendTotal) * 100 : 0,
+    })),
+  );
+
+  const channelSplit = [...currentSpendByChannel.entries()]
+    .map(([channelId, spend]) => {
+      const channel = channelsById.get(channelId);
+      if (!channel) return null;
+      return {
+        channelId,
+        channelName: channel.name,
+        slug: channel.slug,
+        genre: channel.genre,
+        language: channel.language,
+        initials: getInitials(channel.name),
+        spend,
+        percentage: currentSpendTotal > 0 ? Number(((spend / currentSpendTotal) * 100).toFixed(2)) : 0,
+        displayPercentage:
+          channelPercentageDisplay.get(channelId) ??
+          Number((currentSpendTotal > 0 ? (spend / currentSpendTotal) * 100 : 0).toFixed(1)),
+        detectedAdsCount: currentDetections.filter((row) => row.channelId === channelId).length,
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => (right?.spend ?? 0) - (left?.spend ?? 0)) as TvChannelSplitItem[];
+
+  const activeCampaignItems = activeCampaigns
+    .map((campaign) => {
+      const brand = campaign.brandId ? brandsById.get(campaign.brandId) : null;
+      const linkedChannels = [...(dataset.campaignChannels.get(campaign.id) ?? new Set<string>())]
+        .map((channelId) => channelsById.get(channelId))
+        .filter(Boolean)
+        .map((channel) => ({ id: channel!.id, name: channel!.name }));
+      return {
+        id: campaign.id,
+        name: campaign.name,
+        brandId: campaign.brandId,
+        brandName: brand?.name ?? "Unassigned",
+        brandColor: brand?.color ?? "#6B7280",
+        brandLogoUrl: brand?.logoUrl ?? null,
+        initials: getInitials(brand?.name ?? campaign.name),
+        status: campaign.status,
+        startDate: campaign.startDate,
+        endDate: campaign.endDate,
+        connectedChannels: linkedChannels,
+        connectedChannelCount: linkedChannels.length,
+        detectedAdsCount: currentDetections.filter((row) => row.campaignId === campaign.id).length,
+        totalSpend: currentSpendByCampaign.get(campaign.id) ?? 0,
+      };
+    })
+    .sort((left, right) => right.totalSpend - left.totalSpend);
+
+  const activeBrandItems = TV_WATCHLIST_BRANDS
+    .map((watchBrand) => {
+      const brand =
+        dataset.brands.find((item) => item.name.toLowerCase() === watchBrand.name.toLowerCase()) ?? null;
+      const brandId = brand?.id ?? `00000000-0000-4000-8000-${slugifyBrandName(watchBrand.name).replace(/-/g, "").slice(0, 12).padEnd(12, "0")}`;
+      const brandCampaigns = activeCampaigns.filter((campaign) => {
+        const campaignBrand = campaign.brandId ? brandsById.get(campaign.brandId) : null;
+        return campaignBrand?.name.toLowerCase() === watchBrand.name.toLowerCase();
+      });
+      const channelIds = new Set(
+        brandCampaigns.flatMap((campaign) => [...(dataset.campaignChannels.get(campaign.id) ?? new Set<string>())]),
+      );
+      const resolvedSpend =
+        brand && currentSpendByBrand.has(brand.id)
+          ? currentSpendByBrand.get(brand.id) ?? 0
+          : 0;
+
+      return {
+        brandId,
+        brandName: brand?.name ?? watchBrand.name,
+        brandColor: brand?.color ?? watchBrand.color,
+        logoUrl: brand?.logoUrl ?? null,
+        initials: getInitials(brand?.name ?? watchBrand.name),
+        activeCampaignCount: brandCampaigns.length,
+        connectedChannelCount: channelIds.size,
+        totalSpend: resolvedSpend,
+        status: brandCampaigns.length > 0 ? "Active" as const : "Tracked" as const,
+      };
+    })
+    .sort((left, right) => {
+      if (left.status !== right.status) return left.status === "Active" ? -1 : 1;
+      if (left.totalSpend !== right.totalSpend) return right.totalSpend - left.totalSpend;
+      return left.brandName.localeCompare(right.brandName);
+    }) as TvActiveBrandItem[];
+
+  const channelTotal = sumMoney(channelSplit.map((item) => item.spend));
+  const brandTotal = sumMoney(brandBreakdown.map((item) => item.spend));
+  const latestDetectionAt = currentDetections.length > 0
+    ? [...currentDetections].sort((left, right) => right.detectedAt.localeCompare(left.detectedAt))[0]?.detectedAt ?? null
+    : dataset.dateBounds.max
+      ? `${dataset.dateBounds.max}T00:00:00${BAGHDAD_OFFSET}`
+      : null;
+
+  return {
+    filters: {
+      preset: filters.preset,
+      startDate: filters.startDate,
+      endDate: filters.endDate,
+      brandIds: filters.brandIds,
+      campaignIds: filters.campaignIds,
+      channelIds: filters.channelIds,
+      timezone: filters.timezone,
+      activeFilterCount: filters.activeFilterCount,
+    },
+    summary: {
+      title: "TV",
+      description: "Monitor TV advertising performance, active brands, campaigns, channels, spend, and detected creatives.",
+      currency: DEFAULT_CURRENCY,
+      rangeLabel: formatRangeLabel(filters.startDate, filters.endDate),
+      activeFilterCount: filters.activeFilterCount,
+      lastUpdatedAt: latestDetectionAt,
+      latestDataDate: dataset.dateBounds.max,
+    },
+    filterOptions,
+    kpis: {
+      activeBrands: {
+        value: activeBrandItems.length,
+        previousValue: activeBrandItems.length,
+        changePercent: 0,
+        description: "Coke Iraq TV watchlist brands currently tracked",
+        comparisonLabel: "Coke Iraq TV watchlist brands currently tracked",
+      },
+      activeCampaigns: {
+        value: activeCampaigns.length,
+        previousValue: previousActiveCampaigns.length,
+        changePercent: safePercentChange(activeCampaigns.length, previousActiveCampaigns.length),
+        description: "TV campaigns active in the selected period",
+        comparisonLabel: "TV campaigns active in the selected period",
+      },
+      activeChannels: {
+        value: activeChannelIds.size,
+        previousValue: previousActiveChannelIds.size,
+        changePercent: safePercentChange(activeChannelIds.size, previousActiveChannelIds.size),
+        description: "TV channels with monitored activity",
+        comparisonLabel: "TV channels with monitored activity",
+      },
+      totalSpend: {
+        value: currentSpendTotal,
+        previousValue: previousSpendTotal,
+        changePercent: safePercentChange(currentSpendTotal, previousSpendTotal),
+        description: "Combined filtered TV media spend",
+        comparisonLabel: "Combined filtered TV media spend",
+      },
+    },
+    spendingTrend: {
+      granularity: trend.granularity,
+      totalSpend: currentSpendTotal,
+      previousTotalSpend: previousSpendTotal,
+      changePercent: safePercentChange(currentSpendTotal, previousSpendTotal),
+      representedBrandCount: brandBreakdown.length,
+      buckets: trend.buckets,
+    },
+    brandSpendBreakdown: brandBreakdown,
+    brandSov,
+    activeCampaigns: activeCampaignItems,
+    channelSplit,
+    activeBrands: activeBrandItems,
+    reconciliation: {
+      totalSpend: currentSpendTotal,
+      chartTotal,
+      brandBreakdownTotal: brandTotal,
+      channelSplitTotal: channelTotal,
+      detectedAdsCostTotal: currentSpendTotal,
+    },
+    states: {
+      isEmpty: currentDetections.length === 0,
+      emptyReason: currentDetections.length === 0 ? "No TV spend found for the selected filters." : null,
+    },
+  };
+}
+
+export async function getTvOverview(rawFilters?: Partial<TvFilters>) {
+  return getTvAnalytics(rawFilters);
+}
+
+export async function getTvDetectedAds(
+  rawFilters?: Partial<TvDetectedAdsFilters> & { search?: string },
+): Promise<TvDetectedAdsResponse> {
+  const filters = normalizeDetectedAdsFilters(rawFilters);
+  const { previousStart } = getPreviousPeriodRange(filters.start, filters.end);
+  const previousSeedStart = formatIsoDate(previousStart);
+  const dataset = await loadTvDataset(previousSeedStart, filters.endDate);
+  validateDateBounds(filters, dataset.dateBounds);
+
+  const brandsById = new Map(dataset.brands.map((brand) => [brand.id, brand]));
+  const channelsById = new Map(dataset.channels.map((channel) => [channel.id, channel]));
+  const campaignsById = new Map(dataset.campaigns.map((campaign) => [campaign.id, campaign]));
+
+  let items = dataset.detections.filter((row) => matchesSharedFilters(row, filters)).map((row) => {
+    const brand = row.brandId ? brandsById.get(row.brandId) : null;
+    const campaign = row.campaignId ? campaignsById.get(row.campaignId) : null;
+    const channel = channelsById.get(row.channelId);
+    const parts = getBaghdadDateTimeParts(row.detectedAt);
+    return {
+      id: row.id,
+      channelName: channel?.name ?? "Unknown channel",
+      channelSlug: channel?.slug ?? "",
+      genre: channel?.genre ?? row.genre,
+      date: `${parts.day}/${parts.month}/${parts.year}`,
+      time: `${parts.hour}:${parts.minute} ${parts.dayPeriod}`,
+      month: new Intl.DateTimeFormat("en-US", { timeZone: DEFAULT_TIMEZONE, month: "long", year: "numeric" }).format(new Date(row.detectedAt)),
+      brandName: brand?.name ?? "Unknown brand",
+      daypart: row.daypart,
+      language: row.language,
+      durationSeconds: Math.round(row.durationSeconds),
+      copyName: row.copyName,
+      cost: row.cost,
+      sovPercentage: 0,
+      previewUrl: row.creativeUrl ?? DEMO_PREVIEW_URL,
+      previewPosterUrl: row.previewPosterUrl ?? DEMO_PREVIEW_POSTER,
+      isDemoMedia: !row.isUploadedAsset,
+      isUploadedAsset: row.isUploadedAsset,
+      campaignName: campaign?.name ?? null,
+      sortDetectedAt: row.detectedAt,
+    } satisfies TvDetectedAd;
+  });
+
+  const totalCost = sumMoney(items.map((item) => item.cost));
+  items = items.map((item) => ({
+    ...item,
+    sovPercentage: calculateDetectedAdSov(item.cost, totalCost),
+  }));
+
+  const searchTerm = filters.search.trim().toLowerCase();
+  if (searchTerm) {
+    items = items.filter((item) =>
+      [
+        item.channelName,
+        item.brandName,
+        item.campaignName,
+        item.copyName,
+        item.genre,
+        item.language,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(searchTerm)),
+    );
+  }
+
+  items.sort((left, right) => {
+    const uploadedBias =
+      left.isUploadedAsset !== right.isUploadedAsset && filters.sortBy === "detected_at" && filters.sortDirection === "desc"
+        ? (left.isUploadedAsset ? -1 : 1)
+        : 0;
+    if (uploadedBias !== 0) return uploadedBias;
+
+    if (filters.sortBy === "brand") {
+      const compare = left.brandName.localeCompare(right.brandName);
+      return filters.sortDirection === "asc" ? compare : -compare;
+    }
+    if (filters.sortBy === "channel") {
+      const compare = left.channelName.localeCompare(right.channelName);
+      return filters.sortDirection === "asc" ? compare : -compare;
+    }
+    if (filters.sortBy === "duration") {
+      return filters.sortDirection === "asc"
+        ? left.durationSeconds - right.durationSeconds
+        : right.durationSeconds - left.durationSeconds;
+    }
+    if (filters.sortBy === "cost") {
+      return filters.sortDirection === "asc" ? left.cost - right.cost : right.cost - left.cost;
+    }
+    if (filters.sortBy === "sov") {
+      return filters.sortDirection === "asc"
+        ? left.sovPercentage - right.sovPercentage
+        : right.sovPercentage - left.sovPercentage;
+    }
+
+    return filters.sortDirection === "asc"
+      ? left.sortDetectedAt.localeCompare(right.sortDetectedAt)
+      : right.sortDetectedAt.localeCompare(left.sortDetectedAt);
+  });
+
+  const totalItems = items.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / filters.pageSize));
+  const page = Math.min(filters.page, totalPages);
+  const startIndex = (page - 1) * filters.pageSize;
+  const pagedItems = items.slice(startIndex, startIndex + filters.pageSize);
+
+  return {
+    items: pagedItems,
+    pagination: {
+      page,
+      pageSize: filters.pageSize,
+      totalItems,
+      totalPages,
+    },
+    totals: {
+      filteredCost: totalCost,
+    },
+  };
+}
+
+export { parseDetectedAdsFiltersFromSearchParams };

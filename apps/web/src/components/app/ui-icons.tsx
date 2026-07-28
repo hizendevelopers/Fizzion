@@ -243,6 +243,16 @@ export function ReportIcon({ className }: IconProps) {
   );
 }
 
+export function DownloadIcon({ className }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <path d="M12 5v9" />
+      <path d="m8.5 10.5 3.5 3.5 3.5-3.5" />
+      <path d="M5 18.5h14" />
+    </BaseIcon>
+  );
+}
+
 export function AlertIcon({ className }: IconProps) {
   return (
     <BaseIcon className={className}>

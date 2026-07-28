@@ -2,6 +2,10 @@ import { OohInventoryClient } from "@/components/ooh/ooh-inventory-client";
 import { getOohAnalytics, listOohAreas, listOohAssets, listOohBrands } from "@/lib/ooh/ooh-data";
 import { oohAssetListQuerySchema } from "@/lib/ooh/ooh-schemas";
 
+export const metadata = {
+  title: "OOH",
+};
+
 type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };

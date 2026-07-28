@@ -1,9 +1,11 @@
 import { z } from "zod";
 
+import { isBeverageScopedBrand } from "@/lib/beverage-scope";
 import { getOptionalSupabaseAdminClient } from "@/lib/supabase/server";
 
 const ORGANIZATION_SLUG = "coca_cola_iraq";
-const overviewPresetSchema = z.enum(["last7", "last30", "last90", "thisMonth", "previousMonth", "custom"]);
+const OVERVIEW_PLATFORM_SLUGS = ["meta", "tiktok", "youtube", "google-ads", "web-advertising", "ooh"] as const;
+const overviewPresetSchema = z.enum(["last7", "last30", "last90", "last2Years", "thisMonth", "previousMonth", "custom"]);
 const overviewSortSchema = z.enum(["spend", "name", "brand", "startDate"]);
 const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
@@ -27,6 +29,7 @@ type OverviewBrand = {
   id: string;
   name: string;
   slug: string | null;
+  category?: string | null;
   logoUrl: string | null;
   color: string;
   competitorGroup: string | null;
@@ -273,6 +276,53 @@ function endOfDay(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
 }
 
+async function fetchOverviewSpendRecords({
+  client,
+  organizationId,
+  allowedPlatformIds,
+  fromDate,
+  toDate,
+}: {
+  client: NonNullable<ReturnType<typeof getOptionalSupabaseAdminClient>>;
+  organizationId: string;
+  allowedPlatformIds: string[];
+  fromDate: string;
+  toDate: string;
+}) {
+  const pageSize = 1000;
+  const records: OverviewSpendRecord[] = [];
+
+  for (let offset = 0; ; offset += pageSize) {
+    const response = await client
+      .from("spend_records")
+      .select("brand_id,campaign_id,platform_id,spend_date,amount,currency")
+      .eq("organization_id", organizationId)
+      .in("platform_id", allowedPlatformIds)
+      .gte("spend_date", fromDate)
+      .lte("spend_date", toDate)
+      .order("spend_date", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+
+    if (response.error) {
+      throw response.error;
+    }
+
+    const chunk = ((response.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+      brandId: String(row.brand_id),
+      campaignId: String(row.campaign_id),
+      platformId: String(row.platform_id),
+      spendDate: String(row.spend_date),
+      amount: Number(row.amount ?? 0),
+      currency: String(row.currency ?? "USD"),
+    }));
+
+    records.push(...chunk);
+    if (chunk.length < pageSize) break;
+  }
+
+  return records;
+}
+
 function formatIsoDate(date: Date) {
   return [
     date.getFullYear(),
@@ -306,6 +356,10 @@ function buildDateRange(preset: OverviewPreset, customStart?: string, customEnd?
 
   if (preset === "last90") {
     return { start: addDays(today, -89), end: endOfDay(today) };
+  }
+
+  if (preset === "last2Years") {
+    return { start: addDays(today, -729), end: endOfDay(today) };
   }
 
   if (preset === "thisMonth") {
@@ -825,6 +879,7 @@ export function computeOverviewAnalytics(input: AnalyticsComputationInput): Over
         { id: "last7", label: "Last 7 Days" },
         { id: "last30", label: "Last 30 Days" },
         { id: "last90", label: "Last 90 Days" },
+        { id: "last2Years", label: "Last 2 Years" },
         { id: "thisMonth", label: "This Month" },
         { id: "previousMonth", label: "Previous Month" },
         { id: "custom", label: "Custom Range" },
@@ -930,49 +985,101 @@ export async function getOverviewAnalytics(rawFilters?: OverviewFilterInput) {
   const previousEnd = addDays(startOfDay(filters.start), -1);
   const previousStart = addDays(previousEnd, -(previousRangeLength - 1));
 
-  const [brandsRes, platformsRes, campaignsRes, campaignPlatformsRes, spendRes] = await Promise.all([
+  const allowedPlatformsRes = await client
+    .from("platforms")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .in("slug", [...OVERVIEW_PLATFORM_SLUGS]);
+
+  if (allowedPlatformsRes.error) throw allowedPlatformsRes.error;
+
+  const allowedPlatformIds = ((allowedPlatformsRes.data ?? []) as Array<Record<string, unknown>>)
+    .map((row) => String(row.id));
+
+  if (allowedPlatformIds.length === 0) {
+    return computeOverviewAnalytics({
+      filters,
+      brands: [],
+      platforms: [],
+      campaigns: [],
+      campaignPlatforms: [],
+      currentSpendRecords: [],
+      previousSpendRecords: [],
+    });
+  }
+
+  const spendRecords = await fetchOverviewSpendRecords({
+    client,
+    organizationId,
+    allowedPlatformIds,
+    fromDate: formatIsoDate(previousStart),
+    toDate: filters.endDate,
+  });
+
+  const relevantBrandIds = Array.from(new Set(spendRecords.map((record) => record.brandId)));
+  const relevantCampaignIds = Array.from(new Set(spendRecords.map((record) => record.campaignId)));
+  const relevantPlatformIds = Array.from(new Set(spendRecords.map((record) => record.platformId)));
+
+  if (relevantCampaignIds.length === 0) {
+    return computeOverviewAnalytics({
+      filters,
+      brands: [],
+      platforms: [],
+      campaigns: [],
+      campaignPlatforms: [],
+      currentSpendRecords: [],
+      previousSpendRecords: [],
+    });
+  }
+
+  const [brandsRes, platformsRes, campaignsRes, campaignPlatformsRes] = await Promise.all([
     client
       .from("brands")
-      .select("id,name,slug,logo_url,color,competitor_group,is_active")
+      .select("id,name,slug,category,logo_url,color,competitor_group,is_active")
       .eq("organization_id", organizationId)
+      .in("id", relevantBrandIds)
       .order("name", { ascending: true }),
     client
       .from("platforms")
       .select("id,name,slug,icon,color,is_active")
       .eq("organization_id", organizationId)
+      .in("id", relevantPlatformIds)
       .order("name", { ascending: true }),
     client
       .from("campaigns")
       .select("id,brand_id,name,status,start_date,end_date")
       .eq("organization_id", organizationId)
+      .in("id", relevantCampaignIds)
       .order("start_date", { ascending: false }),
     client
       .from("campaign_platforms")
       .select("campaign_id,platform_id")
-      .eq("organization_id", organizationId),
-    client
-      .from("spend_records")
-      .select("brand_id,campaign_id,platform_id,spend_date,amount,currency")
       .eq("organization_id", organizationId)
-      .gte("spend_date", formatIsoDate(previousStart))
-      .lte("spend_date", filters.endDate),
+      .in("campaign_id", relevantCampaignIds),
   ]);
 
   if (brandsRes.error) throw brandsRes.error;
   if (platformsRes.error) throw platformsRes.error;
   if (campaignsRes.error) throw campaignsRes.error;
   if (campaignPlatformsRes.error) throw campaignPlatformsRes.error;
-  if (spendRes.error) throw spendRes.error;
 
   const brands = ((brandsRes.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
     id: String(row.id),
     name: String(row.name),
     slug: row.slug ? String(row.slug) : null,
+    category: row.category ? String(row.category) : null,
     logoUrl: row.logo_url ? String(row.logo_url) : null,
     color: row.color ? String(row.color) : "",
     competitorGroup: row.competitor_group ? String(row.competitor_group) : null,
     isActive: Boolean(row.is_active),
-  }));
+  })).filter((brand) =>
+    isBeverageScopedBrand({
+      name: brand.name,
+      slug: brand.slug,
+      category: brand.category,
+    }),
+  );
+  const allowedBrandIds = new Set(brands.map((brand) => brand.id));
   const platforms = ((platformsRes.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
     id: String(row.id),
     name: String(row.name),
@@ -988,22 +1095,15 @@ export async function getOverviewAnalytics(rawFilters?: OverviewFilterInput) {
     status: String(row.status ?? "draft"),
     startDate: row.start_date ? String(row.start_date) : null,
     endDate: row.end_date ? String(row.end_date) : null,
-  }));
+  })).filter((campaign) => campaign.brandId && allowedBrandIds.has(campaign.brandId));
+  const allowedCampaignIds = new Set(campaigns.map((campaign) => campaign.id));
   const campaignPlatforms = ((campaignPlatformsRes.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
     campaignId: String(row.campaign_id),
     platformId: String(row.platform_id),
   }));
 
-  const filteredSpend = ((spendRes.data ?? []) as Array<Record<string, unknown>>)
-    .map((row) => ({
-      brandId: String(row.brand_id),
-      campaignId: String(row.campaign_id),
-      platformId: String(row.platform_id),
-      spendDate: String(row.spend_date),
-      amount: Number(row.amount ?? 0),
-      currency: String(row.currency ?? "USD"),
-    }))
-    .filter((record) => {
+  const filteredSpend = spendRecords.filter((record) => {
+      if (!allowedBrandIds.has(record.brandId) || !allowedCampaignIds.has(record.campaignId)) return false;
       if (filters.brandIds.length > 0 && !filters.brandIds.includes(record.brandId)) return false;
       if (filters.campaignIds.length > 0 && !filters.campaignIds.includes(record.campaignId)) return false;
       if (filters.platformIds.length > 0 && !filters.platformIds.includes(record.platformId)) return false;

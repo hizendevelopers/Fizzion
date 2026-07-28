@@ -1,4 +1,5 @@
 import { getSupabaseAdminClient, getOptionalSupabaseAdminClient } from "@/lib/supabase/server";
+import { isBeverageScopedBrand } from "@/lib/beverage-scope";
 import type {
   OohAssetCreateInput,
   OohAssetImageInput,
@@ -914,6 +915,13 @@ export async function listOohBrands() {
 
     return ((data ?? []) as GenericRow[])
       .filter((row) => !Boolean(row["is_dummy_brand"]))
+      .filter((row) =>
+        isBeverageScopedBrand({
+          name: rowString(row, "name"),
+          slug: rowNullableString(row, "slug"),
+          category: rowNullableString(row, "category"),
+        }),
+      )
       .map((row) => ({
       id: rowString(row, "id"),
       name: rowString(row, "name"),
@@ -982,7 +990,14 @@ export async function listOohAssets(query: OohAssetListQuery) {
       .filter((item) => {
         if (!item.brandId) return true;
         const brandRow = lookups.brandLookup.get(item.brandId);
-        return !Boolean(brandRow?.["is_dummy_brand"]);
+        return (
+          !Boolean(brandRow?.["is_dummy_brand"]) &&
+          isBeverageScopedBrand({
+            name: rowNullableString(brandRow ?? {}, "name"),
+            slug: rowNullableString(brandRow ?? {}, "slug"),
+            category: rowNullableString(brandRow ?? {}, "category"),
+          })
+        );
       })
       .filter((item) => (query.region ? item.region === query.region : true))
       .filter((item) => matchesOohAssetTypeFilter(item, query.assetType))

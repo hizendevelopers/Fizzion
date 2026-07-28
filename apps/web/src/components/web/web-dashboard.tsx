@@ -1,11 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
+import { createPortal } from "react-dom";
 
 import type { WebOverviewResponse, WebFilters, WebDetection } from "@/lib/web-analytics";
+import { formatCompactUsdFromCurrency, formatUsdFromCurrency } from "@/lib/display-currency";
 import { cn } from "@/lib/utils";
+import { normalizeWebScreenshotUrl } from "@/lib/web-screenshot-url";
+import { ShareOfVoiceCard, StackedSpendingChartCard } from "@/components/states/insight-charts";
 import {
   BrandIcon, CalendarIcon, CampaignIcon, ChevronDownIcon, GlobeIcon, ReportIcon, SearchIcon, WebIcon,
 } from "@/components/app/ui-icons";
@@ -14,11 +18,12 @@ import {
 
 type WebDashboardProps = { initialData: WebOverviewResponse };
 type AsyncState = { data: WebOverviewResponse; loading: boolean; error: string | null };
+type WebFilterPanel = "date" | "brands" | "campaigns" | "websites" | "languages" | "adFormats" | "pageTypes" | "statuses" | null;
 
 /* ──────────────────────── Helpers ──────────────────────── */
 
 function formatCurrency(value: number, currency: string) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
+  return formatUsdFromCurrency(value, currency);
 }
 function formatDelta(value: number | null) {
   if (value == null) return "—";
@@ -46,6 +51,28 @@ function getBrandInitials(name: string) {
   return name.slice(0, 2).toUpperCase();
 }
 
+function normalizeEditableScreenshotUrl(rawUrl: string) {
+  try {
+    return normalizeWebScreenshotUrl(rawUrl);
+  } catch {
+    return rawUrl.trim();
+  }
+}
+
+function resolveScreenshotSrc(url: string) {
+  if (/^https?:\/\//i.test(url)) {
+    return `/api/web/screenshots/proxy?url=${encodeURIComponent(url)}`;
+  }
+  return url;
+}
+
+function formatDateRangeSummary(startDate: string, endDate: string) {
+  if (!startDate || !endDate) return "Choose dates";
+
+  const formatter = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return `${formatter.format(new Date(`${startDate}T00:00:00`))} – ${formatter.format(new Date(`${endDate}T00:00:00`))}`;
+}
+
 /* ──────────────────── Sub-Components ────────────────────── */
 
 function EmptyState({ title, description }: { title: string; description: string }) {
@@ -55,27 +82,242 @@ function ErrorBanner({ message, onRetry }: { message: string; onRetry: () => voi
   return (<div className="rounded-2xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm text-[#991B1B]"><p className="font-semibold">Something went wrong</p><p className="mt-1 text-xs">{message}</p><button className="mt-2 inline-flex h-8 items-center justify-center rounded-lg bg-[#991B1B] px-3 text-xs font-semibold text-white" onClick={onRetry} type="button">Retry</button></div>);
 }
 function FilterChip({ label, tone = "default" }: { label: string; tone?: "default" | "accent" }) {
-  return <span className={cn("inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium", tone === "accent" ? "bg-[#F40009] text-white" : "border border-white/[0.08] bg-white/[0.04] text-white/60")}>{label}</span>;
+  return <span className={cn("inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium", tone === "accent" ? "bg-[#F40009] text-white" : "border border-[#D0D5DD] bg-white text-[#475467]")}>{label}</span>;
 }
 function MiniSparkline({ data, color }: { data: Array<{ value: number }>; color: string }) {
   if (data.length === 0) return <div className="h-full rounded-lg border border-dashed border-[#E5E7EB] bg-[#F9FAFB]" />;
   const w = 240, h = 40;
   const mx = Math.max(...data.map((d) => d.value), 1);
   const step = data.length > 1 ? w / (data.length - 1) : w;
-  const pts = data.map((d, i) => `${i === 0 ? "M" : "L"}${(i * step).toFixed(1)} ${h - ((d.value / mx) * h).toFixed(1)}`).join(" ");
+  const pts = data.map((d, i) => {
+    const px = (i * step).toFixed(1);
+    const py = (h - ((d.value / mx) * h)).toFixed(1);
+    return `${i === 0 ? "M" : "L"}${px} ${py}`;
+  }).join(" ");
   return <svg className="h-full w-full" viewBox={`0 0 ${w} ${h}`} fill="none"><path d={pts} stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></svg>;
 }
 function Section({ dark, children }: { dark?: boolean; children: React.ReactNode }) {
-  return <section className={cn("rounded-2xl p-5", dark ? "border border-white/[0.06] bg-[#161B24] text-white shadow-[0_8px_24px_rgba(0,0,0,0.2)]" : "border border-[#E5E7EB] bg-white shadow-[0_4px_16px_rgba(0,0,0,0.04)]")}>{children}</section>;
+  return <section className={cn("rounded-2xl p-5", dark ? "border border-[#E4E7EC] bg-[linear-gradient(180deg,#FFFFFF_0%,#F8FAFC_100%)] text-[#101828] shadow-[0_8px_24px_rgba(15,23,42,0.06)]" : "border border-[#E5E7EB] bg-white shadow-[0_4px_16px_rgba(0,0,0,0.04)]")}>{children}</section>;
 }
 
 /* ────────────────── Date Range Filter ──────────────────── */
-function DateRangeFilter({ preset, startDate, endDate, onPresetChange, onStartDateChange, onEndDateChange }: { preset: WebFilters["preset"]; startDate: string; endDate: string; onPresetChange: (v: WebFilters["preset"]) => void; onStartDateChange: (v: string) => void; onEndDateChange: (v: string) => void }) {
-  return (<div className="rounded-xl border border-white/[0.07] bg-white/[0.04] p-3"><div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-white"><CalendarIcon className="h-3.5 w-3.5 text-[#FF3340]" />Date Range</div><div className="mt-2 grid gap-2 md:grid-cols-[auto_1fr_1fr]"><select className="h-10 rounded-lg border border-white/10 bg-[#1A1F29] px-2.5 text-sm text-white outline-none" value={preset} onChange={(e) => onPresetChange(e.target.value as WebFilters["preset"])}><option value="last7">Last 7 Days</option><option value="last30">Last 30 Days</option><option value="last90">Last 90 Days</option><option value="thisMonth">This Month</option><option value="previousMonth">Previous Month</option><option value="custom">Custom</option></select><input className="h-10 rounded-lg border border-white/10 bg-[#1A1F29] px-2.5 text-sm text-white outline-none [color-scheme:dark]" type="date" value={startDate} max={endDate || undefined} onChange={(e) => onStartDateChange(e.target.value)} /><input className="h-10 rounded-lg border border-white/10 bg-[#1A1F29] px-2.5 text-sm text-white outline-none [color-scheme:dark]" type="date" value={endDate} min={startDate || undefined} onChange={(e) => onEndDateChange(e.target.value)} /></div></div>);
+function useFilterPopover({
+  isOpen,
+  onOpenChange,
+}: {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const [position, setPosition] = useState({ top: 0, left: 0, width: 320 });
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const updatePosition = () => {
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+
+      const rect = trigger.getBoundingClientRect();
+      const width = Math.min(Math.max(rect.width, 320), window.innerWidth - 24);
+      setPosition({
+        top: rect.bottom + 10,
+        left: Math.max(12, Math.min(rect.left, window.innerWidth - width - 12)),
+        width,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (triggerRef.current?.contains(target) || panelRef.current?.contains(target)) return;
+      onOpenChange(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onOpenChange(false);
+        triggerRef.current?.focus();
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen, onOpenChange]);
+
+  return {
+    triggerRef,
+    panelRef,
+    position,
+    close: () => {
+      onOpenChange(false);
+      triggerRef.current?.focus();
+    },
+  };
+}
+
+function FilterPopoverShell({
+  isOpen,
+  onOpenChange,
+  panelRef,
+  position,
+  align = "start",
+  children,
+}: {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  panelRef: React.RefObject<HTMLDivElement | null>;
+  position: { top: number; left: number; width: number };
+  align?: "start" | "end";
+  children: React.ReactNode;
+}) {
+  if (typeof document === "undefined" || !isOpen) return null;
+
+  const mobile = typeof window !== "undefined" && window.innerWidth < 768;
+  const width = Math.min(position.width, 392);
+  const left = align === "end" ? Math.max(12, position.left + position.width - width) : position.left;
+
+  return createPortal(
+    <>
+      <div className="fixed inset-0 z-40 bg-transparent" aria-hidden="true" onClick={() => onOpenChange(false)} />
+      <div
+        ref={panelRef}
+        className={cn(
+          "z-50 overflow-hidden rounded-2xl border border-white/[0.08] bg-[#151922] shadow-[0_24px_80px_rgba(0,0,0,0.45)]",
+          mobile ? "fixed inset-x-4 bottom-4 max-h-[72vh]" : "fixed max-h-[min(28rem,calc(100vh-2rem))]",
+        )}
+        style={mobile ? undefined : { top: position.top, left, width }}
+      >
+        {children}
+      </div>
+    </>,
+    document.body,
+  );
+}
+
+function ViewportModal({ children }: { children: React.ReactNode }) {
+  if (typeof document === "undefined") return null;
+  return createPortal(children, document.body);
+}
+
+function DateRangeFilter({
+  preset,
+  startDate,
+  endDate,
+  isOpen,
+  onOpenChange,
+  onPresetChange,
+  onStartDateChange,
+  onEndDateChange,
+}: {
+  preset: WebFilters["preset"];
+  startDate: string;
+  endDate: string;
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  onPresetChange: (v: WebFilters["preset"]) => void;
+  onStartDateChange: (v: string) => void;
+  onEndDateChange: (v: string) => void;
+}) {
+  const { triggerRef, panelRef, position, close } = useFilterPopover({ isOpen, onOpenChange });
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        className="flex h-11 w-full items-center justify-between rounded-xl border border-[#D0D5DD] bg-white px-3 text-left transition hover:border-[#98A2B3] hover:bg-[#F8FAFC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F40009]/25"
+        type="button"
+        aria-expanded={isOpen}
+        aria-haspopup="dialog"
+        onClick={() => onOpenChange(!isOpen)}
+      >
+        <span className="flex min-w-0 items-center gap-2.5">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#FFF1EE] text-[#D92D20]">
+            <CalendarIcon className="h-4 w-4" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-[#98A2B3]">Date Range</span>
+            <span className="block truncate text-sm font-medium text-[#101828]">{formatDateRangeSummary(startDate, endDate)}</span>
+          </span>
+        </span>
+        <ChevronDownIcon className={cn("h-4 w-4 shrink-0 text-[#98A2B3] transition", isOpen && "rotate-180")} />
+      </button>
+      <FilterPopoverShell isOpen={isOpen} onOpenChange={onOpenChange} panelRef={panelRef} position={position}>
+        <div className="space-y-4 p-4">
+          <div className="space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/45">Date Range</p>
+            <p className="text-sm text-white/65">Choose a preset or set a custom range.</p>
+          </div>
+          <div className="grid gap-3">
+            <label className="space-y-1.5">
+              <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-white/45">Preset</span>
+              <select
+                className="h-10 w-full rounded-xl border border-white/10 bg-[#10141C] px-3 text-sm text-white outline-none transition focus:border-[#F40009]/70"
+                onChange={(e) => onPresetChange(e.target.value as WebFilters["preset"])}
+                value={preset}
+              >
+                <option value="last7">Last 7 Days</option>
+                <option value="last30">Last 30 Days</option>
+                <option value="last90">Last 90 Days</option>
+                <option value="thisMonth">This Month</option>
+                <option value="previousMonth">Previous Month</option>
+                <option value="custom">Custom</option>
+              </select>
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <input
+                className="h-10 rounded-xl border border-white/10 bg-[#10141C] px-3 text-sm text-white outline-none transition focus:border-[#F40009]/70 [color-scheme:dark]"
+                type="date"
+                value={startDate}
+                max={endDate || undefined}
+                onChange={(e) => onStartDateChange(e.target.value)}
+              />
+              <input
+                className="h-10 rounded-xl border border-white/10 bg-[#10141C] px-3 text-sm text-white outline-none transition focus:border-[#F40009]/70 [color-scheme:dark]"
+                type="date"
+                value={endDate}
+                min={startDate || undefined}
+                onChange={(e) => onEndDateChange(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex items-center justify-end border-t border-white/[0.08] pt-3">
+            <button
+              className="inline-flex h-9 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] px-3 text-xs font-semibold text-white/70 transition hover:bg-white/[0.08]"
+              type="button"
+              onClick={close}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      </FilterPopoverShell>
+    </>
+  );
 }
 
 /* ─────────────────── Multi-Select Filter ───────────────── */
-function MultiSelectFilter({ label, icon, options, selectedIds, onChange }: { label: string; icon: React.ReactNode; options: Array<{ id: string; label: string; color?: string; description?: string }>; selectedIds: string[]; onChange: (ids: string[]) => void }) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function LegacyInlineMultiSelectFilter({ label, icon, options, selectedIds, onChange }: { label: string; icon: React.ReactNode; options: Array<{ id: string; label: string; color?: string; description?: string }>; selectedIds: string[]; onChange: (ids: string[]) => void }) {
   const [query, setQuery] = useState("");
   const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
   const filtered = useMemo(() => options.filter((o) => `${o.label} ${o.description ?? ""}`.toLowerCase().includes(query.toLowerCase())), [options, query]);
@@ -88,25 +330,160 @@ function KpiCard({ title, value, delta, icon, color, tooltip, loading, trend }: 
 }
 
 /* ────────────────── Multi-Line Trend Chart ──────────────── */
-function MultiLineChart({ data, brands, currency }: { data: WebOverviewResponse["spending"]["timeSeries"]; brands: WebOverviewResponse["spending"]["totalsByBrand"]; currency: string }) {
-  const [hoveredPoint, setHoveredPoint] = useState<{ brandId: string; label: string; value: number; color: string; x: number; y: number } | null>(null);
-  const brandsById = useMemo(() => new Map(brands.map((b) => [b.brandId, b])), [brands]);
-  if (data.length === 0) return <EmptyState title="No data" description="No spend data matched the current filters." />;
-  const margin = { top: 16, right: 16, bottom: 28, left: 52 };
-  const w = 700, h = 280;
-  const pw = w - margin.left - margin.right, ph = h - margin.top - margin.bottom;
-  const allBrandIds = [...new Set(data.flatMap((d) => d.brands.map((b) => b.brandId)))];
-  const maxVal = Math.max(...data.map((d) => d.total), 1);
-  const gridLines = 5;
-  const yTicks = Array.from({ length: gridLines }, (_, i) => (maxVal / (gridLines - 1)) * i);
-  const xStep = data.length > 1 ? pw / (data.length - 1) : pw / 2;
-  return (<div className="relative"><svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ maxHeight: h }}>{yTicks.map((val, i) => (<g key={i}><line x1={margin.left} x2={w - margin.right} y1={margin.top + ph - (val / maxVal) * ph} y2={margin.top + ph - (val / maxVal) * ph} stroke="#F1F3F5" strokeWidth={1} /><text x={margin.left - 8} y={margin.top + ph - (val / maxVal) * ph + 4} fill="#9CA3AF" fontSize={10} textAnchor="end">{formatCurrency(val, currency)}</text></g>))}{data.filter((_, i) => i % Math.max(1, Math.floor(data.length / 8)) === 0).map((d) => { const idx = data.indexOf(d); return <text key={d.key} x={margin.left + idx * xStep} y={h - margin.bottom + 16} fill="#9CA3AF" fontSize={9} textAnchor="middle">{d.label}</text>; })}{allBrandIds.map((brandId) => { const brand = brandsById.get(brandId); const color = brand?.color ?? "#7C3AED"; const pts = data.map((d, i) => { const b = d.brands.find((b) => b.brandId === brandId); const v = b?.value ?? 0; const x = margin.left + i * xStep; const y = margin.top + ph - (v / maxVal) * ph; return `${i === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`; }).join(" "); return <path key={brandId} d={pts} stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" fill="none" opacity={0.85} />; })}{data.map((d, i) => { const x = margin.left + i * xStep; return d.brands.map((b) => { const v = b.value; const y = margin.top + ph - (v / maxVal) * ph; return <circle key={b.brandId} cx={x} cy={y} r={4} fill="transparent" style={{ cursor: "pointer" }} onMouseEnter={(e) => { const rect = e.currentTarget.getBoundingClientRect(); setHoveredPoint({ brandId: b.brandId, label: d.label, value: v, color: brandsById.get(b.brandId)?.color ?? "#7C3AED", x: rect.left + rect.width / 2, y: rect.top }); }} onMouseLeave={() => setHoveredPoint(null)} />; }); })}</svg><div className="mt-2 flex flex-wrap gap-2">{brands.map((b) => (<span key={b.brandId} className="inline-flex items-center gap-1.5 rounded-full border border-[#E5E7EB] bg-white px-2.5 py-1 text-[11px] font-medium text-[#374151]"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: b.color }} />{b.brandName}</span>))}</div>{hoveredPoint && (<div className="pointer-events-none fixed z-50 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs shadow-[0_8px_20px_rgba(0,0,0,0.1)]" style={{ left: Math.min(hoveredPoint.x, window.innerWidth - 160), top: Math.max(hoveredPoint.y - 48, 4) }}><p className="font-semibold text-[#111827]">{brandsById.get(hoveredPoint.brandId)?.brandName ?? hoveredPoint.brandId}</p><p className="mt-0.5 text-[#6B7280]">{hoveredPoint.label}: <span className="font-semibold text-[#111827]">{formatCurrency(hoveredPoint.value, currency)}</span></p></div>)}</div>);
-}
-
 /* ─────────────────── SOV Card ─────────────────────── */
 function SovCard({ data, currency }: { data: WebOverviewResponse["shareOfVoice"]; currency: string }) {
-  const sorted = useMemo(() => [...data].sort((a, b) => b.percentage - a.percentage), [data]);
-  return (<article className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-[0_4px_16px_rgba(0,0,0,0.04)]"><h2 className="text-base font-semibold text-[#111827]">Web SOV</h2><p className="mt-0.5 text-xs text-[#6B7280]">Share of web spend by brand</p>{sorted.length === 0 ? <EmptyState title="No data" description="No SOV data for current filters." /> : <div className="mt-3 space-y-2">{sorted.map((e) => (<div key={e.brandId} className="flex items-center justify-between rounded-lg border border-[#F1F3F5] px-3 py-2"><div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: e.color }} /><span className="text-xs font-medium text-[#374151]">{e.brandName}</span></div><span className="text-xs font-semibold text-[#111827]">{e.percentage.toFixed(1)}%</span></div>))}</div>}</article>);
+  return (
+    <ShareOfVoiceCard
+      title="Web SOV"
+      subtitle="Share of web spend by brand"
+      data={data.map((entry) => ({
+        label: entry.brandName,
+        share: entry.percentage / 100,
+        note: formatUsdFromCurrency(entry.spend, currency),
+        color: entry.color,
+        valueLabel: `${entry.percentage.toFixed(1)}%`,
+      }))}
+      emptyLabel="No SOV data for current filters."
+    />
+  );
+}
+
+function MultiSelectFilter({
+  label,
+  icon,
+  options,
+  selectedIds,
+  isOpen,
+  onOpenChange,
+  onChange,
+  emptyLabel,
+  align = "start",
+}: {
+  label: string;
+  icon: React.ReactNode;
+  options: Array<{ id: string; label: string; color?: string; description?: string; status?: string }>;
+  selectedIds: string[];
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  onChange: (ids: string[]) => void;
+  emptyLabel: string;
+  align?: "start" | "end";
+}) {
+  const [query, setQuery] = useState("");
+  const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const filtered = useMemo(
+    () => options.filter((o) => `${o.label} ${o.description ?? ""} ${o.status ?? ""}`.toLowerCase().includes(query.toLowerCase())),
+    [options, query],
+  );
+  const summaryLabel = selectedIds.length === 0
+    ? "All"
+    : selectedIds.length === 1
+      ? options.find((option) => option.id === selectedIds[0])?.label ?? "1 selected"
+      : `${selectedIds.length} selected`;
+  const { triggerRef, panelRef, position, close } = useFilterPopover({ isOpen, onOpenChange });
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        className="flex h-11 w-full items-center justify-between rounded-xl border border-[#D0D5DD] bg-white px-3 text-left transition hover:border-[#98A2B3] hover:bg-[#F8FAFC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F40009]/25"
+        type="button"
+        aria-expanded={isOpen}
+        aria-haspopup="dialog"
+        onClick={() => onOpenChange(!isOpen)}
+      >
+        <span className="flex min-w-0 items-center gap-2.5">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#FFF1EE] text-[#D92D20]">
+            {icon}
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-[#98A2B3]">{label}</span>
+            <span className="block truncate text-sm font-medium text-[#101828]">{summaryLabel}</span>
+          </span>
+        </span>
+        <ChevronDownIcon className={cn("h-4 w-4 shrink-0 text-[#98A2B3] transition", isOpen && "rotate-180")} />
+      </button>
+      <FilterPopoverShell isOpen={isOpen} onOpenChange={onOpenChange} panelRef={panelRef} position={position} align={align}>
+        <div className="space-y-3 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/45">{label}</p>
+              <p className="mt-1 text-sm text-white/65">Search and refine selections.</p>
+            </div>
+            <span className="rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[11px] font-semibold text-white/60">
+              {selectedIds.length === 0 ? "All" : selectedIds.length}
+            </span>
+          </div>
+          <div className="relative">
+            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/30" />
+            <input
+              className="h-10 w-full rounded-xl border border-white/10 bg-[#10141C] pl-9 pr-3 text-sm text-white outline-none placeholder:text-white/28 transition focus:border-[#F40009]/70"
+              placeholder={`Search ${label.toLowerCase()}...`}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              type="search"
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3 text-xs">
+            <button className="font-semibold text-white/70 transition hover:text-white" onClick={() => onChange(filtered.map((option) => option.id))} type="button">
+              Select all
+            </button>
+            <button className="font-semibold text-white/55 transition hover:text-white" onClick={() => onChange([])} type="button">
+              Clear all
+            </button>
+          </div>
+          <div className="max-h-72 space-y-1.5 overflow-y-auto pr-1">
+            {filtered.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-white/[0.08] bg-white/[0.03] px-3 py-6 text-center text-sm text-white/45">
+                {emptyLabel}
+              </div>
+            ) : (
+              filtered.map((opt) => {
+                const checked = selected.has(opt.id);
+                return (
+                  <label
+                    key={opt.id}
+                    className={cn(
+                      "flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-2.5 transition",
+                      checked ? "border-white/18 bg-white/[0.08]" : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05]",
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      className="mt-1"
+                      onChange={() => onChange(checked ? selectedIds.filter((id) => id !== opt.id) : [...selectedIds, opt.id])}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        {opt.color && <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: opt.color }} />}
+                        <span className="truncate text-sm font-medium text-white">{opt.label}</span>
+                        {opt.status && (
+                          <span className="rounded-full border border-white/[0.08] bg-white/[0.05] px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-white/45">
+                            {opt.status}
+                          </span>
+                        )}
+                      </div>
+                      {opt.description && <p className="mt-1 truncate text-xs text-white/45">{opt.description}</p>}
+                    </div>
+                  </label>
+                );
+              })
+            )}
+          </div>
+          <div className="flex items-center justify-end border-t border-white/[0.08] pt-3">
+            <button
+              className="inline-flex h-9 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] px-3 text-xs font-semibold text-white/70 transition hover:bg-white/[0.08]"
+              type="button"
+              onClick={close}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      </FilterPopoverShell>
+    </>
+  );
 }
 
 /* ─────────────────── Website Split Card ────────────────── */
@@ -137,23 +514,49 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
   const pathname = usePathname();
   const latestRequest = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
+  const latestDetectionsRequest = useRef(0);
+  const detectionsAbortRef = useRef<AbortController | null>(null);
   const [pendingFilters, setPendingFilters] = useState<WebFilters>(initialData.filters);
   const [state, setState] = useState<AsyncState>({ data: initialData, loading: false, error: null });
+  const [openFilterPanel, setOpenFilterPanel] = useState<WebFilterPanel>(null);
   const [detectionsPage, setDetectionsPage] = useState(1);
   const [detections, setDetections] = useState<{ items: WebDetection[]; total: number; hasMore: boolean }>({ items: [], total: 0, hasMore: false });
   const [detectionsLoading, setDetectionsLoading] = useState(false);
   const [detSearch, setDetSearch] = useState("");
+  const deferredDetSearch = useDeferredValue(detSearch);
   const [detSort, setDetSort] = useState("detected_at");
   const [screenshotModal, setScreenshotModal] = useState<{ url: string; title: string } | null>(null);
+  const [screenshotEditor, setScreenshotEditor] = useState<{ detectionId: string; screenshotId: string; title: string; value: string } | null>(null);
+  const [screenshotSaveBusy, setScreenshotSaveBusy] = useState(false);
+  const [screenshotSaveError, setScreenshotSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     setPendingFilters(initialData.filters);
     setState({ data: initialData, loading: false, error: null });
   }, [initialData]);
 
+  useEffect(() => {
+    setOpenFilterPanel(null);
+  }, [pathname]);
+
   const hasDirtyFilters = JSON.stringify(pendingFilters) !== JSON.stringify(state.data.filters);
 
+  const campaignFilterOptions = useMemo(() => {
+    return state.data.filterOptions.campaigns
+      .filter((campaign) => pendingFilters.brandIds.length === 0 || !campaign.brandId || pendingFilters.brandIds.includes(campaign.brandId))
+      .map((campaign) => ({
+        id: campaign.id,
+        label: campaign.name,
+        description: campaign.brandName,
+        status: campaign.status,
+      }));
+  }, [pendingFilters.brandIds, state.data.filterOptions.campaigns]);
+
   const loadDetections = useCallback(async (page: number, filters: WebFilters) => {
+    const requestId = ++latestDetectionsRequest.current;
+    detectionsAbortRef.current?.abort();
+    const controller = new AbortController();
+    detectionsAbortRef.current = controller;
     setDetectionsLoading(true);
     const query = new URLSearchParams();
     query.set("startDate", filters.startDate);
@@ -161,15 +564,27 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
     query.set("page", String(page));
     query.set("pageSize", "12");
     query.set("sortBy", detSort);
+    query.set("sortDirection", "desc");
     if (filters.brandIds.length) query.set("brands", filters.brandIds.join(","));
+    if (filters.campaignIds.length) query.set("campaigns", filters.campaignIds.join(","));
     if (filters.websiteIds.length) query.set("websites", filters.websiteIds.join(","));
+    if (filters.languages.length) query.set("languages", filters.languages.join(","));
     if (filters.adFormats.length) query.set("adFormats", filters.adFormats.join(","));
+    if (filters.pageTypes.length) query.set("pageTypes", filters.pageTypes.join(","));
+    if (filters.statuses.length) query.set("statuses", filters.statuses.join(","));
+    const search = deferredDetSearch.trim();
+    if (search) query.set("search", search);
     try {
-      const res = await fetch(`/api/web/detections?${query.toString()}`);
+      const res = await fetch(`/api/web/detections?${query.toString()}`, { signal: controller.signal });
       const payload = await res.json();
+      if (latestDetectionsRequest.current !== requestId) return;
       if (payload.data) { setDetections(payload.data); setDetectionsPage(page); }
-    } catch { /* ignore */ } finally { setDetectionsLoading(false); }
-  }, [detSort]);
+    } catch (error) {
+      if ((error as Error).name === "AbortError") return;
+    } finally {
+      if (latestDetectionsRequest.current === requestId) setDetectionsLoading(false);
+    }
+  }, [deferredDetSearch, detSort]);
 
   useEffect(() => {
     if (state.data.filters) loadDetections(1, state.data.filters);
@@ -213,6 +628,7 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
   const applyFilters = useCallback(() => {
     const next = { ...pendingFilters, page: 1, pageSize: 12 };
     setPendingFilters(next);
+    setOpenFilterPanel(null);
     void loadData(next);
   }, [pendingFilters, loadData]);
 
@@ -220,6 +636,7 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
     const { startDate, endDate } = getPresetDates("last30");
     const defaults = { ...pendingFilters, preset: "last30" as const, startDate, endDate, brandIds: [] as string[], campaignIds: [] as string[], websiteIds: [] as string[], languages: [] as string[], adFormats: [] as string[], pageTypes: [] as string[], statuses: [] as string[], page: 1, pageSize: 12, sortBy: "detected_at", sortDirection: "desc", activeFilterCount: 0 };
     setPendingFilters(defaults);
+    setOpenFilterPanel(null);
     void loadData(defaults);
   }, [pendingFilters, loadData]);
 
@@ -235,40 +652,226 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
     <div className="space-y-6">
       {/* Screenshot Modal */}
       {screenshotModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setScreenshotModal(null)} role="dialog" aria-modal="true" aria-label="Screenshot preview">
-          <div className="relative w-full max-w-4xl overflow-hidden rounded-2xl bg-black" onClick={(e) => e.stopPropagation()}>
-            <button className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/40" onClick={() => setScreenshotModal(null)} type="button" aria-label="Close preview">&times;</button>
-            <Image alt={screenshotModal.title} className="w-full object-contain max-h-[85vh]" height={800} src={screenshotModal.url} width={1200} />
+        <ViewportModal>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" onClick={() => setScreenshotModal(null)} role="dialog" aria-modal="true" aria-label="Screenshot preview">
+            <div className="relative w-full max-w-4xl overflow-hidden rounded-2xl bg-black" onClick={(e) => e.stopPropagation()}>
+              <button className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/40" onClick={() => setScreenshotModal(null)} type="button" aria-label="Close preview">&times;</button>
+              <img alt={screenshotModal.title} className="max-h-[85vh] w-full object-contain" decoding="async" loading="eager" referrerPolicy="no-referrer" src={resolveScreenshotSrc(screenshotModal.url)} />
+            </div>
           </div>
-        </div>
+        </ViewportModal>
+      )}
+      {screenshotEditor && (
+        <ViewportModal>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" onClick={() => { if (!screenshotSaveBusy) setScreenshotEditor(null); }} role="dialog" aria-modal="true" aria-label="Edit screenshot image URL">
+            <div className="w-full max-w-3xl rounded-2xl border border-[#E5E7EB] bg-white shadow-[0_24px_80px_rgba(0,0,0,0.35)]" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-[#111827]">Replace screenshot image</h3>
+                  <p className="mt-1 text-sm text-[#6B7280]">Paste a direct image address or an app image path like <code>/demo/...</code>. Google copied image links are supported too.</p>
+                </div>
+                <button className="flex h-9 w-9 items-center justify-center rounded-full border border-[#E5E7EB] text-[#6B7280] transition hover:bg-[#F9FAFB]" disabled={screenshotSaveBusy} onClick={() => setScreenshotEditor(null)} type="button" aria-label="Close screenshot editor">&times;</button>
+              </div>
+              <div className="grid gap-5 p-5 lg:grid-cols-[1.15fr_0.85fr]">
+                <div className="space-y-3">
+                  <label className="block">
+                    <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-[#6B7280]">Image URL</span>
+                    <input
+                      className="h-11 w-full rounded-xl border border-[#D1D5DB] px-3 text-sm text-[#111827] outline-none transition focus:border-[#F40009] focus:ring-2 focus:ring-[#F40009]/20"
+                      placeholder="https://... or /demo/..."
+                      type="text"
+                      value={screenshotEditor.value}
+                      onChange={(e) => {
+                        setScreenshotSaveError(null);
+                        setScreenshotEditor((prev) => prev ? { ...prev, value: e.target.value } : prev);
+                      }}
+                    />
+                  </label>
+                  <p className="text-xs text-[#6B7280]">Tip: you can use a copied image address from the web or a local app path that already exists in this project.</p>
+                  {screenshotSaveError && <div className="rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-sm text-[#B91C1C]">{screenshotSaveError}</div>}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      className="inline-flex h-10 items-center justify-center rounded-xl bg-[#F40009] px-4 text-sm font-semibold text-white transition hover:bg-[#d60008] disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={screenshotSaveBusy || !screenshotEditor.value.trim()}
+                      onClick={async () => {
+                        const screenshotUrl = normalizeEditableScreenshotUrl(screenshotEditor.value);
+                        if (!screenshotUrl) {
+                          setScreenshotSaveError("Please paste an image URL first.");
+                          return;
+                        }
+
+                        setScreenshotSaveBusy(true);
+                        setScreenshotSaveError(null);
+                        try {
+                          const response = await fetch(`/api/web/screenshots/${screenshotEditor.screenshotId}`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ screenshotUrl, detectionId: screenshotEditor.detectionId }),
+                          });
+                          const payload = await response.json();
+                          if (!response.ok || !payload.ok) {
+                            throw new Error(payload?.error?.message ?? "Screenshot could not be updated.");
+                          }
+
+                          setDetections((prev) => ({
+                            ...prev,
+                            items: prev.items.map((item) =>
+                              item.id === screenshotEditor.detectionId
+                                ? {
+                                    ...item,
+                                    screenshotId: payload.screenshot.id,
+                                    screenshotUrl: payload.screenshot.screenshotUrl,
+                                  }
+                                : item,
+                            ),
+                          }));
+                          setScreenshotEditor(null);
+                        } catch (error) {
+                          setScreenshotSaveError(error instanceof Error ? error.message : "Screenshot could not be updated.");
+                        } finally {
+                          setScreenshotSaveBusy(false);
+                        }
+                      }}
+                      type="button"
+                    >
+                      {screenshotSaveBusy ? "Saving..." : "Save image"}
+                    </button>
+                    <button
+                      className="inline-flex h-10 items-center justify-center rounded-xl border border-[#D1D5DB] px-4 text-sm font-semibold text-[#374151] transition hover:bg-[#F9FAFB] disabled:opacity-60"
+                      disabled={screenshotSaveBusy}
+                      onClick={() => setScreenshotEditor(null)}
+                      type="button"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#6B7280]">Preview</p>
+                  <div className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB]">
+                    {screenshotEditor.value.trim() ? (
+                      <img
+                        alt={screenshotEditor.title}
+                        className="h-72 w-full object-cover"
+                        decoding="async"
+                        loading="eager"
+                        referrerPolicy="no-referrer"
+                        src={resolveScreenshotSrc(normalizeEditableScreenshotUrl(screenshotEditor.value))}
+                      />
+                    ) : (
+                      <div className="flex h-72 items-center justify-center px-6 text-center text-sm text-[#9CA3AF]">Paste an image URL to preview it here.</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </ViewportModal>
       )}
 
       {/* Header */}
       <Section dark>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/50">Web</p>
-            <h1 className="mt-2 text-2xl font-bold tracking-tight text-white lg:text-3xl">Web Intelligence</h1>
-            <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-[#AEB5C2]">Real-time Web advertising monitoring across Iraqi news websites.</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#98A2B3]">Web</p>
+            <h1 className="mt-2 text-2xl font-bold tracking-tight text-[#101828] lg:text-3xl">Web</h1>
+            <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-[#667085]">Real-time Web advertising monitoring across Iraqi news websites.</p>
           </div>
-          <div className="shrink-0 rounded-xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm leading-relaxed text-[#AEB5C2]">
-            <p><span className="text-white/70">Period:</span> {state.data.summary.rangeLabel}</p>
-            <p><span className="text-white/70">Currency:</span> {state.data.summary.currency}</p>
-            <p><span className="text-white/70">Filters:</span> {state.data.summary.activeFilterCount}</p>
+          <div className="shrink-0 rounded-xl border border-[#E4E7EC] bg-[#F8FAFC] px-4 py-2.5 text-sm leading-relaxed text-[#667085]">
+            <p><span className="text-[#344054]">Period:</span> {state.data.summary.rangeLabel}</p>
+            <p><span className="text-[#344054]">Currency:</span> USD</p>
+            <p><span className="text-[#344054]">Filters:</span> {state.data.summary.activeFilterCount}</p>
           </div>
         </div>
       </Section>
 
       {/* Filter Bar */}
-      <section className="rounded-2xl border border-white/[0.07] bg-[#12151C] p-4 shadow-[0_8px_24px_rgba(0,0,0,0.24)]">
-        <div className="grid gap-2.5 xl:grid-cols-[1.2fr_1fr_1fr_1fr_auto]">
-          <DateRangeFilter preset={pendingFilters.preset} startDate={pendingFilters.startDate} endDate={pendingFilters.endDate} onPresetChange={updatePreset} onStartDateChange={(v) => updateDate("startDate", v)} onEndDateChange={(v) => updateDate("endDate", v)} />
-          <MultiSelectFilter icon={<BrandIcon className="h-4 w-4" />} label="Brands" options={state.data.filterOptions.brands.map((b) => ({ id: b.id, label: b.name, color: b.color }))} selectedIds={pendingFilters.brandIds} onChange={(ids) => setPendingFilters((prev) => ({ ...prev, brandIds: ids, page: 1 }))} />
-          <MultiSelectFilter icon={<CampaignIcon className="h-4 w-4" />} label="Campaigns" options={state.data.filterOptions.campaigns.map((c) => ({ id: c.id, label: c.name, description: c.brandName }))} selectedIds={pendingFilters.campaignIds} onChange={(ids) => setPendingFilters((prev) => ({ ...prev, campaignIds: ids, page: 1 }))} />
-          <MultiSelectFilter icon={<GlobeIcon className="h-4 w-4" />} label="Websites" options={state.data.filterOptions.websites.map((w) => ({ id: w.id, label: w.name, description: w.domain }))} selectedIds={pendingFilters.websiteIds} onChange={(ids) => setPendingFilters((prev) => ({ ...prev, websiteIds: ids, page: 1 }))} />
-          <div className="flex items-end gap-2">
+      <section className="rounded-2xl border border-[#E4E7EC] bg-[linear-gradient(180deg,#FFFFFF_0%,#F8FAFC_100%)] p-4 shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
+        <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-[1.25fr_repeat(7,minmax(0,1fr))]">
+          <DateRangeFilter
+            preset={pendingFilters.preset}
+            startDate={pendingFilters.startDate}
+            endDate={pendingFilters.endDate}
+            isOpen={openFilterPanel === "date"}
+            onOpenChange={(next) => setOpenFilterPanel(next ? "date" : null)}
+            onPresetChange={updatePreset}
+            onStartDateChange={(v) => updateDate("startDate", v)}
+            onEndDateChange={(v) => updateDate("endDate", v)}
+          />
+          <MultiSelectFilter
+            icon={<BrandIcon className="h-4 w-4" />}
+            label="Brands"
+            options={state.data.filterOptions.brands.map((b) => ({ id: b.id, label: b.name, color: b.color }))}
+            selectedIds={pendingFilters.brandIds}
+            isOpen={openFilterPanel === "brands"}
+            onOpenChange={(next) => setOpenFilterPanel(next ? "brands" : null)}
+            emptyLabel="No brands found."
+            onChange={(ids) => setPendingFilters((prev) => ({ ...prev, brandIds: ids, campaignIds: [], page: 1 }))}
+          />
+          <MultiSelectFilter
+            icon={<CampaignIcon className="h-4 w-4" />}
+            label="Campaigns"
+            options={campaignFilterOptions}
+            selectedIds={pendingFilters.campaignIds}
+            isOpen={openFilterPanel === "campaigns"}
+            onOpenChange={(next) => setOpenFilterPanel(next ? "campaigns" : null)}
+            emptyLabel="No campaigns found."
+            onChange={(ids) => setPendingFilters((prev) => ({ ...prev, campaignIds: ids, page: 1 }))}
+          />
+          <MultiSelectFilter
+            icon={<GlobeIcon className="h-4 w-4" />}
+            label="Websites"
+            options={state.data.filterOptions.websites.map((w) => ({ id: w.id, label: w.name, description: w.domain }))}
+            selectedIds={pendingFilters.websiteIds}
+            isOpen={openFilterPanel === "websites"}
+            onOpenChange={(next) => setOpenFilterPanel(next ? "websites" : null)}
+            emptyLabel="No websites found."
+            onChange={(ids) => setPendingFilters((prev) => ({ ...prev, websiteIds: ids, page: 1 }))}
+          />
+          <MultiSelectFilter
+            icon={<GlobeIcon className="h-4 w-4" />}
+            label="Language"
+            options={state.data.filterOptions.languages.map((item) => ({ id: item, label: item }))}
+            selectedIds={pendingFilters.languages}
+            isOpen={openFilterPanel === "languages"}
+            onOpenChange={(next) => setOpenFilterPanel(next ? "languages" : null)}
+            emptyLabel="No languages found."
+            onChange={(ids) => setPendingFilters((prev) => ({ ...prev, languages: ids, page: 1 }))}
+          />
+          <MultiSelectFilter
+            icon={<WebIcon className="h-4 w-4" />}
+            label="Ad Format"
+            options={state.data.filterOptions.adFormats.map((item) => ({ id: item, label: item }))}
+            selectedIds={pendingFilters.adFormats}
+            isOpen={openFilterPanel === "adFormats"}
+            onOpenChange={(next) => setOpenFilterPanel(next ? "adFormats" : null)}
+            emptyLabel="No ad formats found."
+            onChange={(ids) => setPendingFilters((prev) => ({ ...prev, adFormats: ids, page: 1 }))}
+          />
+          <MultiSelectFilter
+            icon={<WebIcon className="h-4 w-4" />}
+            label="Page Type"
+            options={state.data.filterOptions.pageTypes.map((item) => ({ id: item, label: item }))}
+            selectedIds={pendingFilters.pageTypes}
+            isOpen={openFilterPanel === "pageTypes"}
+            onOpenChange={(next) => setOpenFilterPanel(next ? "pageTypes" : null)}
+            emptyLabel="No page types found."
+            onChange={(ids) => setPendingFilters((prev) => ({ ...prev, pageTypes: ids, page: 1 }))}
+          />
+          <MultiSelectFilter
+            icon={<ReportIcon className="h-4 w-4" />}
+            label="Status"
+            options={state.data.filterOptions.statuses.map((item) => ({ id: item, label: item, status: item }))}
+            selectedIds={pendingFilters.statuses}
+            isOpen={openFilterPanel === "statuses"}
+            onOpenChange={(next) => setOpenFilterPanel(next ? "statuses" : null)}
+            emptyLabel="No statuses found."
+            align="end"
+            onChange={(ids) => setPendingFilters((prev) => ({ ...prev, statuses: ids, page: 1 }))}
+          />
+          <div className="flex items-end gap-2 md:col-span-2 xl:col-span-2 2xl:col-span-1">
             <button className="inline-flex h-11 items-center justify-center rounded-xl bg-[#F40009] px-5 text-sm font-semibold text-white transition hover:bg-[#d60008] disabled:cursor-not-allowed disabled:opacity-50" disabled={state.loading || !hasDirtyFilters} onClick={applyFilters} type="button">{state.loading ? "Applying…" : "Apply"}</button>
-            <button className="inline-flex h-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] px-4 text-sm font-semibold text-white/70 transition hover:bg-white/10" disabled={state.loading} onClick={resetFilters} type="button">Reset</button>
+            <button className="inline-flex h-11 items-center justify-center rounded-xl border border-[#D0D5DD] bg-white px-4 text-sm font-semibold text-[#344054] transition hover:bg-[#F8FAFC]" disabled={state.loading} onClick={resetFilters} type="button">Reset</button>
           </div>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
@@ -291,13 +894,49 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
 
       {/* Spending Trend + SOV */}
       <section className="grid gap-5 lg:grid-cols-[1.6fr_1fr]">
-        <article className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-[0_4px_16px_rgba(0,0,0,0.04)]">
-          <div className="flex items-center justify-between border-b border-[#F1F3F5] px-5 py-4">
-            <div><h2 className="text-lg font-semibold text-[#111827]">Web Spending Trend</h2><p className="mt-0.5 text-sm text-[#6B7280]">Brand web spending over time</p></div>
-            <div className="text-right"><p className="text-xs font-medium uppercase tracking-wider text-[#9CA3AF]">Total</p><p className="text-xl font-bold text-[#111827]">{formatCurrency(state.data.spending.total, state.data.summary.currency)}</p></div>
-          </div>
-          <div className="p-5"><MultiLineChart currency={state.data.summary.currency} data={state.data.spending.timeSeries} brands={state.data.spending.totalsByBrand} /></div>
-        </article>
+        <StackedSpendingChartCard
+          title="Web Spending Trend"
+          subtitle="Brand web spending over time"
+          buckets={state.data.spending.timeSeries.map((bucket) => ({
+            key: bucket.key,
+            label: bucket.label,
+            total: bucket.total,
+            segments: bucket.brands.map((brand) => ({
+              id: brand.brandId,
+              label: brand.brandName,
+              value: brand.value,
+              color: brand.color,
+            })),
+          }))}
+          breakdown={state.data.spending.totalsByBrand.map((brand) => ({
+            id: brand.brandId,
+            label: brand.brandName,
+            amount: brand.totalSpend,
+            share: brand.percentage,
+            color: brand.color,
+            note: `${brand.percentage.toFixed(1)}% of filtered spend`,
+            secondaryLabel:
+              brand.previousChangePercent == null
+                ? "New"
+                : `${brand.previousChangePercent > 0 ? "+" : ""}${brand.previousChangePercent.toFixed(1)}%`,
+          }))}
+          totalLabel="Current total"
+          totalValue={formatCurrency(state.data.spending.total, state.data.summary.currency)}
+          summaryPills={[
+            `${state.data.spending.totalsByBrand.length} brands`,
+            state.data.summary.rangeLabel,
+          ]}
+          comparisonValue={
+            state.data.kpis.totalSpending.changePercent == null
+              ? "New"
+              : `${state.data.kpis.totalSpending.changePercent > 0 ? "+" : ""}${state.data.kpis.totalSpending.changePercent.toFixed(1)}%`
+          }
+          comparisonLabel="Compared with the equivalent previous period."
+          emptyLabel="No spend data matched the current filters."
+          formatter={(value) => formatCurrency(value, state.data.summary.currency)}
+          compactFormatter={(value) => formatCompactUsdFromCurrency(value, state.data.summary.currency)}
+          loading={state.loading}
+        />
         <SovCard data={state.data.shareOfVoice} currency={state.data.summary.currency} />
       </section>
 
@@ -347,7 +986,8 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
                 <div className="overflow-hidden rounded-lg border border-[#E5E7EB] bg-white">
                   {d.screenshotUrl ? (
                     <button className="group relative block w-full" onClick={() => setScreenshotModal({ url: d.screenshotUrl!, title: `${d.websiteName} - ${d.brandName ?? "Ad"}` })} type="button">
-                      <Image alt={`Screenshot from ${d.websiteName}`} className="h-36 w-full object-cover transition group-hover:scale-[1.02]" height={144} src={d.screenshotUrl} width={256} />
+                      <img alt={`Screenshot from ${d.websiteName}`} className="h-36 w-full object-cover transition group-hover:scale-[1.02]" decoding="async" loading="lazy" referrerPolicy="no-referrer" src={resolveScreenshotSrc(d.screenshotUrl)} />
+
                       <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition group-hover:bg-black/20"><span className="rounded-full bg-white/90 px-3 py-1 text-[11px] font-semibold text-[#111827] opacity-0 transition group-hover:opacity-100">Preview</span></div>
                     </button>
                   ) : (
@@ -362,12 +1002,37 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
                   </div>
                   {d.brandName && <span className="shrink-0 rounded-full bg-[#F3F4F6] px-2 py-0.5 text-[10px] font-medium text-[#374151]">{d.brandName}</span>}
                 </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg border border-[#EEF2F7] bg-white px-3 py-2.5 text-[11px]">
+                  <MetaField label="Brand Name" value={d.brandName ?? "Unassigned"} />
+                  <MetaField label="Date" value={d.date} />
+                  <MetaField label="Time" value={d.time} />
+                  <MetaField label="Size" value={d.size ?? "Not available"} />
+                </div>
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-[#6B7280]">
                   <span>{d.date}</span>
                   <span className="text-[#D1D5DB]">•</span>
                   <span>{d.adFormat ?? "N/A"}</span>
                   {d.confidenceScore > 0 && (<><span className="text-[#D1D5DB]">•</span><span className="font-medium" style={{ color: d.confidenceScore >= 0.8 ? "#15803D" : d.confidenceScore >= 0.6 ? "#B45309" : "#DC2626" }}>{Math.round(d.confidenceScore * 100)}%</span></>)}
                 </div>
+                {d.screenshotId && (
+                  <div className="mt-3 flex items-center justify-end">
+                    <button
+                      className="inline-flex h-8 items-center justify-center rounded-lg border border-[#E5E7EB] bg-white px-3 text-[11px] font-semibold text-[#374151] transition hover:bg-[#F9FAFB]"
+                      onClick={() => {
+                        setScreenshotSaveError(null);
+                        setScreenshotEditor({
+                          detectionId: d.id,
+                          screenshotId: d.screenshotId!,
+                          title: `${d.websiteName} - ${d.brandName ?? "Ad"}`,
+                          value: d.screenshotUrl ?? "",
+                        });
+                      }}
+                      type="button"
+                    >
+                      Edit screenshot
+                    </button>
+                  </div>
+                )}
                 {d.spendAmount > 0 && <p className="mt-1 text-xs font-semibold text-[#111827]">{formatCurrency(d.spendAmount, d.currency)}</p>}
               </div>
             ))}
@@ -377,6 +1042,15 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
           <button className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-lg border border-[#E5E7EB] text-xs font-semibold text-[#374151] transition hover:bg-[#F9FAFB] disabled:opacity-50" disabled={detectionsLoading} onClick={() => loadDetections(detectionsPage + 1, state.data.filters)} type="button">View More</button>
         )}
       </section>
+    </div>
+  );
+}
+
+function MetaField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-[#9CA3AF]">{label}</p>
+      <p className="mt-1 truncate text-[11px] font-semibold text-[#111827]">{value}</p>
     </div>
   );
 }
