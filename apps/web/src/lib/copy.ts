@@ -68,7 +68,7 @@ const en: CopyTree = {
     oohAddLocation: "Add OOH Location",
     creatives: "Creative Library",
     campaigns: "Campaigns",
-    brands: "Brands and Competitors",
+    brands: "Competitors",
     brandsList: "Brands List",
     products: "Products",
     reports: "Reports",

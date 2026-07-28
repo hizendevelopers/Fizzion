@@ -1,21 +1,24 @@
-import { BrandIcon, CampaignIcon, GlobeIcon, SocialIcon } from "@/components/app/ui-icons";
+import { BrandIcon, GlobeIcon, SocialIcon } from "@/components/app/ui-icons";
 import { AreaTrendCard, BottleShareOfVoiceCard, CategoryBarCard, ShareOfVoiceCard } from "@/components/states/insight-charts";
 import { KpiCard } from "@/components/states/kpi-card";
 import { getMonitoringDashboardData } from "@/lib/monitoring-dashboard-data";
 
 export default async function BrandsPage() {
   const dashboard = await getMonitoringDashboardData();
-  const totalBrandTouchpoints = Math.max(
-    dashboard.distributions.brandTouchpoints.reduce((sum, item) => sum + item.value, 0),
+  const competitors = dashboard.competitorBrands;
+  const totalCompetitorTouchpoints = Math.max(
+    competitors.reduce((sum, brand) => sum + brand.touchpoints, 0),
     1,
   );
-  const brandMix = dashboard.distributions.brandTouchpoints.map((item) => ({
-    label: item.label,
-    share: item.value / totalBrandTouchpoints,
-    note: item.note,
-    valueLabel: `${item.value} touchpoints`,
+  const competitorMix = competitors.map((brand) => ({
+    label: brand.name,
+    share: brand.touchpoints / totalCompetitorTouchpoints,
+    note: brand.notes,
+    valueLabel: `${brand.touchpoints} touchpoints`,
   }));
-  const hasBrands = dashboard.brands.length > 0;
+  const competitorKeywordCount = competitors.reduce((total, brand) => total + brand.keywordCount, 0);
+  const averageMomentum = competitors.length > 0 ? Math.round(competitors.reduce((total, brand) => total + brand.momentum, 0) / competitors.length) : 0;
+  const hasCompetitors = competitors.length > 0;
 
   return (
     <div className="space-y-6">
@@ -23,46 +26,49 @@ export default async function BrandsPage() {
         <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-3xl">
             <div className="inline-flex items-center rounded-full border border-brand-red/15 bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-brand-red">
-              Brand and Competitor Command
+              Competitor Intelligence
             </div>
             <h1 className="mt-4 text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-              Brands and Competitors
+              Competitors
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground md:text-[15px]">
-              Monitor Coca-Cola portfolio brands, competitor pressure, search terms, owned domains,
-              and cross-channel share of voice with a single beverage intelligence workspace.
+              Track Coca-Cola Iraq's beverage competitors, compare their share of voice, and keep every rival brand in one monitoring workspace.
             </p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 xl:w-[28rem]">
-            <SummaryBadge label="Portfolio brands" value={`${dashboard.portfolioBrands.length}`} />
-            <SummaryBadge label="Competitors" value={`${dashboard.competitorBrands.length}`} />
-            <SummaryBadge label="Tracked touchpoints" value={`${dashboard.summary.totalTouchpoints}`} />
+            <SummaryBadge label="Tracked competitors" value={`${competitors.length}`} />
             <SummaryBadge label="Coca-Cola SOV" value={`${Math.round(dashboard.summary.cokeShareOfVoice * 100)}%`} />
+            <SummaryBadge label="Competitor touchpoints" value={`${totalCompetitorTouchpoints}`} />
+            <SummaryBadge label="Campaign links" value={`${dashboard.summary.campaignCount}`} />
           </div>
         </div>
 
         <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <KpiCard label="Portfolio Watch" note="Owned brands under active monitoring" tone="brand" value={String(dashboard.portfolioBrands.length)} />
-          <KpiCard label="Competitor Watch" note="Tracked rival beverage brands" tone="deep" value={String(dashboard.competitorBrands.length)} />
-          <KpiCard label="Keyword Signals" note="OCR and speech monitoring coverage" tone="soft" value={String(dashboard.brands.reduce((total, brand) => total + brand.keywordCount, 0))} />
-          <KpiCard label="Campaign Links" note="Brands tied into campaign reporting" tone="warning" value={String(dashboard.summary.campaignCount)} />
+          <KpiCard label="Competitor Watch" note="Tracked rival beverage brands" tone="deep" value={String(competitors.length)} />
+          <KpiCard label="Keyword Signals" note="OCR and speech monitoring coverage" tone="soft" value={String(competitorKeywordCount)} />
+          <KpiCard label="Touchpoint Volume" note="Cross-channel competitor detections" tone="brand" value={String(totalCompetitorTouchpoints)} />
+          <KpiCard label="Avg Momentum" note="Average competitor monitoring intensity" tone="warning" value={`+${averageMomentum}`} />
         </div>
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
         <BottleShareOfVoiceCard
-          title="Coca-Cola Master Brand SOV"
-          subtitle="Current brand pressure across the monitored beverage set"
+          title="Coca-Cola Benchmark"
+          subtitle="Current Coca-Cola share versus the active competitor field"
           brandLabel="Coca-Cola"
           share={dashboard.summary.cokeShareOfVoice}
-          segments={brandMix}
+          segments={competitorMix}
           supportingLabel="Measured from current touchpoints across TV, social, web, and OOH"
         />
         <CategoryBarCard
-          title="Brand Touchpoint Distribution"
-          subtitle="Current touchpoint volume by brand"
-          data={dashboard.distributions.brandTouchpoints}
+          title="Competitor Touchpoint Distribution"
+          subtitle="Current touchpoint volume by Coke competitor"
+          data={competitors.map((brand) => ({
+            label: brand.name,
+            value: brand.touchpoints,
+            note: brand.category,
+          }))}
         />
       </section>
 
@@ -80,22 +86,15 @@ export default async function BrandsPage() {
         />
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-2">
-        <BrandPanel
-          brands={dashboard.portfolioBrands}
-          eyebrow="Coca-Cola portfolio"
-          title="Owned Brand Watchlist"
-        />
-        <BrandPanel
-          brands={dashboard.competitorBrands}
-          eyebrow="Competitor pressure"
-          title="Competitor Intelligence"
-        />
-      </section>
+      <BrandPanel
+        brands={competitors}
+        eyebrow="Coca-Cola competitor set"
+        title="Tracked Competitor Brands"
+      />
 
-      {!hasBrands ? (
+      {!hasCompetitors ? (
         <section className="rounded-[1.8rem] border border-dashed border-border bg-white px-5 py-8 text-sm text-muted-foreground shadow-[var(--shadow-soft)]">
-          No real brands or competitors are available for this workspace yet.
+          No Coca-Cola competitors are available for this workspace yet.
         </section>
       ) : null}
     </div>
@@ -109,7 +108,7 @@ function BrandPanel({
 }: {
   eyebrow: string;
   title: string;
-  brands: Awaited<ReturnType<typeof getMonitoringDashboardData>>["brands"];
+  brands: Awaited<ReturnType<typeof getMonitoringDashboardData>>["competitorBrands"];
 }) {
   return (
     <section className="rounded-[1.9rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
@@ -163,9 +162,9 @@ function BrandPanel({
                 values={brand.handles}
               />
               <InfoList
-                icon={<CampaignIcon className="h-4 w-4 text-brand-red" />}
+                icon={<BrandIcon className="h-4 w-4 text-brand-red" />}
                 label="Monitoring notes"
-                values={["Workspace-backed profile"]}
+                values={[brand.notes, `${brand.touchpoints} tracked touchpoints`]}
               />
             </div>
           </article>
