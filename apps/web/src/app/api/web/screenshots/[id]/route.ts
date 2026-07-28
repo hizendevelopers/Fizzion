@@ -13,6 +13,7 @@ type RouteContext = {
 
 const screenshotUpdateSchema = z.object({
   screenshotUrl: z.string().min(1, "Screenshot URL is required."),
+  detectionId: z.string().min(1).optional(),
 });
 
 function normalizeScreenshotUrl(rawUrl: string) {
@@ -134,6 +135,16 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (error) throw error;
     if (!updated?.id) {
       return tvApiError("WEB_SCREENSHOT_NOT_FOUND", "Screenshot record was not found.", 404, requestId);
+    }
+
+    if (parsed.data.detectionId) {
+      const { error: detectionUpdateError } = await client
+        .from("web_ad_detections")
+        .update({ screenshot_id: updated.id })
+        .eq("organization_id", organizationId)
+        .eq("id", parsed.data.detectionId);
+
+      if (detectionUpdateError) throw detectionUpdateError;
     }
 
     return NextResponse.json({

@@ -706,7 +706,7 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
                           const response = await fetch(`/api/web/screenshots/${screenshotEditor.screenshotId}`, {
                             method: "PATCH",
                             headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ screenshotUrl }),
+                            body: JSON.stringify({ screenshotUrl, detectionId: screenshotEditor.detectionId }),
                           });
                           const payload = await response.json();
                           if (!response.ok || !payload.ok) {
