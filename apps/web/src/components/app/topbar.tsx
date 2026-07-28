@@ -213,7 +213,7 @@ export function Topbar({ locale, timezone }: TopbarProps) {
         <div className="relative z-[2] h-[118px] min-h-[118px] max-h-[118px] w-full px-[26px] box-border">
           <div className="grid h-full w-full grid-cols-1 items-center lg:grid-cols-[minmax(280px,34%)_1fr_170px]">
             <div className="relative z-[3] flex w-full flex-col items-start justify-center lg:w-[320px]">
-              <p className="m-0 mb-[6px] text-[15px] font-bold leading-[18px] text-[#172033] opacity-100">
+              <p className="m-0 mb-[6px] text-[15px] font-bold leading-[18px] text-white opacity-100">
                 Media Intelligence
               </p>
               <div className="flex max-w-[260px] flex-col items-start">
