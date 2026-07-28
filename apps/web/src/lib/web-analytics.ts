@@ -797,7 +797,7 @@ export async function getWebDetections(rawFilters?: Partial<WebFilters> & { sear
     const ss = r.screenshot_id ? screenshotIdMap.get(String(r.screenshot_id)) : screenshotMap.get(String(r.website_id));
     return {
       id: String(r.id), websiteId: String(r.website_id), websiteName: ws?.name ?? "Unknown",
-      screenshotId: r.screenshot_id ? String(r.screenshot_id) : null,
+      screenshotId: ss?.id ? String(ss.id) : null,
       domain: ws?.domain ?? "", pageUrl: r.page_url ? String(r.page_url) : null,
       capturedAt: String(r.detected_at), date: formatIsoDate(dt),
       time: dt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true }),
