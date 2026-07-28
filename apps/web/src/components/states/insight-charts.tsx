@@ -552,7 +552,7 @@ export function StackedSpendingChartCard({
           </div>
         ) : null}
 
-        <div className="rounded-[1.5rem] border border-border bg-[#FDFDFE] p-3.5">
+        <div className="rounded-[1.5rem] border border-border p-3.5">
           <div className="mb-3 flex flex-wrap gap-2">
             {legendItems.map((brand) => (
               <button

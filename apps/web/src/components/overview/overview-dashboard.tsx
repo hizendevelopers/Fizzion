@@ -374,7 +374,7 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
       </section>
 
       <section className="space-y-4">
-        <div className="overflow-hidden rounded-[2rem] border border-white/8 bg-[radial-gradient(circle_at_bottom_right,rgba(244,0,9,0.2),transparent_24%),linear-gradient(135deg,#090911_0%,#120d17_52%,#1c0b10_100%)] p-4 shadow-[0_28px_60px_rgba(16,9,12,0.26)]">
+        <div className="overflow-hidden rounded-[2rem]">
         <StackedSpendingChartCard
           title="Total Spending"
           subtitle="Brand spending trend over time"
