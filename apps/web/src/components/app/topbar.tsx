@@ -211,30 +211,7 @@ export function Topbar({ locale, timezone }: TopbarProps) {
         />
 
         <div className="relative z-[2] h-[118px] min-h-[118px] max-h-[118px] w-full px-[26px] box-border">
-          <div className="grid h-full w-full grid-cols-1 items-center lg:grid-cols-[minmax(280px,34%)_1fr_170px]">
-            <div className="relative z-[3] flex w-full flex-col items-start justify-center lg:w-[320px]">
-              <p className="m-0 mb-[6px] text-[15px] font-bold leading-[18px] text-white opacity-100">
-                Media Intelligence
-              </p>
-              <div className="flex max-w-[260px] flex-col items-start">
-                <span
-                  className="m-0 max-w-[260px] text-left text-[38px] font-bold leading-[42px] tracking-[-0.04em] opacity-100"
-                  style={{
-                    fontFamily: '"Brush Script MT","Segoe Script","Lucida Handwriting",cursive',
-                    backgroundImage: "linear-gradient(90deg,#f21c22 0%,#f21c22 24%,#2dbd46 60%,#73d46f 100%)",
-                    WebkitBackgroundClip: "text",
-                    WebkitTextFillColor: "transparent",
-                  }}
-                >
-                  Reimagined
-                </span>
-                <span
-                  aria-hidden="true"
-                  className="mt-[1px] block h-[7px] w-[176px] -rotate-[3deg] rounded-full bg-[linear-gradient(90deg,#f11d22_0%,#f11d22_22%,#2dbd46_70%,#7fdc7f_100%)]"
-                />
-              </div>
-            </div>
-
+          <div className="grid h-full w-full grid-cols-1 items-center lg:grid-cols-[1fr_170px]">
             <div className="hidden lg:block" />
 
             <div className="relative z-[4] hidden h-full items-center justify-center min-[992px]:flex">
