@@ -56,11 +56,13 @@ export function Sidebar({ labels }: SidebarProps) {
   }
 
   return (
-    <aside className="relative hidden h-full w-[17rem] shrink-0 self-stretch overflow-hidden border-r border-white/8 bg-[radial-gradient(circle_at_top,rgba(244,0,9,0.28),transparent_20%),radial-gradient(circle_at_bottom_left,rgba(244,0,9,0.2),transparent_18%),linear-gradient(180deg,#080911_0%,#0d0d17_42%,#18070a_100%)] text-[#F6F7FB] lg:sticky lg:top-0 lg:flex">
-      <div className="pointer-events-none absolute inset-y-0 right-0 w-px bg-[linear-gradient(180deg,rgba(255,255,255,0.06)_0%,rgba(244,0,9,0.78)_50%,rgba(255,255,255,0.06)_100%)]" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-[radial-gradient(circle_at_bottom_left,rgba(244,0,9,0.34),transparent_45%)]" />
-      <div className="relative flex h-full min-h-0 w-full flex-col gap-4 p-5">
-        <div className="px-2 pt-1">
+    <aside className="relative hidden h-full w-[16.25rem] shrink-0 self-stretch overflow-hidden border-r border-white/8 bg-[linear-gradient(180deg,#0a0910_0%,#090811_28%,#0c0812_58%,#19070b_100%)] text-[#F6F7FB] lg:sticky lg:top-0 lg:flex">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(244,0,9,0.14),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0)_26%,rgba(255,255,255,0)_100%)]" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-px bg-[linear-gradient(180deg,rgba(255,255,255,0.04)_0%,rgba(244,0,9,0.45)_52%,rgba(255,255,255,0.04)_100%)]" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[13rem] bg-[url('/assets/header-splash-background.svg')] bg-[length:155%_auto] bg-bottom bg-no-repeat opacity-[0.82]" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[11rem] bg-[linear-gradient(180deg,rgba(12,8,18,0)_0%,rgba(22,7,10,0.28)_38%,rgba(20,6,8,0.74)_100%)]" />
+      <div className="relative flex h-full min-h-0 w-full flex-col gap-5 px-4 pb-4 pt-6">
+        <div className="px-1">
           <SidebarBranding />
         </div>
 
@@ -73,21 +75,21 @@ export function Sidebar({ labels }: SidebarProps) {
             const icon = navIconMap[item.key] ?? <SparkleIcon />;
 
             return (
-              <div key={item.href} className="space-y-2">
+              <div key={item.href} className="space-y-2.5">
                 {hasChildren ? (
                   <button
                     aria-expanded={isOpen}
                     className={cn(
-                      "flex w-full items-center justify-between rounded-[1.1rem] px-4 py-3 text-left text-sm font-semibold transition duration-300",
+                      "flex w-full items-center justify-between rounded-[1.05rem] px-3.5 py-3 text-left text-[0.96rem] font-semibold transition duration-300",
                       active || isOpen
-                        ? "bg-[linear-gradient(135deg,#ff473d_0%,#f40009_46%,#b50a11_100%)] text-white shadow-[0_18px_36px_rgba(244,0,9,0.34)] ring-1 ring-white/22"
-                        : "text-white/90 hover:bg-white/8 hover:text-white hover:shadow-[0_12px_24px_rgba(0,0,0,0.22)]",
+                        ? "bg-[linear-gradient(135deg,#ff4d40_0%,#ff1c1f_48%,#f40009_100%)] text-white shadow-[0_18px_32px_rgba(244,0,9,0.34)] ring-1 ring-white/18"
+                        : "text-white/92 hover:bg-white/6 hover:text-white",
                     )}
                     onClick={() => toggleSection(item.key)}
                     type="button"
                   >
                     <span className="flex items-center gap-3">
-                      <span className={cn("flex h-9 w-9 items-center justify-center rounded-xl", active || isOpen ? "bg-white/14" : "bg-white/6 text-white/90 shadow-[0_10px_22px_rgba(0,0,0,0.18)]")}>
+                      <span className={cn("flex h-[2.35rem] w-[2.35rem] items-center justify-center rounded-[0.95rem]", active || isOpen ? "bg-white/14" : "bg-white/7 text-white/92 shadow-[0_10px_20px_rgba(0,0,0,0.16)]")}>
                         {icon}
                       </span>
                       <span>{labels[item.key] ?? item.key}</span>
@@ -98,13 +100,13 @@ export function Sidebar({ labels }: SidebarProps) {
                   <Link
                     href={item.href}
                     className={cn(
-                      "flex items-center gap-3 rounded-[1.1rem] px-4 py-3 text-sm font-semibold transition duration-300",
+                      "flex items-center gap-3 rounded-[1.05rem] px-3.5 py-3 text-[0.96rem] font-semibold transition duration-300",
                       active
-                        ? "bg-[linear-gradient(135deg,#ff473d_0%,#f40009_46%,#b50a11_100%)] text-white shadow-[0_18px_36px_rgba(244,0,9,0.34)] ring-1 ring-white/22"
-                        : "text-white/90 hover:bg-white/8 hover:text-white hover:shadow-[0_12px_24px_rgba(0,0,0,0.22)]",
+                        ? "bg-[linear-gradient(135deg,#ff4d40_0%,#ff1c1f_48%,#f40009_100%)] text-white shadow-[0_18px_32px_rgba(244,0,9,0.34)] ring-1 ring-white/18"
+                        : "text-white/92 hover:bg-white/6 hover:text-white",
                     )}
                   >
-                    <span className={cn("flex h-9 w-9 items-center justify-center rounded-xl", active ? "bg-white/14" : "bg-white/6 text-white/90 shadow-[0_10px_22px_rgba(0,0,0,0.18)]")}>
+                    <span className={cn("flex h-[2.35rem] w-[2.35rem] items-center justify-center rounded-[0.95rem]", active ? "bg-white/14" : "bg-white/7 text-white/92 shadow-[0_10px_20px_rgba(0,0,0,0.16)]")}>
                       {icon}
                     </span>
                     {labels[item.key] ?? item.key}
@@ -112,7 +114,7 @@ export function Sidebar({ labels }: SidebarProps) {
                 )}
 
                 {hasChildren && isOpen ? (
-                  <div className="space-y-1 ps-3">
+                  <div className="space-y-1.5 ps-3">
                     {children.map((child) => {
                       const childActive = pathname === child.href || pathname.startsWith(`${child.href}/`);
 
@@ -139,11 +141,11 @@ export function Sidebar({ labels }: SidebarProps) {
           })}
         </div>
 
-        <div className="mt-auto rounded-[1.35rem] border border-white/12 bg-[linear-gradient(135deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.03)_100%)] px-4 py-4 shadow-[0_14px_30px_rgba(0,0,0,0.28)] backdrop-blur-sm">
+        <div className="mt-auto rounded-[1.45rem] border border-white/14 bg-[linear-gradient(135deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.04)_100%)] px-4 py-4 shadow-[0_16px_34px_rgba(0,0,0,0.3)] backdrop-blur-sm">
           <div className="flex items-center justify-center">
             <Image
               alt="Hizen logo"
-              className="h-8 w-auto object-contain"
+              className="h-[2.1rem] w-auto object-contain"
               height={32}
               onError={(event) => {
                 event.currentTarget.style.display = "none";

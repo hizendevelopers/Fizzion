@@ -10,13 +10,13 @@ type SidebarBrandingProps = {
 
 export function SidebarBranding({ compact = false }: SidebarBrandingProps) {
   return (
-    <div className={cn("flex flex-col items-center", compact ? "px-0" : "px-2")}>
+    <div className={cn("flex flex-col items-center", compact ? "px-0" : "px-1")}>
       {/* FizZion logo */}
       <div
         aria-label="FizZion"
         className={cn(
           "relative flex-shrink-0",
-          compact ? "h-10 w-10" : "h-14 w-[11.25rem]",
+          compact ? "h-10 w-10" : "h-[3.5rem] w-[9.5rem]",
         )}
         role="img"
       >
@@ -32,7 +32,7 @@ export function SidebarBranding({ compact = false }: SidebarBrandingProps) {
 
       {/* Attribution text - hidden in compact mode */}
       {!compact && (
-        <p className="mt-[6px] max-w-[200px] text-center text-[11px] font-medium leading-[1.4] tracking-[0.02em] text-white/55">
+        <p className="mt-3 max-w-[182px] text-center text-[11px] font-medium leading-[1.5] tracking-[0.01em] text-white/62">
           Coca-Cola Iraq media intelligence workspace
         </p>
       )}
