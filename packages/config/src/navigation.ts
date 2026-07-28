@@ -12,7 +12,6 @@ export const primaryNavigation: NavItem[] = [
   { href: "/ooh-intelligence", key: "ooh" },
   { href: "/campaigns", key: "campaigns" },
   { href: "/reports", key: "reports" },
-  { href: "/brands", key: "brands" },
   {
     href: "/admin/users",
     key: "admin",
