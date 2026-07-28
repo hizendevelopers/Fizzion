@@ -517,7 +517,7 @@ export function StackedSpendingChartCard({
 
   return (
     <article className="overflow-hidden rounded-[1.8rem] border border-border bg-white shadow-[var(--shadow-soft)]">
-      <div className="flex items-center justify-between border-b border-border px-5 py-4">
+      <div className="flex items-center justify-between px-5 py-4">
         <div>
           <h3 className="text-lg font-semibold text-foreground">{title}</h3>
           <p className="mt-1 text-sm text-muted-foreground">{subtitle ?? "Brand spend over time"}</p>
