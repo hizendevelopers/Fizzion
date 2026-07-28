@@ -717,7 +717,11 @@ export function WebDashboard({ initialData }: WebDashboardProps) {
                             ...prev,
                             items: prev.items.map((item) =>
                               item.id === screenshotEditor.detectionId
-                                ? { ...item, screenshotUrl: payload.screenshot.screenshotUrl }
+                                ? {
+                                    ...item,
+                                    screenshotId: payload.screenshot.id,
+                                    screenshotUrl: payload.screenshot.screenshotUrl,
+                                  }
                                 : item,
                             ),
                           }));

@@ -124,35 +124,68 @@ export async function PATCH(request: Request, context: RouteContext) {
     const requestOrigin = new URL(request.url).origin;
     const screenshotUrl = await resolveRemoteImageUrl(normalizedScreenshotUrl, requestOrigin);
 
-    const { data: updated, error } = await client
+    const { data: existingScreenshot, error: existingScreenshotError } = await client
       .from("web_screenshots")
-      .update({ screenshot_url: screenshotUrl })
+      .select("*")
       .eq("organization_id", organizationId)
       .eq("id", id)
-      .select("id,screenshot_url")
       .maybeSingle();
 
-    if (error) throw error;
-    if (!updated?.id) {
+    if (existingScreenshotError) throw existingScreenshotError;
+    if (!existingScreenshot?.id) {
       return tvApiError("WEB_SCREENSHOT_NOT_FOUND", "Screenshot record was not found.", 404, requestId);
     }
 
+    let persistedScreenshot: { id: string | number; screenshot_url: string | null } | null = null;
+
     if (parsed.data.detectionId) {
+      const { id: _existingId, screenshot_url: _oldScreenshotUrl, ...clonePayload } = existingScreenshot;
+      const { data: insertedScreenshot, error: insertScreenshotError } = await client
+        .from("web_screenshots")
+        .insert({
+          ...clonePayload,
+          organization_id: organizationId,
+          screenshot_url: screenshotUrl,
+        })
+        .select("id,screenshot_url")
+        .maybeSingle();
+
+      if (insertScreenshotError) throw insertScreenshotError;
+      if (!insertedScreenshot?.id) {
+        return tvApiError("WEB_SCREENSHOT_UPDATE_FAILED", "Edited screenshot could not be saved.", 500, requestId);
+      }
+
       const { error: detectionUpdateError } = await client
         .from("web_ad_detections")
-        .update({ screenshot_id: updated.id })
+        .update({ screenshot_id: insertedScreenshot.id })
         .eq("organization_id", organizationId)
         .eq("id", parsed.data.detectionId);
 
       if (detectionUpdateError) throw detectionUpdateError;
+      persistedScreenshot = insertedScreenshot;
+    } else {
+      const { data: updatedScreenshot, error: updateScreenshotError } = await client
+        .from("web_screenshots")
+        .update({ screenshot_url: screenshotUrl })
+        .eq("organization_id", organizationId)
+        .eq("id", id)
+        .select("id,screenshot_url")
+        .maybeSingle();
+
+      if (updateScreenshotError) throw updateScreenshotError;
+      if (!updatedScreenshot?.id) {
+        return tvApiError("WEB_SCREENSHOT_UPDATE_FAILED", "Screenshot could not be updated.", 500, requestId);
+      }
+
+      persistedScreenshot = updatedScreenshot;
     }
 
     return NextResponse.json({
       ok: true,
       requestId,
       screenshot: {
-        id: String(updated.id),
-        screenshotUrl: String(updated.screenshot_url ?? ""),
+        id: String(persistedScreenshot.id),
+        screenshotUrl: String(persistedScreenshot.screenshot_url ?? ""),
       },
     });
   } catch (error) {
