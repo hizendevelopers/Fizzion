@@ -56,10 +56,10 @@ export function Sidebar({ labels }: SidebarProps) {
   }
 
   return (
-    <aside className="relative hidden h-[calc(100vh-1.5rem)] w-[17rem] shrink-0 self-start overflow-hidden border-r border-white/8 bg-[radial-gradient(circle_at_top,rgba(244,0,9,0.28),transparent_20%),radial-gradient(circle_at_bottom_left,rgba(244,0,9,0.2),transparent_18%),linear-gradient(180deg,#080911_0%,#0d0d17_42%,#18070a_100%)] text-[#F6F7FB] lg:sticky lg:top-0 lg:flex">
+    <aside className="relative hidden h-full w-[17rem] shrink-0 self-stretch overflow-hidden border-r border-white/8 bg-[radial-gradient(circle_at_top,rgba(244,0,9,0.28),transparent_20%),radial-gradient(circle_at_bottom_left,rgba(244,0,9,0.2),transparent_18%),linear-gradient(180deg,#080911_0%,#0d0d17_42%,#18070a_100%)] text-[#F6F7FB] lg:sticky lg:top-0 lg:flex">
       <div className="pointer-events-none absolute inset-y-0 right-0 w-px bg-[linear-gradient(180deg,rgba(255,255,255,0.06)_0%,rgba(244,0,9,0.78)_50%,rgba(255,255,255,0.06)_100%)]" />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-[radial-gradient(circle_at_bottom_left,rgba(244,0,9,0.34),transparent_45%)]" />
-      <div className="relative flex h-full w-full flex-col gap-4 p-5">
+      <div className="relative flex h-full min-h-0 w-full flex-col gap-4 p-5">
         <div className="px-2 pt-1">
           <SidebarBranding />
         </div>
