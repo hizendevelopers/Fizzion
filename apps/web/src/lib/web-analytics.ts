@@ -768,15 +768,21 @@ export async function getWebDetections(rawFilters?: Partial<WebFilters> & { sear
   const campaignIds = [...new Set((rows ?? []).map((r: any) => r.campaign_id).filter(Boolean))];
   const screenshotIds = [...new Set((rows ?? []).map((r: any) => r.screenshot_id).filter(Boolean))];
 
-  const [brandsRes, websitesRes, campaignsRes, screenshotsRes] = await Promise.all([
+  const [brandsRes, websitesRes, campaignsRes, screenshotsByIdRes, screenshotsByWebsiteRes] = await Promise.all([
     brandIds.length > 0 ? client.from("brands").select("id,name,color").in("id", brandIds) : { data: [] },
     websiteIds.length > 0 ? client.from("websites").select("id,name,domain").in("id", websiteIds) : { data: [] },
     campaignIds.length > 0 ? client.from("campaigns").select("id,name").in("id", campaignIds) : { data: [] },
     screenshotIds.length > 0
       ? client.from("web_screenshots").select("id,website_id,screenshot_url,page_url,captured_at").in("id", screenshotIds)
-      : (rows ?? []).length > 0
-        ? client.from("web_screenshots").select("id,website_id,screenshot_url,page_url,captured_at").eq("organization_id", orgId).limit(50)
-        : { data: [] },
+      : { data: [] },
+    websiteIds.length > 0
+      ? client
+          .from("web_screenshots")
+          .select("id,website_id,screenshot_url,page_url,captured_at")
+          .eq("organization_id", orgId)
+          .in("website_id", websiteIds)
+          .order("captured_at", { ascending: false })
+      : { data: [] },
   ]);
 
   const brandMap = new Map((brandsRes.data ?? []).map((r: any) => [String(r.id), r]));
@@ -784,8 +790,18 @@ export async function getWebDetections(rawFilters?: Partial<WebFilters> & { sear
   const campaignMap = new Map((campaignsRes.data ?? []).map((r: any) => [String(r.id), r]));
   const screenshotMap = new Map<string, any>();
   const screenshotIdMap = new Map<string, any>();
-  for (const s of (screenshotsRes.data ?? []) as any[]) {
-    screenshotMap.set(s.website_id, s);
+  for (const s of (screenshotsByWebsiteRes.data ?? []) as any[]) {
+    const websiteKey = String(s.website_id);
+    if (!screenshotMap.has(websiteKey)) {
+      screenshotMap.set(websiteKey, s);
+    }
+    screenshotIdMap.set(String(s.id), s);
+  }
+  for (const s of (screenshotsByIdRes.data ?? []) as any[]) {
+    const websiteKey = String(s.website_id);
+    if (!screenshotMap.has(websiteKey)) {
+      screenshotMap.set(websiteKey, s);
+    }
     screenshotIdMap.set(String(s.id), s);
   }
 
