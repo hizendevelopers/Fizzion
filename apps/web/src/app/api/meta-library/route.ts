@@ -29,6 +29,22 @@ function describeApifyError(message: string): { message: string; code: string } 
     };
   }
 
+  // A schema validation error means a run option leaked into the Actor input.
+  if (
+    lower.includes("did not expect property") ||
+    lower.includes("not expected") ||
+    lower.includes("unexpected property") ||
+    lower.includes("additional properties") ||
+    lower.includes("schema validation") ||
+    lower.includes("invalid input")
+  ) {
+    return {
+      code: "INPUT_SCHEMA_ERROR",
+      message:
+        "The scraper request configuration was invalid. A run option was sent as an Actor input field.",
+    };
+  }
+
   if (
     lower.includes("insufficient") ||
     lower.includes("credit") ||
@@ -106,44 +122,56 @@ export async function POST(request: Request) {
     );
   }
 
-  // 3. Build the run options with a positive maxItems passed as a run option.
+// 3. Build ONLY the valid Apify run options (maxItems). No waitForFinish here.
   const runOptions = buildMetaLibraryRunOptions(maxItems);
 
   // Sanitized development log — never includes the API token.
   console.log("[meta-library] outgoing run config", {
     actorId: META_AD_LIBRARY_ACTOR_ID,
-    maxItems: runOptions.maxItems,
-    waitForFinish: runOptions.waitForFinish,
     inputFieldNames: Object.keys(actorInput),
+    runOptionFieldNames: Object.keys(runOptions),
+    runOptions,
   });
 
   const client = getApifyClient();
 
   try {
-    // 4. Start the Actor with maxItems as a run option, wait up to 60s on the API side.
+    // 4. Start the Actor asynchronously. The input payload contains ONLY the
+    //    Actor's supported scraper fields — never waitForFinish/waitSecs/maxItems
+    //    as input fields. maxItems is passed as a second-argument run option.
     const startedRun = await client
       .actor(META_AD_LIBRARY_ACTOR_ID)
-      .call(actorInput, runOptions);
+      .start(actorInput, runOptions);
 
+    const runId = startedRun.id;
+    const datasetId = startedRun.defaultDatasetId;
+
+    console.log("[meta-library] actor started", {
+      runId,
+      status: startedRun.status,
+    });
+
+    // 5. Wait for the run to finish using the dedicated run-level wait helper.
+    //    This never puts waitForFinish into the Actor input payload.
+    const maxWaitSecs = META_LIBRARY_POLL_TIMEOUT_SECS;
     let run = startedRun;
-    const runId = run.id;
-    const datasetId = run.defaultDatasetId;
-
-    // 5. If still RUNNING/READY after the API-side wait, poll manually.
-    if (run.status === "RUNNING" || run.status === "READY") {
-      const deadline = Date.now() + META_LIBRARY_POLL_TIMEOUT_SECS * 1000;
-      while (Date.now() < deadline) {
-        const polled = await client.run(runId).get();
-        if (!polled) {
-          break;
-        }
-        run = polled;
-        if (run.status !== "RUNNING" && run.status !== "READY") {
-          break;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 5000));
+    try {
+      run = await client.run(runId).waitForFinish({
+        waitSecs: maxWaitSecs,
+      });
+    } catch (waitError) {
+      // waitForFinish may throw when the run is still running after the timeout;
+      // fall back to a single status read so we can still report the real state.
+      const statusRead = await client.run(runId).get();
+      if (statusRead) {
+        run = statusRead;
       }
     }
+
+    console.log("[meta-library] actor finished", {
+      runId,
+      status: run.status,
+    });
 
     // 6. Handle non-success terminal statuses distinctly from "empty results".
     if (run.status !== "SUCCEEDED") {

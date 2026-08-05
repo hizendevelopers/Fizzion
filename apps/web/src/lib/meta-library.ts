@@ -37,17 +37,18 @@ export function sanitizeMaxResults(value: unknown): number {
 /**
  * Build the Apify run options for starting the Meta Ad Library Actor.
  *
- * The positive `maxItems` is passed as a pay-per-result run option so Apify never
- * sees a zero charged-results limit. `waitForFinish` is capped at the documented
- * 60s API-side wait; longer waits are handled by the route via polling.
+ * Only valid Apify run options are included here. `maxItems` is a pay-per-result
+ * run option so Apify never sees a zero charged-results limit. Fields such as
+ * `waitForFinish`, `waitSecs`, `timeout`, `memory`, and `maxTotalChargeUsd` are
+ * NOT part of the Actor's input schema and must never be placed in the input or
+ * in this run-options object. Waiting is handled separately via
+ * `client.run(runId).waitForFinish({ waitSecs })`.
  */
 export function buildMetaLibraryRunOptions(maxResults: unknown): {
   maxItems: number;
-  waitForFinish: number;
 } {
   return {
     maxItems: sanitizeMaxResults(maxResults),
-    waitForFinish: 60,
   };
 }
 

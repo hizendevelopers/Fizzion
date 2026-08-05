@@ -55,11 +55,16 @@ test("sanitizeMaxResults: always returns a positive integer", () => {
   }
 });
 
-test("buildMetaLibraryRunOptions: maxItems is always positive", () => {
+test("buildMetaLibraryRunOptions: only contains maxItems, never waitForFinish", () => {
   const options = buildMetaLibraryRunOptions(0);
   assert.ok(options.maxItems > 0);
   assert.equal(options.maxItems, DEFAULT_MAX_RESULTS);
-  assert.ok(options.waitForFinish > 0);
+  assert.deepEqual(Object.keys(options), ["maxItems"]);
+  assert.ok(!("waitForFinish" in options), "waitForFinish must not be a run option");
+  assert.ok(!("waitSecs" in options), "waitSecs must not be a run option");
+  assert.ok(!("timeout" in options), "timeout must not be a run option");
+  assert.ok(!("memory" in options), "memory must not be a run option");
+  assert.ok(!("maxTotalChargeUsd" in options), "maxTotalChargeUsd must not be a run option");
 });
 
 test("buildMetaLibraryActorInput: includes positive maxResults field", () => {
@@ -74,4 +79,18 @@ test("buildMetaLibraryActorInput: includes positive maxResults field", () => {
   assert.equal(input.sortDirection, "desc");
   assert.equal(input.maxConcurrency, 1);
   assert.equal(input.requestHandlerTimeoutSecs, 900);
+});
+
+test("buildMetaLibraryActorInput: never contains Apify run options as input fields", () => {
+  const input = buildMetaLibraryActorInput({ searchQuery: "nike" }, 25);
+  for (const forbidden of [
+    "waitForFinish",
+    "waitSecs",
+    "timeout",
+    "memory",
+    "maxTotalChargeUsd",
+  ]) {
+    assert.ok(!(forbidden in input), `Actor input must not contain ${forbidden}`);
+  }
+  assert.equal(input.maxResults, 25);
 });
