@@ -204,6 +204,17 @@ export function WebIcon({ className }: IconProps) {
   );
 }
 
+export function MetaLibraryIcon({ className }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <rect x="4" y="7" width="16" height="10" rx="2.5" />
+      <path d="M8 7V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v1" />
+      <path d="M7 12h10" />
+      <path d="M7 15h7" />
+    </BaseIcon>
+  );
+}
+
 export function CreativeIcon({ className }: IconProps) {
   return (
     <BaseIcon className={className}>

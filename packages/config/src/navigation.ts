@@ -10,6 +10,7 @@ export const primaryNavigation: NavItem[] = [
   { href: "/social-intelligence", key: "social" },
   { href: "/web-advertising", key: "web" },
   { href: "/ooh-intelligence", key: "ooh" },
+  { href: "/meta-library", key: "metaLibrary" },
   { href: "/campaigns", key: "campaigns" },
   { href: "/reports", key: "reports" },
   {
