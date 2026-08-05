@@ -46,10 +46,18 @@ type MetaLibraryResponse = {
   status?: string;
   total?: number;
   error?: string;
+  errorCode?: string;
+  httpStatus?: number;
   details?: string;
+  userMessage?: string;
+  emptyButSucceeded?: boolean;
   query?: Record<string, unknown>;
   items?: MetaAdItem[];
 };
+
+const DEFAULT_MAX_RESULTS_LABEL = 50;
+const MIN_MAX_RESULTS = 10;
+const MAX_MAX_RESULTS = 500;
 
 const COUNTRY_OPTIONS = [
   { value: "US", label: "United States" },
@@ -179,16 +187,28 @@ export function MetaLibraryClient() {
   const [mediaType, setMediaType] = useState("all");
   const [activeStatus, setActiveStatus] = useState("active");
   const [sortMode, setSortMode] = useState("total_impressions");
-  const [sortDirection, setSortDirection] = useState("desc");
+const [sortDirection, setSortDirection] = useState("desc");
   const [isTargetedCountry, setIsTargetedCountry] = useState(false);
   const [pageId, setPageId] = useState("");
+  const [maxResults, setMaxResults] = useState(String(DEFAULT_MAX_RESULTS_LABEL));
 
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState<string>("");
   const [result, setResult] = useState<MetaLibraryResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  const parsedMaxResults = Number(maxResults);
+  const maxResultsValid =
+    Number.isFinite(parsedMaxResults) &&
+    parsedMaxResults >= MIN_MAX_RESULTS &&
+    parsedMaxResults <= MAX_MAX_RESULTS;
+
   async function runScraper() {
+    if (!maxResultsValid) {
+      setErrorMessage("Maximum results must be a whole number between 10 and 500.");
+      return;
+    }
+
     setLoading(true);
     setProgress("Starting the Meta Ad Library scraper…");
     setResult(null);
@@ -210,19 +230,22 @@ export function MetaLibraryClient() {
           isTargetedCountry,
           sortMode,
           sortDirection,
-          waitSecs: 300,
+          // Always send maxResults as a positive number, never 0/NaN/empty string.
+          maxResults: parsedMaxResults,
         }),
       });
 
       const data = (await response.json()) as MetaLibraryResponse;
 
       if (!response.ok) {
-        setErrorMessage(data.error ?? "The scraper could not be run.");
+        setErrorMessage(data.userMessage ?? data.error ?? "The scraper could not be run.");
         setResult(data);
       } else {
         setResult(data);
         if (!data.ok) {
-          setErrorMessage(data.error ?? "The scraper returned no usable results.");
+          setErrorMessage(data.userMessage ?? data.error ?? "The scraper could not be run.");
+        } else {
+          setErrorMessage(null);
         }
       }
     } catch (error) {
@@ -361,7 +384,7 @@ export function MetaLibraryClient() {
             </select>
           </label>
 
-          <label className="block">
+<label className="block">
             <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Page ID (optional)</span>
             <input
               className="mt-2 w-full rounded-2xl border border-border bg-panel-soft px-4 py-3 text-sm"
@@ -371,12 +394,29 @@ export function MetaLibraryClient() {
               value={pageId}
             />
           </label>
+
+          <label className="block">
+            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Maximum results</span>
+            <input
+              className={`mt-2 w-full rounded-2xl border bg-panel-soft px-4 py-3 text-sm ${maxResultsValid ? "border-border" : "border-red-300"}`}
+              max={MAX_MAX_RESULTS}
+              min={MIN_MAX_RESULTS}
+              onChange={(event) => setMaxResults(event.target.value)}
+              type="number"
+              value={maxResults}
+            />
+            {!maxResultsValid ? (
+              <span className="mt-1 block text-xs text-red-600">
+                Enter a number between {MIN_MAX_RESULTS} and {MAX_MAX_RESULTS}.
+              </span>
+            ) : null}
+          </label>
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-4">
           <button
             className="inline-flex h-12 items-center gap-2 rounded-full bg-brand-red px-6 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(244,0,9,0.18)] transition disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={loading}
+            disabled={loading || !maxResultsValid}
             onClick={runScraper}
             type="button"
           >

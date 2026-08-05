@@ -12,4 +12,6 @@
 - [x] 6. Create client component `apps/web/src/components/meta/meta-library-client.tsx`
 - [x] 7. Create page `apps/web/src/app/(app)/meta-library/page.tsx`
 - [x] 8. Ensure `APIFY_API_TOKEN` is set in `.env.local`
-- [x] 9. Typecheck / verify build
+- [x] 9. Typecheck passes (`npx tsc --noEmit`)
+- [x] 10. Unit tests pass (`tsx --test ./src/lib/meta-library.test.ts` — 11/11)
+- [x] 11. Wire `./src/lib/meta-library.test.ts` into `apps/web/package.json` test script
