@@ -1,171 +1,113 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-type MetaCreativeCard = {
-  body: string | null;
+type MetaMetricSource = "META_AD_LIBRARY" | "META_AD_DETAIL" | "META_ADVERTISER_TRANSPARENCY";
+type MetaMetricStatus = "META_DISCLOSED" | "NOT_DISCLOSED";
+
+type MetaMetric = {
+  raw: string | null;
+  min: number | null;
+  max: number | null;
+  status: MetaMetricStatus;
+  source: MetaMetricSource;
+  path: string | null;
+};
+
+type MetaSpendMetric = MetaMetric & {
+  currency: string | null;
+};
+
+type MetaLibraryAd = {
+  adLibraryId: string;
+  primaryAdLibraryId: string;
+  pageId: string | null;
+  pageName: string | null;
+  adLibraryUrl: string;
+  advertiserUrl: string | null;
+  status: "ACTIVE" | "INACTIVE";
+  copy: string | null;
   title: string | null;
   description: string | null;
-  imageUrl: string | null;
-  videoUrl: string | null;
-  destinationUrl: string | null;
-};
-
-type MetaAd = {
-  id: string;
-  advertiser: {
-    id: string | null;
-    name: string | null;
-    profileImageUrl: string | null;
-  };
+  cta: string | null;
+  ctaType: string | null;
   creative: {
-    body: string | null;
-    title: string | null;
-    description: string | null;
+    type: "image" | "video" | "mixed" | "unknown";
+    url: string | null;
     imageUrls: string[];
     videoUrls: string[];
-    cards: MetaCreativeCard[];
+    cards: Array<{
+      title: string | null;
+      body: string | null;
+      description: string | null;
+      imageUrl: string | null;
+      videoUrl: string | null;
+      destinationUrl: string | null;
+      cta: string | null;
+    }>;
   };
-  status: "ACTIVE" | "INACTIVE" | null;
   platforms: string[];
-  totalPlatforms: number | null;
-  format: string | null;
-  similarAdCount: number | null;
-  multipleVersions: boolean | null;
   startDate: string | null;
   endDate: string | null;
-  adType: string | null;
-  callToAction: {
-    text: string | null;
-    url: string | null;
-  } | null;
-  spend: {
-    lowerBound: number | null;
-    upperBound: number | null;
-    currency: string | null;
-  } | null;
-  impressions: {
-    lowerBound: number | null;
-    upperBound: number | null;
-  } | null;
-  audienceSize: {
-    lowerBound: number | null;
-    upperBound: number | null;
-  } | null;
-  adLibraryUrl: string | null;
-  sourceUrl: string | null;
-  scrapedAt: string | null;
-  source: {
-    provider: string;
-    actorRunId: string;
-    datasetId: string;
+  similarAds: number | null;
+  variationGroupId: string | null;
+  variationCount: number | null;
+  spend: MetaSpendMetric;
+  impressions: MetaMetric;
+  audienceSize: MetaMetric;
+  currency: string | null;
+  rawMetaData: Record<string, unknown>;
+  debug: {
+    metricCandidates: Array<{ path: string; value: unknown }>;
+    sourceUrl: string | null;
+    actorInputUrl: string | null;
   };
-  raw?: Record<string, unknown>;
 };
 
-type MetaLibraryResponse = {
+type MetaAdsJobResponse = {
   success: boolean;
-  run?: { id: string; status: string; datasetId: string };
-  counts?: {
-    rawItems: number;
-    extractedRows: number;
-    advertisements: number;
-  };
-  diagnostics?: {
-    runId: string;
-    datasetId: string;
-    rawItemCount: number;
-    firstItemKeys: string[];
-  };
-  ads: MetaAd[];
-  error?: string;
-  userMessage?: string;
-  errorCode?: string;
-  httpStatus?: number;
+  jobId: string;
+  status: "QUEUED" | "RUNNING" | "SUCCEEDED" | "FAILED";
+  progressMessage: string;
+  found: number;
+  processed: number;
+  actorRunId: string | null;
+  datasetId: string | null;
+  url: string;
+  maxAds: number;
+  ads: MetaLibraryAd[];
+  rawItems: unknown[];
+  error: string | null;
+  createdAt: string;
+  updatedAt: string;
 };
 
 type PersistedMetaLibraryState = {
-  searchQuery: string;
-  country: string;
-  adType: string;
-  mediaType: string;
-  activeStatus: string;
-  sortMode: string;
-  sortDirection: string;
-  isTargetedCountry: boolean;
-  pageId: string;
-  maxResults: string;
-  result: MetaLibraryResponse | null;
+  url: string;
+  maxAds: string;
+  lastJob: MetaAdsJobResponse | null;
 };
 
-const DEFAULT_MAX_RESULTS_LABEL = 50;
-const MIN_MAX_RESULTS = 10;
-const MAX_MAX_RESULTS = 500;
-const META_LIBRARY_STORAGE_KEY = "fizzion.meta-library.state.v1";
+const META_LIBRARY_STORAGE_KEY = "fizzion.meta-library.url-state.v2";
+const DEFAULT_URL =
+  "https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=US&q=nike&search_type=keyword_unordered";
+const DEFAULT_MAX_ADS = "100";
+const IS_DEV = process.env.NODE_ENV !== "production";
 
-const COUNTRY_OPTIONS = [
-  { value: "US", label: "United States" },
-  { value: "IQ", label: "Iraq" },
-  { value: "AE", label: "United Arab Emirates" },
-  { value: "SA", label: "Saudi Arabia" },
-  { value: "GB", label: "United Kingdom" },
-  { value: "CA", label: "Canada" },
-  { value: "AU", label: "Australia" },
-  { value: "DE", label: "Germany" },
-  { value: "FR", label: "France" },
-  { value: "IN", label: "India" },
-  { value: "PK", label: "Pakistan" },
-  { value: "EG", label: "Egypt" },
-  { value: "JO", label: "Jordan" },
-  { value: "LB", label: "Lebanon" },
-];
-
-const AD_TYPE_OPTIONS = [
-  { value: "all", label: "All ad types" },
-  { value: "political", label: "Political" },
-  { value: "issue", label: "Issue" },
-  { value: "housing", label: "Housing" },
-  { value: "employment", label: "Employment" },
-  { value: "credit", label: "Credit" },
-];
-
-const SORT_OPTIONS = [
-  { value: "total_impressions", label: "Total impressions" },
-  { value: "total_spend", label: "Total spend" },
-  { value: "relevance", label: "Relevance" },
-];
-
-function formatNumber(value: number | null | undefined) {
-  if (value == null) {
-    return "N/A";
-  }
-  return value.toLocaleString();
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function formatRange(
-  lower: number | null | undefined,
-  upper: number | null | undefined,
-  prefix = "",
-  suffix = "",
-) {
-  if (lower == null && upper == null) {
-    return "Not available";
-  }
-  if (lower != null && upper != null) {
-    return `${prefix}${lower.toLocaleString()}${suffix} - ${prefix}${upper.toLocaleString()}${suffix}`;
-  }
-  const value = (lower ?? upper) as number;
-  return prefix !== "$" ? `${prefix}${value.toLocaleString()}${suffix}` : `${prefix}${value.toLocaleString()}`;
-}
-
-function formatDate(value: string | null | undefined) {
+function formatDate(value: string | null) {
   if (!value) {
     return "Not available";
   }
+
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return value;
   }
+
   return date.toLocaleDateString("en-US", {
     day: "2-digit",
     month: "short",
@@ -173,43 +115,51 @@ function formatDate(value: string | null | undefined) {
   });
 }
 
-function primaryImage(ad: MetaAd): string | null {
-  if (ad.creative.imageUrls.length > 0) {
-    return ad.creative.imageUrls[0];
+function formatMetric(metric: MetaMetric | MetaSpendMetric) {
+  if (metric.status === "NOT_DISCLOSED") {
+    return "Not disclosed by Meta";
   }
-  if (ad.creative.videoUrls.length > 0) {
-    return ad.creative.videoUrls[0];
-  }
-  return null;
+
+  return metric.raw ?? "Not disclosed by Meta";
 }
 
-function isVideoAd(ad: MetaAd): boolean {
-  return ad.creative.videoUrls.length > 0;
+function metricBadge(metric: MetaMetric | MetaSpendMetric) {
+  return metric.status === "META_DISCLOSED" ? "META DISCLOSED" : "NOT DISCLOSED BY META";
+}
+
+function formatPlatform(platform: string) {
+  return platform.replace(/_/g, " ");
+}
+
+function primaryMedia(ad: MetaLibraryAd) {
+  return ad.creative.videoUrls[0] ?? ad.creative.imageUrls[0] ?? ad.creative.cards[0]?.imageUrl ?? null;
+}
+
+function jobSummary(job: MetaAdsJobResponse | null) {
+  if (!job) {
+    return null;
+  }
+
+  if (job.status === "FAILED") {
+    return job.error ?? "The scrape failed.";
+  }
+
+  if (job.status === "SUCCEEDED") {
+    return `Complete. ${job.ads.length} ads loaded from Meta Ad Library.`;
+  }
+
+  const countText = job.found > 0 ? `${job.found} ads found` : "Fetching ads";
+  return `${countText}. ${job.progressMessage}`;
 }
 
 export function MetaLibraryClient() {
-  const [searchQuery, setSearchQuery] = useState("nike");
-  const [country, setCountry] = useState("US");
-  const [adType, setAdType] = useState("all");
-  const [mediaType, setMediaType] = useState("all");
-  const [activeStatus, setActiveStatus] = useState("active");
-  const [sortMode, setSortMode] = useState("total_impressions");
-  const [sortDirection, setSortDirection] = useState("desc");
-  const [isTargetedCountry, setIsTargetedCountry] = useState(false);
-  const [pageId, setPageId] = useState("");
-  const [maxResults, setMaxResults] = useState(String(DEFAULT_MAX_RESULTS_LABEL));
+  const [metaUrl, setMetaUrl] = useState(DEFAULT_URL);
+  const [maxAds, setMaxAds] = useState(DEFAULT_MAX_ADS);
   const [loading, setLoading] = useState(false);
-  const [progress, setProgress] = useState("");
-  const [result, setResult] = useState<MetaLibraryResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [inspectIndex, setInspectIndex] = useState<number | null>(null);
+  const [job, setJob] = useState<MetaAdsJobResponse | null>(null);
   const [restored, setRestored] = useState(false);
-
-  const parsedMaxResults = Number(maxResults);
-  const maxResultsValid =
-    Number.isFinite(parsedMaxResults) &&
-    parsedMaxResults >= MIN_MAX_RESULTS &&
-    parsedMaxResults <= MAX_MAX_RESULTS;
+  const [expandedAdId, setExpandedAdId] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -219,19 +169,15 @@ export function MetaLibraryClient() {
         return;
       }
 
-      const persisted = JSON.parse(raw) as Partial<PersistedMetaLibraryState>;
-      if (typeof persisted.searchQuery === "string") setSearchQuery(persisted.searchQuery);
-      if (typeof persisted.country === "string") setCountry(persisted.country);
-      if (typeof persisted.adType === "string") setAdType(persisted.adType);
-      if (typeof persisted.mediaType === "string") setMediaType(persisted.mediaType);
-      if (typeof persisted.activeStatus === "string") setActiveStatus(persisted.activeStatus);
-      if (typeof persisted.sortMode === "string") setSortMode(persisted.sortMode);
-      if (typeof persisted.sortDirection === "string") setSortDirection(persisted.sortDirection);
-      if (typeof persisted.isTargetedCountry === "boolean") setIsTargetedCountry(persisted.isTargetedCountry);
-      if (typeof persisted.pageId === "string") setPageId(persisted.pageId);
-      if (typeof persisted.maxResults === "string") setMaxResults(persisted.maxResults);
-      if (persisted.result && typeof persisted.result === "object") {
-        setResult(persisted.result as MetaLibraryResponse);
+      const parsed = JSON.parse(raw) as Partial<PersistedMetaLibraryState>;
+      if (typeof parsed.url === "string") {
+        setMetaUrl(parsed.url);
+      }
+      if (typeof parsed.maxAds === "string") {
+        setMaxAds(parsed.maxAds);
+      }
+      if (parsed.lastJob && typeof parsed.lastJob === "object") {
+        setJob(parsed.lastJob as MetaAdsJobResponse);
       }
     } catch {
       window.localStorage.removeItem(META_LIBRARY_STORAGE_KEY);
@@ -246,562 +192,357 @@ export function MetaLibraryClient() {
     }
 
     const payload: PersistedMetaLibraryState = {
-      searchQuery,
-      country,
-      adType,
-      mediaType,
-      activeStatus,
-      sortMode,
-      sortDirection,
-      isTargetedCountry,
-      pageId,
-      maxResults,
-      result,
+      url: metaUrl,
+      maxAds,
+      lastJob: job,
     };
 
     window.localStorage.setItem(META_LIBRARY_STORAGE_KEY, JSON.stringify(payload));
-  }, [
-    restored,
-    searchQuery,
-    country,
-    adType,
-    mediaType,
-    activeStatus,
-    sortMode,
-    sortDirection,
-    isTargetedCountry,
-    pageId,
-    maxResults,
-    result,
-  ]);
+  }, [restored, metaUrl, maxAds, job]);
 
-  async function runScraper() {
-    if (!maxResultsValid) {
-      setErrorMessage("Maximum results must be a whole number between 10 and 500.");
-      return;
+  const ads = useMemo(() => job?.ads ?? [], [job]);
+
+  async function pollJob(jobId: string) {
+    while (true) {
+      const response = await fetch(`/api/meta-ads/jobs/${jobId}`, {
+        cache: "no-store",
+      });
+      const data = (await response.json()) as MetaAdsJobResponse & { error?: string };
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "The Meta Ad Library job could not be read.");
+      }
+
+      setJob(data);
+
+      if (data.status === "SUCCEEDED") {
+        return;
+      }
+
+      if (data.status === "FAILED") {
+        throw new Error(data.error ?? "The Meta Ad Library scrape failed.");
+      }
+
+      await sleep(2000);
     }
+  }
 
+  async function handleFetchAds() {
     setLoading(true);
-    setProgress("Starting the Meta Ad Library scraper...");
-    setResult(null);
     setErrorMessage(null);
-    setInspectIndex(null);
+    setExpandedAdId(null);
 
     try {
-      const response = await fetch("/api/meta-library", {
+      const response = await fetch("/api/meta-ads/scrape", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          country,
-          searchQuery,
-          pageId,
-          activeStatus,
-          adType,
-          mediaType,
-          isTargetedCountry,
-          sortMode,
-          sortDirection,
-          maxResults: parsedMaxResults,
+          url: metaUrl,
+          maxAds: Number(maxAds),
         }),
       });
 
-      const data = (await response.json()) as MetaLibraryResponse;
+      const data = (await response.json()) as { success: boolean; jobId?: string; error?: string };
 
-      if (!response.ok) {
-        setErrorMessage(data.userMessage ?? data.error ?? "The scraper could not be run.");
-        setResult(data);
-      } else {
-        setResult(data);
-        setErrorMessage(data.success ? null : data.userMessage ?? data.error ?? "The scraper could not be run.");
+      if (!response.ok || !data.success || !data.jobId) {
+        throw new Error(data.error ?? "The Meta Ad Library scrape could not be started.");
       }
+
+      setJob({
+        success: true,
+        jobId: data.jobId,
+        status: "QUEUED",
+        progressMessage: "Queued",
+        found: 0,
+        processed: 0,
+        actorRunId: null,
+        datasetId: null,
+        url: metaUrl,
+        maxAds: Number(maxAds),
+        ads: [],
+        rawItems: [],
+        error: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+
+      await pollJob(data.jobId);
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "An unexpected error occurred while running the scraper.",
-      );
+      setErrorMessage(error instanceof Error ? error.message : "The Meta Ad Library scrape failed.");
     } finally {
       setLoading(false);
-      setProgress("");
     }
   }
 
-  const ads = result?.ads ?? [];
-  const totalAds = result?.counts?.advertisements ?? ads.length;
+  const summary = jobSummary(job);
 
   return (
     <div className="space-y-6">
       <section className="rounded-[2.2rem] border border-white/85 bg-white/90 p-6 shadow-[var(--shadow-card)]">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-red">Meta Ad Library scraper</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-red">Meta Ad Library research</p>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground">Meta Library</h1>
             <p className="mt-3 max-w-4xl text-sm leading-7 text-muted-foreground">
-              Search the Facebook and Instagram Ad Library through the Apify Meta Ad Library Actor. Configure a query,
-              run the scraper, and review the latest advertisement data returned for the selected market.
+              Paste a public Meta Ad Library URL and fetch every ad returned by Meta through the Apify
+              <span className="font-medium text-foreground"> facebook-ads-scraper </span>
+              actor. Spend, impressions, and audience size only show Meta-disclosed values. Missing data is
+              explicitly marked as not disclosed.
             </p>
           </div>
           <span className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700">
-            Live data via Apify
+            Live Apify + Meta data
           </span>
         </div>
       </section>
 
       <section className="rounded-[1.8rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-foreground">Scraper configuration</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              The scraper runs only when you click Run. Real results are fetched live from Apify and the latest
-              successful response stays saved after refresh.
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-5 grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
-          <label className="block">
-            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Search query</span>
-            <input
-              className="mt-2 w-full rounded-2xl border border-border bg-panel-soft px-4 py-3 text-sm"
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="e.g. nike, coca-cola, brand"
-              type="text"
-              value={searchQuery}
+        <div className="grid gap-4">
+          <label className="space-y-2">
+            <span className="text-sm font-semibold text-foreground">Paste Meta Ad Library URL</span>
+            <textarea
+              value={metaUrl}
+              onChange={(event) => setMetaUrl(event.target.value)}
+              className="min-h-[120px] w-full rounded-[1.25rem] border border-border bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
+              placeholder="https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=US&q=nike&search_type=keyword_unordered"
             />
           </label>
 
-          <label className="block">
-            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Country</span>
-            <select
-              className="mt-2 w-full rounded-2xl border border-border bg-panel-soft px-4 py-3 text-sm"
-              onChange={(event) => setCountry(event.target.value)}
-              value={country}
-            >
-              {COUNTRY_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="grid gap-4 md:grid-cols-[180px_1fr] md:items-end">
+            <label className="space-y-2">
+              <span className="text-sm font-semibold text-foreground">Max ads</span>
+              <input
+                type="number"
+                min={1}
+                max={500}
+                value={maxAds}
+                onChange={(event) => setMaxAds(event.target.value)}
+                className="h-12 w-full rounded-[1.25rem] border border-border bg-background px-4 text-sm text-foreground outline-none transition focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
+              />
+            </label>
 
-          <label className="block">
-            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Ad type</span>
-            <select
-              className="mt-2 w-full rounded-2xl border border-border bg-panel-soft px-4 py-3 text-sm"
-              onChange={(event) => setAdType(event.target.value)}
-              value={adType}
-            >
-              {AD_TYPE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block">
-            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Media type</span>
-            <select
-              className="mt-2 w-full rounded-2xl border border-border bg-panel-soft px-4 py-3 text-sm"
-              onChange={(event) => setMediaType(event.target.value)}
-              value={mediaType}
-            >
-              <option value="all">All media</option>
-              <option value="image">Images</option>
-              <option value="video">Videos</option>
-            </select>
-          </label>
-
-          <label className="block">
-            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Active status</span>
-            <select
-              className="mt-2 w-full rounded-2xl border border-border bg-panel-soft px-4 py-3 text-sm"
-              onChange={(event) => setActiveStatus(event.target.value)}
-              value={activeStatus}
-            >
-              <option value="active">Active</option>
-              <option value="all">All</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </label>
-
-          <label className="block">
-            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Sort by</span>
-            <select
-              className="mt-2 w-full rounded-2xl border border-border bg-panel-soft px-4 py-3 text-sm"
-              onChange={(event) => setSortMode(event.target.value)}
-              value={sortMode}
-            >
-              {SORT_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block">
-            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Sort direction</span>
-            <select
-              className="mt-2 w-full rounded-2xl border border-border bg-panel-soft px-4 py-3 text-sm"
-              onChange={(event) => setSortDirection(event.target.value)}
-              value={sortDirection}
-            >
-              <option value="desc">Descending</option>
-              <option value="asc">Ascending</option>
-            </select>
-          </label>
-
-          <label className="block">
-            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Page ID (optional)</span>
-            <input
-              className="mt-2 w-full rounded-2xl border border-border bg-panel-soft px-4 py-3 text-sm"
-              onChange={(event) => setPageId(event.target.value)}
-              placeholder="e.g. page ID"
-              type="text"
-              value={pageId}
-            />
-          </label>
-
-          <label className="block">
-            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Maximum results</span>
-            <input
-              className={`mt-2 w-full rounded-2xl border bg-panel-soft px-4 py-3 text-sm ${maxResultsValid ? "border-border" : "border-red-300"}`}
-              max={MAX_MAX_RESULTS}
-              min={MIN_MAX_RESULTS}
-              onChange={(event) => setMaxResults(event.target.value)}
-              type="number"
-              value={maxResults}
-            />
-            {!maxResultsValid ? (
-              <span className="mt-1 block text-xs text-red-600">
-                Enter a number between {MIN_MAX_RESULTS} and {MAX_MAX_RESULTS}.
-              </span>
-            ) : null}
-          </label>
-        </div>
-
-        <div className="mt-5 flex flex-wrap items-center gap-4">
-          <button
-            className="inline-flex h-12 items-center gap-2 rounded-full bg-brand-red px-6 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(244,0,9,0.18)] transition disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={loading || !maxResultsValid}
-            onClick={runScraper}
-            type="button"
-          >
-            {loading ? (
-              <>
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                Running...
-              </>
-            ) : (
-              <>Run scraper</>
-            )}
-          </button>
-
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
-            <input
-              checked={isTargetedCountry}
-              className="h-4 w-4 accent-brand-red"
-              onChange={(event) => setIsTargetedCountry(event.target.checked)}
-              type="checkbox"
-            />
-            Targeted country only
-          </label>
-        </div>
-
-        {loading ? (
-          <div className="mt-5 rounded-[1.4rem] border border-dashed border-brand-red/30 bg-panel-soft px-5 py-4 text-sm text-muted-foreground">
-            <div className="flex items-center gap-3">
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-brand-red/30 border-t-brand-red" />
-              <span>{progress || "Running the Meta Ad Library scraper. This can take a few minutes."}</span>
-            </div>
-            <p className="mt-2 text-xs leading-6 text-muted-foreground">
-              The scraper is contacting the Facebook Ad Library. Large queries can take several minutes to complete.
-            </p>
-          </div>
-        ) : null}
-
-        {errorMessage ? (
-          <div className="mt-5 rounded-[1.4rem] border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900 shadow-[var(--shadow-soft)]">
-            <p className="font-semibold">The scraper did not return usable results.</p>
-            <p className="mt-2 text-xs leading-6 text-amber-800">{errorMessage}</p>
-          </div>
-        ) : null}
-
-        {result && !loading ? (
-          <p className="mt-4 text-xs text-muted-foreground">
-            Latest saved result remains visible after refresh until you run a new scrape.
-          </p>
-        ) : null}
-      </section>
-
-      {result && !loading ? (
-        <section className="rounded-[1.8rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-foreground">Results</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {result.success && totalAds > 0
-                  ? `Run ${result.run?.status ?? "SUCCEEDED"} with ${totalAds} advertisement${totalAds === 1 ? "" : "s"} returned.`
-                  : result.success
-                    ? `Run ${result.run?.status ?? "SUCCEEDED"}. No advertisement records were returned.`
-                    : `Run ${result.run?.status ?? "finished"}. No usable advertisement records were returned.`}
+            <div className="flex flex-col gap-3 md:items-start">
+              <button
+                type="button"
+                onClick={handleFetchAds}
+                disabled={loading}
+                className="inline-flex h-12 items-center justify-center rounded-full bg-brand-red px-6 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {loading ? "Fetching ads..." : "Fetch Ads"}
+              </button>
+              <p className="text-xs leading-6 text-muted-foreground">
+                The Apify token stays server-side. Refreshing the page keeps the latest successful Meta result saved locally.
               </p>
             </div>
-            <div className="flex flex-wrap gap-3">
-              <ResultTile label="Run ID" value={result.run?.id ?? "N/A"} />
-              <ResultTile label="Total ads" value={formatNumber(totalAds)} />
-            </div>
           </div>
 
-          {result.success && ads.length > 0 ? (
-            <div className="mt-6 grid gap-4 xl:grid-cols-2">
-              {ads.map((ad, index) => (
-                <AdCard
-                  ad={ad}
-                  inspect={inspectIndex === index}
-                  key={ad.id || `${ad.source.actorRunId}-${index}`}
-                  onToggleInspect={() => setInspectIndex(inspectIndex === index ? null : index)}
-                />
-              ))}
+          {summary ? (
+            <div className="rounded-[1.25rem] border border-border bg-[var(--color-surface)] px-4 py-3 text-sm text-foreground">
+              {summary}
             </div>
-          ) : (
-            <div className="mt-6 rounded-[1.5rem] border border-dashed border-border bg-panel-soft px-5 py-10 text-center text-sm text-muted-foreground">
-              {result.success ? (
-                <>
-                  <p className="text-base font-semibold text-foreground">No advertisements were returned</p>
-                  <p className="mx-auto mt-2 max-w-xl leading-7">
-                    The Facebook Ad Library may not have public ads matching the current query, the market, or the
-                    selected filters. Try a different search query, country, or media type.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="text-base font-semibold text-foreground">No advertisements could be extracted</p>
-                  <p className="mx-auto mt-2 max-w-xl leading-7">
-                    The scraper run finished, but no usable advertisement records were found in the dataset matching
-                    the current query and filters.
-                  </p>
-                </>
-              )}
+          ) : null}
+
+          {errorMessage ? (
+            <div className="rounded-[1.25rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {errorMessage}
             </div>
-          )}
-        </section>
-      ) : null}
-    </div>
-  );
-}
+          ) : null}
 
-function ResultTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[1.2rem] border border-border bg-panel-soft px-4 py-2.5">
-      <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
-      <p className="mt-1 max-w-[220px] truncate text-sm font-semibold text-foreground">{value}</p>
-    </div>
-  );
-}
-
-function AdCard({
-  ad,
-  inspect,
-  onToggleInspect,
-}: {
-  ad: MetaAd;
-  inspect: boolean;
-  onToggleInspect: () => void;
-}) {
-  const imageUrl = primaryImage(ad);
-  const video = isVideoAd(ad);
-  const advertiserName = ad.advertiser.name ?? "Advertiser name not returned";
-  const advertiserInitial = (ad.advertiser.name ?? "A").charAt(0).toUpperCase();
-  const primaryActionUrl = ad.callToAction?.url ?? ad.sourceUrl ?? ad.adLibraryUrl;
-  const primaryActionLabel = ad.callToAction?.text ?? (primaryActionUrl ? "Open destination" : null);
-  const metrics = [
-    {
-      label: "Spend",
-      value: ad.spend ? formatRange(ad.spend.lowerBound, ad.spend.upperBound, "$") : "Not disclosed by Meta",
-      note: ad.spend?.currency ? `Currency: ${ad.spend.currency}` : undefined,
-    },
-    {
-      label: "Impressions",
-      value: ad.impressions ? formatRange(ad.impressions.lowerBound, ad.impressions.upperBound) : "Not disclosed by Meta",
-    },
-    {
-      label: "Audience size",
-      value: ad.audienceSize ? formatRange(ad.audienceSize.lowerBound, ad.audienceSize.upperBound) : "Not disclosed by Meta",
-    },
-    {
-      label: "Format",
-      value: ad.format ?? ad.adType ?? "Not returned by actor",
-    },
-    {
-      label: "Platforms",
-      value: ad.platforms.length > 0 ? ad.platforms.join(", ") : "Not returned by actor",
-      note: ad.totalPlatforms != null ? `${ad.totalPlatforms} platform${ad.totalPlatforms === 1 ? "" : "s"}` : undefined,
-    },
-    {
-      label: "Similar ads",
-      value: ad.similarAdCount != null ? formatNumber(ad.similarAdCount) : "Not returned by actor",
-      note:
-        ad.multipleVersions == null
-          ? undefined
-          : ad.multipleVersions
-            ? "Multiple versions detected"
-            : "Single version detected",
-    },
-    {
-      label: "Started",
-      value: formatDate(ad.startDate),
-      note: ad.startDate ? undefined : "Not disclosed by Meta",
-    },
-    {
-      label: "Ended",
-      value: formatDate(ad.endDate),
-      note: ad.endDate ? undefined : "Not disclosed by Meta",
-    },
-  ];
-
-  return (
-    <article className="overflow-hidden rounded-[1.6rem] border border-border bg-panel-soft shadow-[var(--shadow-soft)]">
-      <div className="flex items-center gap-3 border-b border-border bg-white px-4 py-3">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-white">
-          {ad.advertiser.profileImageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              alt={advertiserName}
-              className="h-full w-full object-cover"
-              referrerPolicy="no-referrer"
-              src={ad.advertiser.profileImageUrl}
-            />
-          ) : (
-            <span className="text-sm font-semibold text-muted-foreground">{advertiserInitial}</span>
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-base font-semibold text-foreground">{advertiserName}</p>
-          <p className="truncate text-xs text-muted-foreground">
-            {ad.advertiser.id ? `Advertiser ID ${ad.advertiser.id}` : "Meta Ad Library"} ·{" "}
-            {ad.status === "ACTIVE" ? "Active" : ad.status === "INACTIVE" ? "Inactive" : "Status not disclosed"}
-          </p>
-        </div>
-        {ad.platforms.length > 0 ? (
-          <span className="rounded-full bg-white px-3 py-1 text-xs text-muted-foreground">{ad.platforms.join(", ")}</span>
-        ) : null}
-      </div>
-
-      {imageUrl ? (
-        <div className="relative border-b border-border bg-white">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            alt={ad.creative.body ?? advertiserName ?? "Advertisement creative"}
-            className={`w-full object-cover ${video ? "h-72" : "h-64"}`}
-            loading="lazy"
-            referrerPolicy="no-referrer"
-            src={imageUrl}
-          />
-          {video ? (
-            <span className="absolute left-3 top-3 rounded-full bg-black/70 px-3 py-1 text-xs font-semibold text-white">
-              Video
-            </span>
+          {job?.actorRunId ? (
+            <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+              <span>Run ID: {job.actorRunId}</span>
+              <span>Dataset: {job.datasetId ?? "Pending"}</span>
+              <span>Found: {job.found}</span>
+              <span>Processed: {job.processed}</span>
+            </div>
           ) : null}
         </div>
-      ) : null}
+      </section>
 
-      <div className="p-4">
-        {ad.creative.body ? (
-          <p className="line-clamp-4 text-sm leading-6 text-foreground">{ad.creative.body}</p>
-        ) : (
-          <p className="text-sm italic text-muted-foreground">No creative copy was returned for this ad.</p>
-        )}
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          {metrics.map((metric) => (
-            <Metric key={metric.label} label={metric.label} note={metric.note} value={metric.value} />
-          ))}
-        </div>
-
-        {ad.creative.title || ad.creative.description ? (
-          <div className="mt-4 rounded-[1.2rem] border border-border bg-white px-4 py-3">
-            {ad.creative.title ? <p className="mt-1 text-sm font-semibold text-foreground">{ad.creative.title}</p> : null}
-            {ad.creative.description ? (
-              <p className="mt-1 line-clamp-3 text-xs leading-5 text-muted-foreground">{ad.creative.description}</p>
-            ) : null}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-foreground">Fetched ads</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Every card below represents one normalized Ad Library record. Missing competitor metrics remain clearly marked as not disclosed.
+            </p>
           </div>
-        ) : null}
-
-        {ad.creative.cards.length > 0 ? (
-          <div className="mt-4 space-y-3">
-            {ad.creative.cards.map((card, index) => (
-              <div className="rounded-[1.2rem] border border-border bg-white px-4 py-3" key={`${ad.id}-card-${index}`}>
-                {card.title ? <p className="text-sm font-semibold text-foreground">{card.title}</p> : null}
-                {card.body ? <p className="mt-1 text-xs leading-5 text-muted-foreground">{card.body}</p> : null}
-                {card.destinationUrl ? (
-                  <a
-                    className="mt-2 inline-block text-xs font-semibold text-brand-red"
-                    href={card.destinationUrl}
-                    rel="noreferrer"
-                    target="_blank"
-                  >
-                    Open card link {"->"}
-                  </a>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border pt-4">
-          {ad.adLibraryUrl ? (
-            <a
-              className="inline-flex items-center gap-2 text-sm font-semibold text-brand-red transition hover:text-brand-red-deep"
-              href={ad.adLibraryUrl}
-              rel="noreferrer"
-              target="_blank"
-            >
-              View original ad {"->"}
-            </a>
-          ) : null}
-          {primaryActionUrl ? (
-            <a
-              className="inline-flex items-center gap-2 text-sm font-semibold text-foreground transition hover:text-brand-red"
-              href={primaryActionUrl}
-              rel="noreferrer"
-              target="_blank"
-            >
-              {primaryActionLabel ?? "Open destination"} {"->"}
-            </a>
-          ) : null}
-          {ad.id ? <span className="text-xs text-muted-foreground">Meta Library ID: {ad.id}</span> : null}
-          <span className="text-xs text-muted-foreground">
-            Source: {ad.source.provider} · Run {ad.source.actorRunId}
+          <span className="rounded-full border border-border bg-white px-4 py-2 text-xs font-semibold text-foreground">
+            {ads.length} ads
           </span>
-          {ad.scrapedAt ? <span className="text-xs text-muted-foreground">Scraped {formatDate(ad.scrapedAt)}</span> : null}
-          <button
-            className="ml-auto rounded-full border border-border bg-white px-3 py-1.5 text-xs font-semibold text-foreground"
-            onClick={onToggleInspect}
-            type="button"
-          >
-            {inspect ? "Hide source record" : "Inspect source record"}
-          </button>
         </div>
 
-        {inspect && ad.raw ? (
-          <pre className="mt-3 max-h-80 overflow-auto rounded-[1.2rem] border border-border bg-black/90 p-4 text-[10px] leading-5 text-emerald-300">
-            {JSON.stringify(ad.raw, null, 2)}
-          </pre>
+        {job?.status === "SUCCEEDED" && ads.length === 0 ? (
+          <div className="rounded-[1.8rem] border border-border bg-white p-8 text-sm text-muted-foreground shadow-[var(--shadow-soft)]">
+            No ads were returned for this Meta Ad Library URL.
+          </div>
         ) : null}
-      </div>
-    </article>
-  );
-}
 
-function Metric({ label, value, note }: { label: string; value: string; note?: string }) {
-  return (
-    <div className="rounded-[1.1rem] border border-border bg-white px-3 py-3">
-      <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
-      <p className="mt-2 text-sm font-semibold text-foreground">{value}</p>
-      {note ? <p className="mt-1 text-[10px] text-muted-foreground">{note}</p> : null}
+        <div className="grid gap-5 xl:grid-cols-2">
+          {ads.map((ad) => {
+            const media = primaryMedia(ad);
+            const isExpanded = expandedAdId === ad.adLibraryId;
+
+            return (
+              <article
+                key={ad.adLibraryId}
+                className="overflow-hidden rounded-[2rem] border border-[#f0d6cb] bg-[#fff8f5] shadow-[0_12px_32px_rgba(112,74,43,0.08)]"
+              >
+                <div className="flex items-start gap-4 border-b border-[#f0d6cb] bg-white/80 px-5 py-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full border border-[#e9c7b8] bg-white text-sm font-semibold text-[#8f6b59]">
+                    {(ad.pageName ?? "P").slice(0, 1).toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="truncate text-lg font-semibold text-foreground">
+                        {ad.pageName ?? "Unknown page"}
+                      </h3>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                          ad.status === "ACTIVE"
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-slate-200 text-slate-700"
+                        }`}
+                      >
+                        {ad.status}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Ad Library ID: {ad.adLibraryId}
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {ad.platforms.map((platform) => (
+                        <span
+                          key={`${ad.adLibraryId}-${platform}`}
+                          className="rounded-full border border-[#ecd6cb] bg-[#fff4ee] px-2.5 py-1 text-[11px] font-medium text-[#8a5b46]"
+                        >
+                          {formatPlatform(platform)}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4 p-5">
+                  <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+                    <div className="space-y-3">
+                      <p className="text-sm italic text-[#8f7c72]">
+                        {ad.copy ?? ad.description ?? "No creative copy was returned for this ad."}
+                      </p>
+                      {ad.title ? <p className="text-sm font-semibold text-foreground">{ad.title}</p> : null}
+                      {ad.cta ? (
+                        <div className="inline-flex rounded-full border border-[#ecd6cb] bg-white px-3 py-1 text-xs font-semibold text-[#8a5b46]">
+                          CTA: {ad.cta}
+                        </div>
+                      ) : null}
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <MetricCard label="Spend" metric={ad.spend} />
+                        <MetricCard label="Impressions" metric={ad.impressions} />
+                        <MetricCard label="Audience size" metric={ad.audienceSize} />
+                        <StaticCard label="Ad type" value={ad.creative.type.toUpperCase()} />
+                        <StaticCard label="Started" value={formatDate(ad.startDate)} />
+                        <StaticCard label="Ended" value={formatDate(ad.endDate)} />
+                      </div>
+                    </div>
+
+                    <div className="rounded-[1.4rem] border border-[#edd7cc] bg-white p-3">
+                      {media ? (
+                        ad.creative.type === "video" ? (
+                          <video src={media} controls className="h-56 w-full rounded-[1rem] object-cover" />
+                        ) : (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={media} alt={ad.pageName ?? "Meta ad creative"} className="h-56 w-full rounded-[1rem] object-cover" />
+                        )
+                      ) : (
+                        <div className="flex h-56 items-center justify-center rounded-[1rem] bg-[#fff7f2] text-sm text-muted-foreground">
+                          No public creative media returned
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                    <span>Similar ads: {ad.similarAds ?? "Not available"}</span>
+                    <span>Variation group: {ad.variationGroupId ?? "None"}</span>
+                    <a
+                      href={ad.adLibraryUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-semibold text-brand-red hover:underline"
+                    >
+                      Open in Meta Ad Library
+                    </a>
+                  </div>
+
+                  {IS_DEV ? (
+                    <div className="rounded-[1.25rem] border border-dashed border-[#e5cabd] bg-white/70 p-3">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedAdId(isExpanded ? null : ad.adLibraryId)}
+                        className="text-sm font-semibold text-[#8a5b46]"
+                      >
+                        {isExpanded ? "Hide raw Meta/Apify payload" : "View raw Meta/Apify payload"}
+                      </button>
+
+                      {isExpanded ? (
+                        <div className="mt-3 space-y-3">
+                          <div className="grid gap-3 md:grid-cols-3">
+                            <DebugPath label="Spend path" value={ad.spend.path} />
+                            <DebugPath label="Impressions path" value={ad.impressions.path} />
+                            <DebugPath label="Audience path" value={ad.audienceSize.path} />
+                          </div>
+                          <pre className="max-h-[28rem] overflow-auto rounded-[1rem] bg-slate-950 p-4 text-xs leading-6 text-slate-100">
+                            {JSON.stringify(ad.rawMetaData, null, 2)}
+                          </pre>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
     </div>
   );
 }
+
+function MetricCard({ label, metric }: { label: string; metric: MetaMetric | MetaSpendMetric }) {
+  const disclosed = metric.status === "META_DISCLOSED";
+
+  return (
+    <div className="rounded-[1.2rem] border border-[#f0d6cb] bg-white px-4 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9f8b80]">{label}</p>
+      <p className="mt-2 text-sm font-semibold text-foreground">{formatMetric(metric)}</p>
+      <span
+        className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+          disclosed ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-700"
+        }`}
+      >
+        {metricBadge(metric)}
+      </span>
+    </div>
+  );
+}
+
+function StaticCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[1.2rem] border border-[#f0d6cb] bg-white px-4 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9f8b80]">{label}</p>
+      <p className="mt-2 text-sm font-semibold text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function DebugPath({ label, value }: { label: string; value: string | null }) {
+  return (
+    <div className="rounded-[1rem] border border-border bg-white px-3 py-2 text-xs text-foreground">
+      <p className="font-semibold text-muted-foreground">{label}</p>
+      <p className="mt-1 break-all">{value ?? "Not found"}</p>
+    </div>
+  );
+}
+

@@ -1,304 +1,232 @@
-import { test } from "node:test";
 import assert from "node:assert/strict";
+import { test } from "node:test";
 
 import {
-  sanitizeMaxResults,
-  buildMetaLibraryRunOptions,
-  buildMetaLibraryActorInput,
-  DEFAULT_MAX_RESULTS,
-  MIN_MAX_RESULTS,
-  MAX_MAX_RESULTS,
-  extractAdvertisementRows,
-  isAdvertisementRow,
-  normalizeMetaLibraryAds,
+  buildMetaAdsActorInput,
+  DEFAULT_MAX_ADS,
+  findMetricCandidates,
   normalizeMetaLibraryAd,
+  normalizeMetaLibraryAds,
+  parseMetaRange,
+  sanitizeMaxAds,
   sanitizeRawRecord,
-  readDate,
-  readRange,
-  readStringArray,
+  validateMetaLibraryUrl,
 } from "./meta-library";
-
-test("sanitizeMaxResults: missing/undefined => default (50)", () => {
-  assert.equal(sanitizeMaxResults(undefined), DEFAULT_MAX_RESULTS);
-  assert.equal(sanitizeMaxResults(null), DEFAULT_MAX_RESULTS);
-});
-
-test("sanitizeMaxResults: 0 => default (50)", () => {
-  assert.equal(sanitizeMaxResults(0), DEFAULT_MAX_RESULTS);
-});
-
-test("sanitizeMaxResults: empty string => default (50)", () => {
-  assert.equal(sanitizeMaxResults(""), DEFAULT_MAX_RESULTS);
-});
-
-test("sanitizeMaxResults: NaN => default (50)", () => {
-  assert.equal(sanitizeMaxResults(Number.NaN), DEFAULT_MAX_RESULTS);
-});
-
-test("sanitizeMaxResults: negative => default (50)", () => {
-  assert.equal(sanitizeMaxResults(-5), DEFAULT_MAX_RESULTS);
-});
-
-test("sanitizeMaxResults: below min => min (10)", () => {
-  assert.equal(sanitizeMaxResults(3), MIN_MAX_RESULTS);
-  assert.equal(sanitizeMaxResults("4"), MIN_MAX_RESULTS);
-});
-
-test("sanitizeMaxResults: valid value passes through", () => {
-  assert.equal(sanitizeMaxResults(25), 25);
-  assert.equal(sanitizeMaxResults("25"), 25);
-});
-
-test("sanitizeMaxResults: above max clamps to max (500)", () => {
-  assert.equal(sanitizeMaxResults(9999), MAX_MAX_RESULTS);
-  assert.equal(sanitizeMaxResults("1000"), MAX_MAX_RESULTS);
-});
-
-test("sanitizeMaxResults: always returns a positive integer", () => {
-  for (const value of [0, -1, NaN, null, undefined, "", "abc", 3.9, 9999]) {
-    const result = sanitizeMaxResults(value);
-    assert.ok(Number.isInteger(result), `expected integer for ${String(value)}`);
-    assert.ok(result > 0, `expected positive for ${String(value)}`);
-    assert.ok(result >= MIN_MAX_RESULTS && result <= MAX_MAX_RESULTS);
-  }
-});
-
-test("buildMetaLibraryRunOptions: only contains maxItems, never waitForFinish", () => {
-  const options = buildMetaLibraryRunOptions(0);
-  assert.ok(options.maxItems > 0);
-  assert.equal(options.maxItems, DEFAULT_MAX_RESULTS);
-  assert.deepEqual(Object.keys(options), ["maxItems"]);
-  assert.ok(!("waitForFinish" in options));
-  assert.ok(!("waitSecs" in options));
-  assert.ok(!("timeout" in options));
-  assert.ok(!("memory" in options));
-  assert.ok(!("maxTotalChargeUsd" in options));
-});
-
-test("buildMetaLibraryActorInput: includes positive maxResults field", () => {
-  const input = buildMetaLibraryActorInput({ searchQuery: "nike" }, 0);
-  assert.equal(input.maxResults, DEFAULT_MAX_RESULTS);
-  assert.equal(input.country, "US");
-  assert.equal(input.searchQuery, "nike");
-  assert.equal(input.activeStatus, "active");
-  assert.equal(input.adType, "all");
-  assert.equal(input.mediaType, "all");
-  assert.equal(input.sortMode, "total_impressions");
-  assert.equal(input.sortDirection, "desc");
-  assert.equal(input.maxConcurrency, 1);
-  assert.equal(input.requestHandlerTimeoutSecs, 900);
-});
-
-test("buildMetaLibraryActorInput: never contains Apify run options as input fields", () => {
-  const input = buildMetaLibraryActorInput({ searchQuery: "nike" }, 25);
-  for (const forbidden of ["waitForFinish", "waitSecs", "timeout", "memory", "maxTotalChargeUsd"]) {
-    assert.ok(!(forbidden in input), `Actor input must not contain ${forbidden}`);
-  }
-  assert.equal(input.maxResults, 25);
-});
-
-/* -------------------------------------------------------------------------- */
-/* Advertisement-row extraction & detection.                                   */
-/* -------------------------------------------------------------------------- */
 
 const SOURCE = { actorRunId: "run-123", datasetId: "ds-456" };
 
-function nestedAdFixture() {
+function nikeFixture(): any {
   return {
-    advertiser: {
-      id: "advertiser-1",
-      name: "Nike Inc",
-      profileImageUrl: "https://example.com/nike.png",
-    },
-    creative: {
-      id: "creative-1",
-      body: "Just do it. New collection.",
-      title: "Nike Air Max",
-      description: "Shop the new Nike Air Max collection.",
-      imageUrl: "https://example.com/nike-ad.jpg",
-      videoUrl: null,
-    },
+    inputUrl:
+      "https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=US&q=nike&search_type=keyword_unordered",
+    pageID: "15087023444",
+    adArchiveID: "1249043200627555",
+    startDateFormatted: "2026-03-17T07:00:00.000Z",
+    endDateFormatted: "2026-08-08T07:00:00.000Z",
+    adArchiveId: "1249043200627555",
+    collationCount: 3,
+    collationId: "col-1",
+    pageId: "15087023444",
     snapshot: {
-      id: "snapshot-1",
-      pageId: "page-987",
       pageName: "Nike",
-      startDate: "2024-01-01T00:00:00Z",
-      endDate: "2024-06-01T00:00:00Z",
-      publisherPlatforms: ["facebook", "instagram"],
-      spend: { lowerBound: 1000, upperBound: 5000, currency: "USD" },
-      impressions: { lowerBound: 10000, upperBound: 50000 },
-      audienceSize: { lowerBound: 100000, upperBound: 500000 },
-      body: {
-        text: "Just do it. New collection.",
-      },
-      adActiveStatus: "active",
-      adLibraryUrl: "https://www.facebook.com/ads/library/?id=12345",
+      ctaText: "Shop now",
+      ctaType: "SHOP_NOW",
+      cards: [
+        {
+          body: "Celebrate your birthday with Nike.",
+          linkDescription: "Unlock the latest from Nike & Jordan.",
+          linkUrl: "https://www.nike.com/member/product-birthday",
+          title: "Nike",
+          ctaText: "Shop Now",
+          originalImageUrl: "https://example.com/card-image.jpg",
+        },
+      ],
+      body: { text: "Celebrate your birthday with Nike." },
+      title: "Nike: Shoes, Apparel & Stories",
+      linkDescription: "Unlock the latest from Nike & Jordan.",
+      images: [{ originalImageUrl: "https://example.com/image.jpg" }],
+      videos: [],
     },
-    ad: {
-      id: "ad-777",
-      startDate: "2024-01-01T00:00:00Z",
-      endDate: "2024-06-01T00:00:00Z",
+    isActive: true,
+    pageName: "Nike",
+    impressionsWithIndex: {
+      impressionsText: "175K - 200K",
+      impressionsIndex: 7,
+    },
+    reachEstimate: "5K - 10K",
+    currency: "USD",
+    spend: "$3K - $3.5K",
+    publisherPlatform: ["FACEBOOK", "INSTAGRAM", "AUDIENCE_NETWORK", "MESSENGER"],
+    startDate: 1773730800,
+    endDate: 1786172400,
+    ad_details: {
+      advertiser: {
+        ad_library_page_info: {
+          page_spend: {
+            current_week: "$10K - $20K",
+            is_political_page: false,
+          },
+        },
+      },
     },
   };
 }
 
-test("isAdvertisementRow: accepts a real nested ad row", () => {
-  assert.equal(isAdvertisementRow(nestedAdFixture()), true);
+test("sanitizeMaxAds clamps values safely", () => {
+  assert.equal(sanitizeMaxAds(undefined), DEFAULT_MAX_ADS);
+  assert.equal(sanitizeMaxAds(0), DEFAULT_MAX_ADS);
+  assert.equal(sanitizeMaxAds(999), 500);
+  assert.equal(sanitizeMaxAds(25), 25);
 });
 
-test("isAdvertisementRow: rejects a metadata/status-only row", () => {
-  assert.equal(
-    isAdvertisementRow({ status: "SUCCEEDED", message: "done", input: {}, count: 5 }),
-    false,
+test("validateMetaLibraryUrl accepts a real Meta library URL and rejects bad hosts", () => {
+  const valid = validateMetaLibraryUrl(
+    "https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=US&q=nike",
   );
+  assert.equal(valid.ok, true);
+
+  const invalid = validateMetaLibraryUrl("https://example.com/ads/library/?q=nike");
+  assert.equal(invalid.ok, false);
 });
 
-test("extractAdvertisementRows: flattens nested ad rows and rejects metadata rows", () => {
-  const rawItems = [
-    { status: "SUCCEEDED", message: "done", count: 2 },
-    { data: { ads: [nestedAdFixture()] } },
-    { results: [{ node: nestedAdFixture() }, { status: "partial" }] },
-    { ad: { id: "ad-888", pageName: "Adidas", startDate: "2024-01-01" } },
-  ];
+test("buildMetaAdsActorInput preserves the Meta URL and uses details-per-ad mode", () => {
+  const input = buildMetaAdsActorInput(
+    "https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=US&q=nike",
+    250,
+  );
 
-  const rows = extractAdvertisementRows(rawItems);
-  assert.ok(rows.length >= 3, `expected at least 3 rows, got ${rows.length}`);
+  assert.deepEqual(input.startUrls, [
+    {
+      url: "https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=US&q=nike",
+    },
+  ]);
+  assert.equal(input.resultsLimit, 250);
+  assert.equal(input.isDetailsPerAd, true);
+  assert.equal(input.includeAboutPage, true);
+  assert.equal(input.sorting, "");
 });
 
-test("normalizeMetaLibraryAds: maps nested advertiser/creative/snapshot fields", () => {
-  const { ads } = normalizeMetaLibraryAds([nestedAdFixture()], SOURCE);
-
-  assert.equal(ads.length, 1);
-  const ad = ads[0];
-
-  assert.equal(ad.id, "ad-777");
-  assert.equal(ad.advertiser.name, "Nike Inc");
-  assert.equal(ad.advertiser.id, "advertiser-1");
-  assert.equal(ad.advertiser.profileImageUrl, "https://example.com/nike.png");
-  assert.equal(ad.creative.body, "Just do it. New collection.");
-  assert.equal(ad.creative.title, "Nike Air Max");
-  assert.equal(ad.creative.description, "Shop the new Nike Air Max collection.");
-  assert.equal(ad.status, "ACTIVE");
-  assert.deepEqual(ad.platforms, ["facebook", "instagram"]);
-  assert.equal(ad.startDate, "2024-01-01T00:00:00.000Z");
-  assert.equal(ad.endDate, "2024-06-01T00:00:00.000Z");
-  assert.equal(ad.spend?.lowerBound, 1000);
-  assert.equal(ad.spend?.upperBound, 5000);
-  assert.equal(ad.spend?.currency, "USD");
-  assert.equal(ad.impressions?.lowerBound, 10000);
-  assert.equal(ad.impressions?.upperBound, 50000);
-  assert.equal(ad.audienceSize?.lowerBound, 100000);
-  assert.equal(ad.audienceSize?.upperBound, 500000);
-  assert.equal(ad.source.actorRunId, "run-123");
-  assert.equal(ad.source.datasetId, "ds-456");
+test("parseMetaRange handles K/M ranges, comparators, and exact values", () => {
+  assert.deepEqual(parseMetaRange("175K - 200K"), {
+    raw: "175K - 200K",
+    min: 175000,
+    max: 200000,
+  });
+  assert.deepEqual(parseMetaRange("$3K - $3.5K"), {
+    raw: "$3K - $3.5K",
+    min: 3000,
+    max: 3500,
+  });
+  assert.deepEqual(parseMetaRange(">1M"), {
+    raw: ">1M",
+    min: 1000000,
+    max: null,
+  });
+  assert.deepEqual(parseMetaRange("<1K"), {
+    raw: "<1K",
+    min: null,
+    max: 1000,
+  });
 });
 
-test("normalizeMetaLibraryAds: handles a flat camelCase record", () => {
-  const flat = {
-    libraryID: "flat-1",
-    brand: "Coca-Cola",
-    body: "Taste the feeling",
-    linkTitle: "Coca-Cola Zero",
-    linkDescription: "Real magic.",
-    brandLogo: "https://example.com/logo.png",
-    platforms: ["facebook"],
-    active: false,
-    startDate: "1698796800",
-    endDate: "2026-08-08T07:00:00.000Z",
-    format: "image",
-    ctaText: "Shop now",
-    ctaUrl: "https://example.com/shop",
-    sourceUrl: "https://www.facebook.com/ads/library/?country=US&q=coke",
-    images: [{ url: "https://example.com/ad.jpg" }],
-    totalPlatforms: 1,
-    similarAdCount: 3,
-    multipleVersions: true,
-    scrapeDate: "2026-08-08T15:58:10.940Z",
+test("findMetricCandidates discovers nested metric-like paths for debugging", () => {
+  const candidates = findMetricCandidates({
+    spend: "$3K - $3.5K",
+    nested: {
+      impressionsWithIndex: { impressionsText: "175K - 200K" },
+      ad_details: { aaa_info: { eu_total_reach: 65623 } },
+    },
+  });
+
+  assert.ok(candidates.some((candidate) => candidate.path === "spend"));
+  assert.ok(candidates.some((candidate) => candidate.path === "nested.impressionsWithIndex"));
+  assert.ok(candidates.some((candidate) => candidate.path === "nested.ad_details.aaa_info.eu_total_reach"));
+});
+
+test("normalizeMetaLibraryAd maps real Meta payload fields and keeps advertiser page_spend out of ad spend", () => {
+  const ad = normalizeMetaLibraryAd(nikeFixture(), SOURCE);
+  assert.ok(ad);
+
+  assert.equal(ad?.adLibraryId, "1249043200627555");
+  assert.equal(ad?.pageName, "Nike");
+  assert.equal(ad?.status, "ACTIVE");
+  assert.equal(ad?.cta, "Shop now");
+  assert.equal(ad?.spend.raw, "$3K - $3.5K");
+  assert.equal(ad?.spend.min, 3000);
+  assert.equal(ad?.spend.max, 3500);
+  assert.equal(ad?.spend.currency, "USD");
+  assert.equal(ad?.spend.path, "spend");
+  assert.equal(ad?.impressions.raw, "175K - 200K");
+  assert.equal(ad?.impressions.path, "impressionsWithIndex.impressionsText");
+  assert.equal(ad?.audienceSize.raw, "5K - 10K");
+  assert.equal(ad?.audienceSize.path, "reachEstimate");
+  assert.equal(ad?.creative.type, "image");
+  assert.equal(ad?.creative.imageUrls[0], "https://example.com/image.jpg");
+  assert.equal(ad?.adLibraryUrl, "https://www.facebook.com/ads/library/?id=1249043200627555");
+
+  const raw = ad?.rawMetaData as Record<string, unknown>;
+  const details = raw.ad_details as Record<string, unknown>;
+  const advertiser = details.advertiser as Record<string, unknown>;
+  const pageInfo = advertiser.ad_library_page_info as Record<string, unknown>;
+  const pageSpend = pageInfo.page_spend as Record<string, unknown>;
+  assert.equal(pageSpend.current_week, "$10K - $20K");
+});
+
+test("normalizeMetaLibraryAd uses ad_details.aaa_info.eu_total_reach as real audience when top-level reach is missing", () => {
+  const fixture = nikeFixture();
+  fixture.reachEstimate = null;
+  fixture.ad_details = {
+    aaa_info: {
+      eu_total_reach: 65623,
+    },
   };
 
-  const { ads } = normalizeMetaLibraryAds([flat], SOURCE);
-  assert.equal(ads.length, 1);
-  const ad = ads[0];
-  assert.equal(ad.id, "flat-1");
-  assert.equal(ad.advertiser.name, "Coca-Cola");
-  assert.equal(ad.advertiser.profileImageUrl, "https://example.com/logo.png");
-  assert.equal(ad.creative.body, "Taste the feeling");
-  assert.equal(ad.creative.title, "Coca-Cola Zero");
-  assert.equal(ad.creative.description, "Real magic.");
-  assert.equal(ad.status, "INACTIVE");
-  assert.equal(ad.startDate, "2023-11-01T00:00:00.000Z");
-  assert.equal(ad.endDate, "2026-08-08T07:00:00.000Z");
-  assert.equal(ad.format, "image");
-  assert.equal(ad.callToAction?.text, "Shop now");
-  assert.equal(ad.callToAction?.url, "https://example.com/shop");
-  assert.equal(ad.adLibraryUrl, "https://www.facebook.com/ads/library/?id=flat-1");
-  assert.equal(ad.sourceUrl, "https://www.facebook.com/ads/library/?country=US&q=coke");
-  assert.equal(ad.scrapedAt, "2026-08-08T15:58:10.940Z");
-  assert.equal(ad.totalPlatforms, 1);
-  assert.equal(ad.similarAdCount, 3);
-  assert.equal(ad.multipleVersions, true);
-  assert.deepEqual(ad.creative.imageUrls, ["https://example.com/ad.jpg", "https://example.com/logo.png"]);
+  const ad = normalizeMetaLibraryAd(fixture, SOURCE);
+  assert.ok(ad);
+  assert.equal(ad?.audienceSize.min, 65623);
+  assert.equal(ad?.audienceSize.max, 65623);
+  assert.equal(ad?.audienceSize.path, "ad_details.aaa_info.eu_total_reach");
 });
 
-test("normalizeMetaLibraryAds: deduplicates by id", () => {
-  const { ads } = normalizeMetaLibraryAds([nestedAdFixture(), nestedAdFixture()], SOURCE);
-  assert.equal(ads.length, 1);
+test("normalizeMetaLibraryAds deduplicates exact duplicate rows by primary ad id", () => {
+  const normalized = normalizeMetaLibraryAds([nikeFixture(), nikeFixture()], SOURCE);
+  assert.equal(normalized.rawCount, 2);
+  assert.equal(normalized.ads.length, 1);
 });
 
-test("normalizeMetaLibraryAds: accepts a wrapper object with .items", () => {
-  const { ads } = normalizeMetaLibraryAds({ items: [nestedAdFixture()] }, SOURCE);
-  assert.equal(ads.length, 1);
+test("normalizeMetaLibraryAd marks missing metrics as NOT_DISCLOSED instead of zero", () => {
+  const fixture = nikeFixture();
+  fixture.spend = null;
+  fixture.currency = "";
+  fixture.impressionsWithIndex = {
+    impressionsText: null,
+    impressionsIndex: -1,
+  };
+  fixture.reachEstimate = null;
+  fixture.ad_details = {};
+
+  const ad = normalizeMetaLibraryAd(fixture, SOURCE);
+  assert.ok(ad);
+  assert.equal(ad?.spend.status, "NOT_DISCLOSED");
+  assert.equal(ad?.spend.min, null);
+  assert.equal(ad?.impressions.status, "NOT_DISCLOSED");
+  assert.equal(ad?.audienceSize.status, "NOT_DISCLOSED");
 });
 
-test("normalizeMetaLibraryAds: product of empty input is empty", () => {
-  const { ads, rawCount, extractedCount } = normalizeMetaLibraryAds([], SOURCE);
-  assert.equal(ads.length, 0);
-  assert.equal(rawCount, 0);
-  assert.equal(extractedCount, 0);
-});
-
-test("normalizeMetaLibraryAd: null transparency stays null (never guessed)", () => {
-  const ad = normalizeMetaLibraryAd({ id: "x", pageName: "Brand" }, SOURCE);
-  assert.equal(ad.spend, null);
-  assert.equal(ad.impressions, null);
-  assert.equal(ad.audienceSize, null);
-  assert.equal(ad.advertiser.name, "Brand");
-  assert.equal(ad.creative.body, null);
-});
-
-test("sanitizeRawRecord: redacts tokens and cookies", () => {
-  const scrubbed = sanitizeRawRecord({
+test("sanitizeRawRecord redacts secrets without removing public payload fields", () => {
+  const sanitized = sanitizeRawRecord({
     pageName: "Nike",
-    cookies: "session=abc123",
-    apifyToken: "apify_API_secret_123",
-    nested: { access_token: "sha256:deadbeef" },
+    cookies: "secret-cookie",
+    authorization: "Bearer abc",
+    nested: {
+      access_token: "token",
+      publicField: "keep me",
+    },
   });
-  assert.equal(scrubbed.pageName, "Nike");
-assert.equal(scrubbed.cookies, "[REDACTED]");
-  assert.equal(scrubbed.apifyToken, "[REDACTED]");
-  assert.equal((scrubbed.nested as Record<string, unknown>).access_token, "[REDACTED]");
-});
 
-test("readDate: parses ISO string and unix seconds", () => {
-  assert.equal(readDate("2024-01-01T00:00:00Z"), "2024-01-01T00:00:00.000Z");
-  assert.equal(readDate(1698796800), "2023-11-01T00:00:00.000Z");
-  assert.equal(readDate(null), null);
-});
-
-test("readRange: parses bound objects and single values", () => {
-  assert.deepEqual(readRange({ lowerBound: 1, upperBound: 5 }), { lowerBound: 1, upperBound: 5 });
-  assert.deepEqual(readRange({ lower: 10, upper: 20 }), { lowerBound: 10, upperBound: 20 });
-  assert.deepEqual(readRange({ USD: { lowerBound: 100, upperBound: 200 } }), {
-    lowerBound: 100,
-    upperBound: 200,
-  });
-  assert.deepEqual(readRange({ value: 99 }), { lowerBound: 99, upperBound: 99 });
-  assert.equal(readRange(null), null);
-});
-
-test("readStringArray: accepts string, array, and comma-separated", () => {
-  assert.deepEqual(readStringArray("facebook,instagram"), ["facebook", "instagram"]);
-  assert.deepEqual(readStringArray(["facebook", "instagram"]), ["facebook", "instagram"]);
-  assert.deepEqual(readStringArray("facebook"), ["facebook"]);
-  assert.deepEqual(readStringArray(null), []);
+  assert.equal(sanitized.pageName, "Nike");
+  assert.equal(sanitized.cookies, "[REDACTED]");
+  assert.equal(sanitized.authorization, "[REDACTED]");
+  assert.equal((sanitized.nested as Record<string, unknown>).access_token, "[REDACTED]");
+  assert.equal((sanitized.nested as Record<string, unknown>).publicField, "keep me");
 });
