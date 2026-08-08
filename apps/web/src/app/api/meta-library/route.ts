@@ -5,13 +5,18 @@ import { getApifyApiToken } from "@/lib/env";
 import {
   buildMetaLibraryActorInput,
   buildMetaLibraryRunOptions,
+  buildMetaLibraryResponse,
+  isMetaLibraryDev,
   META_AD_LIBRARY_ACTOR_ID,
+  META_AD_LIBRARY_ACTOR_NAME,
   META_LIBRARY_POLL_TIMEOUT_SECS,
+  normalizeMetaLibraryAds,
   sanitizeMaxResults,
-  type MetaLibraryApiResult,
+  type MetaLibraryAdsResponse,
 } from "@/lib/meta-library";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 100;
 
 type MetaLibraryRequest = Record<string, unknown>;
 
@@ -29,7 +34,6 @@ function describeApifyError(message: string): { message: string; code: string } 
     };
   }
 
-  // A schema validation error means a run option leaked into the Actor input.
   if (
     lower.includes("did not expect property") ||
     lower.includes("not expected") ||
@@ -64,7 +68,6 @@ function describeApifyError(message: string): { message: string; code: string } 
 }
 
 export async function POST(request: Request) {
-  // 1. Token must be configured server-side only.
   let hasToken = true;
   try {
     getApifyApiToken();
@@ -72,12 +75,13 @@ export async function POST(request: Request) {
     hasToken = false;
     return NextResponse.json(
       {
-        ok: false,
-        errorCode: "APIFY_TOKEN_MISSING",
-        error:
+        success: false,
+        error: "APIFY_API_TOKEN is not configured. Add APIFY_API_TOKEN to your .env.local to run the Meta Ad Library scraper.",
+        userMessage:
           "APIFY_API_TOKEN is not configured. Add APIFY_API_TOKEN to your .env.local to run the Meta Ad Library scraper.",
+        errorCode: "APIFY_TOKEN_MISSING",
         details: error instanceof Error ? error.message : undefined,
-      } satisfies MetaLibraryApiResult,
+      },
       { status: 400 },
     );
   }
@@ -89,7 +93,6 @@ export async function POST(request: Request) {
     body = {};
   }
 
-  // 2. Normalize the positive maxItems limit (never 0 / NaN / negative / empty).
   const maxItems = sanitizeMaxResults(body.maxResults);
   const actorInput = buildMetaLibraryActorInput(
     {
@@ -114,19 +117,19 @@ export async function POST(request: Request) {
   if (!searchQuery && !pageId) {
     return NextResponse.json(
       {
-        ok: false,
-        errorCode: "MISSING_QUERY",
+        success: false,
         error: "A search query or a page ID is required to run the Meta Ad Library scraper.",
-      } satisfies MetaLibraryApiResult,
+        userMessage: "A search query or a page ID is required to run the Meta Ad Library scraper.",
+        errorCode: "MISSING_QUERY",
+      },
       { status: 400 },
     );
   }
 
-// 3. Build ONLY the valid Apify run options (maxItems). No waitForFinish here.
   const runOptions = buildMetaLibraryRunOptions(maxItems);
 
-  // Sanitized development log — never includes the API token.
   console.log("[meta-library] outgoing run config", {
+    actorName: META_AD_LIBRARY_ACTOR_NAME,
     actorId: META_AD_LIBRARY_ACTOR_ID,
     inputFieldNames: Object.keys(actorInput),
     runOptionFieldNames: Object.keys(runOptions),
@@ -136,102 +139,117 @@ export async function POST(request: Request) {
   const client = getApifyClient();
 
   try {
-    // 4. Start the Actor asynchronously. The input payload contains ONLY the
-    //    Actor's supported scraper fields — never waitForFinish/waitSecs/maxItems
-    //    as input fields. maxItems is passed as a second-argument run option.
-    const startedRun = await client
-      .actor(META_AD_LIBRARY_ACTOR_ID)
-      .start(actorInput, runOptions);
+    // Official Apify execution flow: run the Actor, then fetch the dataset that
+    // belongs to THIS exact run via run.defaultDatasetId.
+    const run = await client.actor(META_AD_LIBRARY_ACTOR_ID).call(actorInput, runOptions);
 
-    const runId = startedRun.id;
-    const datasetId = startedRun.defaultDatasetId;
-
-    console.log("[meta-library] actor started", {
-      runId,
-      status: startedRun.status,
-    });
-
-    // 5. Wait for the run to finish using the dedicated run-level wait helper.
-    //    This never puts waitForFinish into the Actor input payload.
-    const maxWaitSecs = META_LIBRARY_POLL_TIMEOUT_SECS;
-    let run = startedRun;
-    try {
-      run = await client.run(runId).waitForFinish({
-        waitSecs: maxWaitSecs,
-      });
-    } catch (waitError) {
-      // waitForFinish may throw when the run is still running after the timeout;
-      // fall back to a single status read so we can still report the real state.
-      const statusRead = await client.run(runId).get();
-      if (statusRead) {
-        run = statusRead;
-      }
+    if (!run.defaultDatasetId) {
+      throw new Error("The completed Actor run has no default dataset.");
     }
 
-    console.log("[meta-library] actor finished", {
+    const datasetId = run.defaultDatasetId;
+    const runId = run.id;
+    const runStatus = run.status;
+
+    console.log("[meta-library] actor completed", {
+      actorName: META_AD_LIBRARY_ACTOR_NAME,
       runId,
-      status: run.status,
+      runStatus,
+      defaultDatasetId: datasetId,
     });
 
-    // 6. Handle non-success terminal statuses distinctly from "empty results".
-    if (run.status !== "SUCCEEDED") {
-      const { message, code } = describeApifyError(run.statusMessage ?? run.status ?? "UNKNOWN");
+    if (runStatus !== "SUCCEEDED") {
+      const { message, code } = describeApifyError(run.statusMessage ?? runStatus ?? "UNKNOWN");
       return NextResponse.json(
         {
-          ok: false,
-          runId,
-          datasetId,
-          status: run.status,
-          errorCode: code,
+          success: false,
+          run: { id: runId, status: runStatus, datasetId },
           error: message,
-          query: actorInput,
-        } satisfies MetaLibraryApiResult,
+          userMessage: message,
+          errorCode: code,
+          counts: { rawItems: 0, extractedRows: 0, advertisements: 0 },
+          ads: [],
+        } satisfies MetaLibraryAdsResponse & { error?: string; userMessage?: string; errorCode?: string },
         { status: 200 },
       );
     }
 
-    // 7. Run succeeded — fetch items from the default dataset.
-    let items: Record<string, unknown>[] = [];
-    let total = 0;
+    // Fetch items from THIS run's dataset. Use datasetResponse.items (not the
+    // datasetResponse object itself) as the raw ads array.
+    const datasetResponse = await client.dataset(datasetId).listItems({
+      clean: true,
+      limit: maxItems,
+    });
 
-    if (datasetId) {
-      const result = await client.dataset(datasetId).listItems({
-        clean: true,
-        limit: 1000,
+    const rawItems = (datasetResponse.items ?? []) as unknown[];
+
+    // Development-only diagnostics — never logs the API token.
+    if (isMetaLibraryDev()) {
+      const firstItem = rawItems[0];
+      console.log("META SCRAPER DIAGNOSTICS", {
+        actorName: META_AD_LIBRARY_ACTOR_NAME,
+        runId,
+        runStatus,
+        defaultDatasetId: datasetId,
+        rawItemCount: rawItems.length,
+        firstItemKeys:
+          firstItem && typeof firstItem === "object"
+            ? Object.keys(firstItem as Record<string, unknown>).slice(0, 60)
+            : [],
       });
-      items = result.items as Record<string, unknown>[];
-      total = result.total ?? items.length;
     }
 
-    return NextResponse.json(
-      {
-        ok: true,
-        runId,
-        datasetId,
-        status: run.status,
-        total,
-        query: actorInput,
-        // Distinguish a succeeded-but-empty dataset from an actor-start failure.
-        emptyButSucceeded: total === 0,
-        items,
-      } satisfies MetaLibraryApiResult & { emptyButSucceeded?: boolean },
-      { status: 200 },
+    // Normalize server-side. The client only ever reads response.ads.
+    const { rawCount, extractedCount, ads } = normalizeMetaLibraryAds(rawItems, {
+      actorRunId: runId,
+      datasetId,
+    });
+
+    // In development, if every normalized ad has no advertiser name, creative,
+    // ID, and dates, treat it as a mapping failure rather than valid empty data.
+    if (isMetaLibraryDev() && ads.length > 0) {
+      const allEmpty = ads.every(
+        (ad) =>
+          !ad.advertiser.name &&
+          !ad.creative.body &&
+          !ad.creative.title &&
+          !ad.creative.description &&
+          !ad.id &&
+          !ad.startDate,
+      );
+      if (allEmpty) {
+        throw new Error(
+          "The dataset records were received, but the advertisement schema could not be recognized.",
+        );
+      }
+    }
+
+    const includeDiagnostics = isMetaLibraryDev();
+    const response = buildMetaLibraryResponse(
+      { id: runId, status: runStatus, datasetId },
+      rawItems,
+      ads,
+      extractedCount,
+      includeDiagnostics,
     );
+
+    return NextResponse.json(response, { status: 200 });
   } catch (error) {
-    const rawMessage = error instanceof Error ? error.message : "The Meta Ad Library scraper could not run right now.";
+    const rawMessage =
+      error instanceof Error ? error.message : "The Meta Ad Library scraper could not run right now.";
     const { message, code } = describeApifyError(rawMessage);
     const maybeHttp = error as { status?: number; response?: { status?: number } };
 
-    // Return the real Apify HTTP status (when available) and the real error message.
     return NextResponse.json(
       {
-        ok: false,
-        errorCode: code,
+        success: false,
         error: rawMessage,
-        userMessage: message,
+        userMessage: message === rawMessage ? message : `${message} ${rawMessage}`.trim(),
+        errorCode: code,
         httpStatus: maybeHttp.status ?? maybeHttp.response?.status,
-        query: actorInput,
-      } satisfies MetaLibraryApiResult,
+        counts: { rawItems: 0, extractedRows: 0, advertisements: 0 },
+        ads: [],
+      },
       { status: maybeHttp.status ?? maybeHttp.response?.status ?? 500 },
     );
   }
