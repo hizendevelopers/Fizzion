@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getMetaAdsJobById } from "@/lib/meta-ads-job-store";
+import { refreshMetaAdsJob } from "@/lib/meta-ads-job-store";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +9,7 @@ export async function GET(
   context: { params: Promise<{ jobId: string }> },
 ) {
   const { jobId } = await context.params;
-  const job = await getMetaAdsJobById(jobId);
+  const job = await refreshMetaAdsJob(jobId);
 
   if (!job) {
     return NextResponse.json(
