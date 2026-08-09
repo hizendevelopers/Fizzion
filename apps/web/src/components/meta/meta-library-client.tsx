@@ -2,8 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-type MetaMetricSource = "META_AD_LIBRARY" | "META_AD_DETAIL" | "META_ADVERTISER_TRANSPARENCY";
-type MetaMetricStatus = "META_DISCLOSED" | "NOT_DISCLOSED";
+type MetaMetricSource =
+  | "META_AD_LIBRARY"
+  | "META_AD_LIBRARY_DETAIL"
+  | "META_PUBLIC_DETAIL_TEXT"
+  | "META_ADVERTISER_TRANSPARENCY"
+  | "PATHMATICS"
+  | "NONE";
+type MetaMetricStatus = "CHECKING" | "META_DISCLOSED" | "META_NOT_DISCLOSED" | "ESTIMATED" | "NOT_AVAILABLE";
 
 type MetaMetric = {
   raw: string | null;
@@ -12,6 +18,9 @@ type MetaMetric = {
   status: MetaMetricStatus;
   source: MetaMetricSource;
   path: string | null;
+  dataType: "DISCLOSED" | "ESTIMATED" | null;
+  confidence: number | null;
+  retrievedAt: string | null;
 };
 
 type MetaSpendMetric = MetaMetric & {
@@ -20,8 +29,6 @@ type MetaSpendMetric = MetaMetric & {
 
 type MetaLibraryAd = {
   adLibraryId: string;
-  primaryAdLibraryId: string;
-  pageId: string | null;
   pageName: string | null;
   adLibraryUrl: string;
   advertiserUrl: string | null;
@@ -55,19 +62,92 @@ type MetaLibraryAd = {
   spend: MetaSpendMetric;
   impressions: MetaMetric;
   audienceSize: MetaMetric;
-  currency: string | null;
+  metaMetrics: {
+    spend: MetaSpendMetric;
+    impressions: MetaMetric;
+    audienceSize: MetaMetric;
+  };
+  metaDetailMetrics: {
+    spend: MetaSpendMetric;
+    impressions: MetaMetric;
+    audienceSize: MetaMetric;
+  };
+  pathmaticsMetrics: {
+    spend: MetaSpendMetric | null;
+    impressions: MetaMetric | null;
+    audienceSize: MetaMetric | null;
+    providerStatus:
+      | "PENDING"
+      | "PROVIDER_DISABLED"
+      | "PROVIDER_AUTH_ERROR"
+      | "PROVIDER_RATE_LIMITED"
+      | "NO_MATCH"
+      | "LOW_CONFIDENCE_MATCH"
+      | "MATCH_FOUND";
+    providerMessage: string | null;
+  };
+  finalMetrics: {
+    spend: MetaSpendMetric;
+    impressions: MetaMetric;
+    audienceSize: MetaMetric;
+  };
+  landingDomain: string | null;
   rawMetaData: Record<string, unknown>;
   debug: {
     metricCandidates: Array<{ path: string; value: unknown }>;
     sourceUrl: string | null;
     actorInputUrl: string | null;
+    metaDetail?: {
+      checkedAt: string | null;
+      pageUrl: string;
+      visibleTextSnippet: string | null;
+      structuredCandidates: Array<{ path: string; value: unknown }>;
+      responses: Array<{ url: string; status: number; bodySnippet: string | null }>;
+    };
+    pathmatics?: {
+      configured: boolean;
+      status:
+        | "PENDING"
+        | "PROVIDER_DISABLED"
+        | "PROVIDER_AUTH_ERROR"
+        | "PROVIDER_RATE_LIMITED"
+        | "NO_MATCH"
+        | "LOW_CONFIDENCE_MATCH"
+        | "MATCH_FOUND";
+      confidence: number | null;
+      matchId: string | null;
+      reasons: string[];
+    };
+  };
+  intelligenceMatch: {
+    provider: "PATHMATICS" | null;
+    confidence: number | null;
+    matchId: string | null;
+    status:
+      | "PENDING"
+      | "PROVIDER_DISABLED"
+      | "PROVIDER_AUTH_ERROR"
+      | "PROVIDER_RATE_LIMITED"
+      | "NO_MATCH"
+      | "LOW_CONFIDENCE_MATCH"
+      | "MATCH_FOUND";
+    reasons: string[];
   };
 };
+
+type MetaAdsJobStatus =
+  | "QUEUED"
+  | "FETCHING_META"
+  | "META_COMPLETE"
+  | "ENRICHING_META_DETAILS"
+  | "MATCHING_PATHMATICS"
+  | "COMPLETE"
+  | "FAILED";
 
 type MetaAdsJobResponse = {
   success: boolean;
   jobId: string;
-  status: "QUEUED" | "RUNNING" | "SUCCEEDED" | "FAILED";
+  status: MetaAdsJobStatus;
   progressMessage: string;
   found: number;
   processed: number;
@@ -88,7 +168,7 @@ type PersistedMetaLibraryState = {
   lastJob: MetaAdsJobResponse | null;
 };
 
-const META_LIBRARY_STORAGE_KEY = "fizzion.meta-library.url-state.v2";
+const META_LIBRARY_STORAGE_KEY = "fizzion.meta-library.url-state.v3";
 const DEFAULT_URL =
   "https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=US&q=nike&search_type=keyword_unordered";
 const DEFAULT_MAX_ADS = "100";
@@ -102,29 +182,15 @@ function formatDate(value: string | null) {
   if (!value) {
     return "Not available";
   }
-
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return value;
   }
-
   return date.toLocaleDateString("en-US", {
     day: "2-digit",
     month: "short",
     year: "numeric",
   });
-}
-
-function formatMetric(metric: MetaMetric | MetaSpendMetric) {
-  if (metric.status === "NOT_DISCLOSED") {
-    return "Not disclosed by Meta";
-  }
-
-  return metric.raw ?? "Not disclosed by Meta";
-}
-
-function metricBadge(metric: MetaMetric | MetaSpendMetric) {
-  return metric.status === "META_DISCLOSED" ? "META DISCLOSED" : "NOT DISCLOSED BY META";
 }
 
 function formatPlatform(platform: string) {
@@ -135,21 +201,86 @@ function primaryMedia(ad: MetaLibraryAd) {
   return ad.creative.videoUrls[0] ?? ad.creative.imageUrls[0] ?? ad.creative.cards[0]?.imageUrl ?? null;
 }
 
+function formatMetricValue(metric: MetaMetric | MetaSpendMetric) {
+  if (metric.status === "CHECKING") {
+    return "Checking data...";
+  }
+  if (metric.status === "NOT_AVAILABLE" || metric.status === "META_NOT_DISCLOSED") {
+    return "Not available";
+  }
+  return metric.raw ?? "Not available";
+}
+
+function metricBadge(metric: MetaMetric | MetaSpendMetric) {
+  if (metric.status === "CHECKING") {
+    return "CHECKING DATA";
+  }
+  if (metric.status === "META_DISCLOSED") {
+    return "META DISCLOSED";
+  }
+  if (metric.status === "ESTIMATED" || metric.source === "PATHMATICS") {
+    return "ESTIMATED · PATHMATICS";
+  }
+  return "NOT AVAILABLE";
+}
+
+function metricBadgeClass(metric: MetaMetric | MetaSpendMetric) {
+  if (metric.status === "META_DISCLOSED") {
+    return "bg-emerald-100 text-emerald-700";
+  }
+  if (metric.status === "ESTIMATED" || metric.source === "PATHMATICS") {
+    return "bg-amber-100 text-amber-700";
+  }
+  if (metric.status === "CHECKING") {
+    return "bg-sky-100 text-sky-700";
+  }
+  return "bg-slate-200 text-slate-700";
+}
+
 function jobSummary(job: MetaAdsJobResponse | null) {
   if (!job) {
     return null;
   }
-
   if (job.status === "FAILED") {
     return job.error ?? "The scrape failed.";
   }
-
-  if (job.status === "SUCCEEDED") {
-    return `Complete. ${job.ads.length} ads loaded from Meta Ad Library.`;
+  switch (job.status) {
+    case "QUEUED":
+      return "Queued...";
+    case "FETCHING_META":
+      return `${job.progressMessage} ${job.found > 0 ? `${job.found} ads found.` : ""}`.trim();
+    case "META_COMPLETE":
+      return `${job.progressMessage} Starting detail enrichment...`;
+    case "ENRICHING_META_DETAILS":
+      return `${job.progressMessage}`;
+    case "MATCHING_PATHMATICS":
+      return `${job.progressMessage}`;
+    case "COMPLETE":
+      return `Complete. ${job.ads.length} ads loaded.`;
+    default:
+      return job.progressMessage;
   }
+}
 
-  const countText = job.found > 0 ? `${job.found} ads found` : "Fetching ads";
-  return `${countText}. ${job.progressMessage}`;
+function MetricCard({ label, metric }: { label: string; metric: MetaMetric | MetaSpendMetric }) {
+  return (
+    <div className="rounded-[1.2rem] border border-[#f0d6cb] bg-white px-4 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9f8b80]">{label}</p>
+      <p className="mt-2 text-sm font-semibold text-foreground">{formatMetricValue(metric)}</p>
+      <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold ${metricBadgeClass(metric)}`}>
+        {metricBadge(metric)}
+      </span>
+    </div>
+  );
+}
+
+function StaticCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[1.2rem] border border-[#f0d6cb] bg-white px-4 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9f8b80]">{label}</p>
+      <p className="mt-2 text-sm font-semibold text-foreground">{value}</p>
+    </div>
+  );
 }
 
 export function MetaLibraryClient() {
@@ -168,17 +299,10 @@ export function MetaLibraryClient() {
         setRestored(true);
         return;
       }
-
       const parsed = JSON.parse(raw) as Partial<PersistedMetaLibraryState>;
-      if (typeof parsed.url === "string") {
-        setMetaUrl(parsed.url);
-      }
-      if (typeof parsed.maxAds === "string") {
-        setMaxAds(parsed.maxAds);
-      }
-      if (parsed.lastJob && typeof parsed.lastJob === "object") {
-        setJob(parsed.lastJob as MetaAdsJobResponse);
-      }
+      if (typeof parsed.url === "string") setMetaUrl(parsed.url);
+      if (typeof parsed.maxAds === "string") setMaxAds(parsed.maxAds);
+      if (parsed.lastJob && typeof parsed.lastJob === "object") setJob(parsed.lastJob as MetaAdsJobResponse);
     } catch {
       window.localStorage.removeItem(META_LIBRARY_STORAGE_KEY);
     } finally {
@@ -187,42 +311,33 @@ export function MetaLibraryClient() {
   }, []);
 
   useEffect(() => {
-    if (!restored) {
-      return;
-    }
-
-    const payload: PersistedMetaLibraryState = {
-      url: metaUrl,
-      maxAds,
-      lastJob: job,
-    };
-
-    window.localStorage.setItem(META_LIBRARY_STORAGE_KEY, JSON.stringify(payload));
+    if (!restored) return;
+    window.localStorage.setItem(
+      META_LIBRARY_STORAGE_KEY,
+      JSON.stringify({
+        url: metaUrl,
+        maxAds,
+        lastJob: job,
+      } satisfies PersistedMetaLibraryState),
+    );
   }, [restored, metaUrl, maxAds, job]);
 
   const ads = useMemo(() => job?.ads ?? [], [job]);
 
   async function pollJob(jobId: string) {
     while (true) {
-      const response = await fetch(`/api/meta-ads/jobs/${jobId}`, {
-        cache: "no-store",
-      });
+      const response = await fetch(`/api/meta-ads/jobs/${jobId}`, { cache: "no-store" });
       const data = (await response.json()) as MetaAdsJobResponse & { error?: string };
-
       if (!response.ok) {
         throw new Error(data.error ?? "The Meta Ad Library job could not be read.");
       }
-
       setJob(data);
-
-      if (data.status === "SUCCEEDED") {
+      if (data.status === "COMPLETE") {
         return;
       }
-
       if (data.status === "FAILED") {
         throw new Error(data.error ?? "The Meta Ad Library scrape failed.");
       }
-
       await sleep(2000);
     }
   }
@@ -231,25 +346,16 @@ export function MetaLibraryClient() {
     setLoading(true);
     setErrorMessage(null);
     setExpandedAdId(null);
-
     try {
       const response = await fetch("/api/meta-ads/scrape", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          url: metaUrl,
-          maxAds: Number(maxAds),
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: metaUrl, maxAds: Number(maxAds) }),
       });
-
       const data = (await response.json()) as { success: boolean; jobId?: string; error?: string };
-
       if (!response.ok || !data.success || !data.jobId) {
         throw new Error(data.error ?? "The Meta Ad Library scrape could not be started.");
       }
-
       setJob({
         success: true,
         jobId: data.jobId,
@@ -267,7 +373,6 @@ export function MetaLibraryClient() {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
-
       await pollJob(data.jobId);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "The Meta Ad Library scrape failed.");
@@ -286,10 +391,7 @@ export function MetaLibraryClient() {
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-red">Meta Ad Library research</p>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground">Meta Library</h1>
             <p className="mt-3 max-w-4xl text-sm leading-7 text-muted-foreground">
-              Paste a public Meta Ad Library URL and fetch every ad returned by Meta through the Apify
-              <span className="font-medium text-foreground"> facebook-ads-scraper </span>
-              actor. Spend, impressions, and audience size only show Meta-disclosed values. Missing data is
-              explicitly marked as not disclosed.
+              Paste a public Meta Ad Library URL and fetch every ad returned by Meta through Apify. The app now checks Meta first, then optional advertising-intelligence fallback if configured, while keeping source labels separate.
             </p>
           </div>
           <span className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700">
@@ -322,7 +424,6 @@ export function MetaLibraryClient() {
                 className="h-12 w-full rounded-[1.25rem] border border-border bg-background px-4 text-sm text-foreground outline-none transition focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
               />
             </label>
-
             <div className="flex flex-col gap-3 md:items-start">
               <button
                 type="button"
@@ -333,7 +434,7 @@ export function MetaLibraryClient() {
                 {loading ? "Fetching ads..." : "Fetch Ads"}
               </button>
               <p className="text-xs leading-6 text-muted-foreground">
-                The Apify token stays server-side. Refreshing the page keeps the latest successful Meta result saved locally.
+                Backend stages: Fetch Meta ads, check Meta detail pages, then optional Pathmatics fallback if an authorized provider is configured.
               </p>
             </div>
           </div>
@@ -352,6 +453,7 @@ export function MetaLibraryClient() {
 
           {job?.actorRunId ? (
             <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+              <span>Status: {job.status}</span>
               <span>Run ID: {job.actorRunId}</span>
               <span>Dataset: {job.datasetId ?? "Pending"}</span>
               <span>Found: {job.found}</span>
@@ -366,7 +468,7 @@ export function MetaLibraryClient() {
           <div>
             <h2 className="text-xl font-semibold text-foreground">Fetched ads</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Every card below represents one normalized Ad Library record. Missing competitor metrics remain clearly marked as not disclosed.
+              Cards populate as the pipeline advances. Meta data is prioritized, and third-party estimates are only shown when clearly labeled.
             </p>
           </div>
           <span className="rounded-full border border-border bg-white px-4 py-2 text-xs font-semibold text-foreground">
@@ -374,7 +476,7 @@ export function MetaLibraryClient() {
           </span>
         </div>
 
-        {job?.status === "SUCCEEDED" && ads.length === 0 ? (
+        {job?.status === "COMPLETE" && ads.length === 0 ? (
           <div className="rounded-[1.8rem] border border-border bg-white p-8 text-sm text-muted-foreground shadow-[var(--shadow-soft)]">
             No ads were returned for this Meta Ad Library URL.
           </div>
@@ -384,40 +486,23 @@ export function MetaLibraryClient() {
           {ads.map((ad) => {
             const media = primaryMedia(ad);
             const isExpanded = expandedAdId === ad.adLibraryId;
-
             return (
-              <article
-                key={ad.adLibraryId}
-                className="overflow-hidden rounded-[2rem] border border-[#f0d6cb] bg-[#fff8f5] shadow-[0_12px_32px_rgba(112,74,43,0.08)]"
-              >
+              <article key={ad.adLibraryId} className="overflow-hidden rounded-[2rem] border border-[#f0d6cb] bg-[#fff8f5] shadow-[0_12px_32px_rgba(112,74,43,0.08)]">
                 <div className="flex items-start gap-4 border-b border-[#f0d6cb] bg-white/80 px-5 py-4">
                   <div className="flex h-12 w-12 items-center justify-center rounded-full border border-[#e9c7b8] bg-white text-sm font-semibold text-[#8f6b59]">
                     {(ad.pageName ?? "P").slice(0, 1).toUpperCase()}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="truncate text-lg font-semibold text-foreground">
-                        {ad.pageName ?? "Unknown page"}
-                      </h3>
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                          ad.status === "ACTIVE"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-slate-200 text-slate-700"
-                        }`}
-                      >
+                      <h3 className="truncate text-lg font-semibold text-foreground">{ad.pageName ?? "Unknown page"}</h3>
+                      <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${ad.status === "ACTIVE" ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-700"}`}>
                         {ad.status}
                       </span>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      Ad Library ID: {ad.adLibraryId}
-                    </p>
+                    <p className="text-xs text-muted-foreground">Ad Library ID: {ad.adLibraryId}</p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {ad.platforms.map((platform) => (
-                        <span
-                          key={`${ad.adLibraryId}-${platform}`}
-                          className="rounded-full border border-[#ecd6cb] bg-[#fff4ee] px-2.5 py-1 text-[11px] font-medium text-[#8a5b46]"
-                        >
+                        <span key={`${ad.adLibraryId}-${platform}`} className="rounded-full border border-[#ecd6cb] bg-[#fff4ee] px-2.5 py-1 text-[11px] font-medium text-[#8a5b46]">
                           {formatPlatform(platform)}
                         </span>
                       ))}
@@ -428,19 +513,13 @@ export function MetaLibraryClient() {
                 <div className="space-y-4 p-5">
                   <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
                     <div className="space-y-3">
-                      <p className="text-sm italic text-[#8f7c72]">
-                        {ad.copy ?? ad.description ?? "No creative copy was returned for this ad."}
-                      </p>
+                      <p className="text-sm italic text-[#8f7c72]">{ad.copy ?? ad.description ?? "No creative copy was returned for this ad."}</p>
                       {ad.title ? <p className="text-sm font-semibold text-foreground">{ad.title}</p> : null}
-                      {ad.cta ? (
-                        <div className="inline-flex rounded-full border border-[#ecd6cb] bg-white px-3 py-1 text-xs font-semibold text-[#8a5b46]">
-                          CTA: {ad.cta}
-                        </div>
-                      ) : null}
+                      {ad.cta ? <div className="inline-flex rounded-full border border-[#ecd6cb] bg-white px-3 py-1 text-xs font-semibold text-[#8a5b46]">CTA: {ad.cta}</div> : null}
                       <div className="grid gap-3 sm:grid-cols-2">
-                        <MetricCard label="Spend" metric={ad.spend} />
-                        <MetricCard label="Impressions" metric={ad.impressions} />
-                        <MetricCard label="Audience size" metric={ad.audienceSize} />
+                        <MetricCard label="Spend" metric={ad.finalMetrics.spend} />
+                        <MetricCard label="Impressions" metric={ad.finalMetrics.impressions} />
+                        <MetricCard label="Audience size" metric={ad.finalMetrics.audienceSize} />
                         <StaticCard label="Ad type" value={ad.creative.type.toUpperCase()} />
                         <StaticCard label="Started" value={formatDate(ad.startDate)} />
                         <StaticCard label="Ended" value={formatDate(ad.endDate)} />
@@ -466,35 +545,34 @@ export function MetaLibraryClient() {
                   <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                     <span>Similar ads: {ad.similarAds ?? "Not available"}</span>
                     <span>Variation group: {ad.variationGroupId ?? "None"}</span>
-                    <a
-                      href={ad.adLibraryUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="font-semibold text-brand-red hover:underline"
-                    >
+                    <span>Landing domain: {ad.landingDomain ?? "Not available"}</span>
+                    <a href={ad.adLibraryUrl} target="_blank" rel="noreferrer" className="font-semibold text-brand-red hover:underline">
                       Open in Meta Ad Library
                     </a>
                   </div>
 
                   {IS_DEV ? (
                     <div className="rounded-[1.25rem] border border-dashed border-[#e5cabd] bg-white/70 p-3">
-                      <button
-                        type="button"
-                        onClick={() => setExpandedAdId(isExpanded ? null : ad.adLibraryId)}
-                        className="text-sm font-semibold text-[#8a5b46]"
-                      >
-                        {isExpanded ? "Hide raw Meta/Apify payload" : "View raw Meta/Apify payload"}
+                      <button type="button" onClick={() => setExpandedAdId(isExpanded ? null : ad.adLibraryId)} className="text-sm font-semibold text-[#8a5b46]">
+                        {isExpanded ? "Hide metric debug" : "Metric Debug"}
                       </button>
-
                       {isExpanded ? (
                         <div className="mt-3 space-y-3">
-                          <div className="grid gap-3 md:grid-cols-3">
-                            <DebugPath label="Spend path" value={ad.spend.path} />
-                            <DebugPath label="Impressions path" value={ad.impressions.path} />
-                            <DebugPath label="Audience path" value={ad.audienceSize.path} />
-                          </div>
                           <pre className="max-h-[28rem] overflow-auto rounded-[1rem] bg-slate-950 p-4 text-xs leading-6 text-slate-100">
-                            {JSON.stringify(ad.rawMetaData, null, 2)}
+                            {JSON.stringify(
+                              {
+                                adLibraryId: ad.adLibraryId,
+                                meta: ad.metaMetrics,
+                                metaDetail: ad.metaDetailMetrics,
+                                pathmatics: ad.pathmaticsMetrics,
+                                intelligenceMatch: ad.intelligenceMatch,
+                                final: ad.finalMetrics,
+                                metaDetailDebug: ad.debug.metaDetail,
+                                pathmaticsDebug: ad.debug.pathmatics,
+                              },
+                              null,
+                              2,
+                            )}
                           </pre>
                         </div>
                       ) : null}
@@ -506,42 +584,6 @@ export function MetaLibraryClient() {
           })}
         </div>
       </section>
-    </div>
-  );
-}
-
-function MetricCard({ label, metric }: { label: string; metric: MetaMetric | MetaSpendMetric }) {
-  const disclosed = metric.status === "META_DISCLOSED";
-
-  return (
-    <div className="rounded-[1.2rem] border border-[#f0d6cb] bg-white px-4 py-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9f8b80]">{label}</p>
-      <p className="mt-2 text-sm font-semibold text-foreground">{formatMetric(metric)}</p>
-      <span
-        className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold ${
-          disclosed ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-700"
-        }`}
-      >
-        {metricBadge(metric)}
-      </span>
-    </div>
-  );
-}
-
-function StaticCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[1.2rem] border border-[#f0d6cb] bg-white px-4 py-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9f8b80]">{label}</p>
-      <p className="mt-2 text-sm font-semibold text-foreground">{value}</p>
-    </div>
-  );
-}
-
-function DebugPath({ label, value }: { label: string; value: string | null }) {
-  return (
-    <div className="rounded-[1rem] border border-border bg-white px-3 py-2 text-xs text-foreground">
-      <p className="font-semibold text-muted-foreground">{label}</p>
-      <p className="mt-1 break-all">{value ?? "Not found"}</p>
     </div>
   );
 }

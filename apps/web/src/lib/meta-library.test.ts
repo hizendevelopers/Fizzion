@@ -194,7 +194,7 @@ test("normalizeMetaLibraryAds deduplicates exact duplicate rows by primary ad id
   assert.equal(normalized.ads.length, 1);
 });
 
-test("normalizeMetaLibraryAd marks missing metrics as NOT_DISCLOSED instead of zero", () => {
+test("normalizeMetaLibraryAd keeps missing metrics in CHECKING instead of converting them to zero", () => {
   const fixture = nikeFixture();
   fixture.spend = null;
   fixture.currency = "";
@@ -207,10 +207,10 @@ test("normalizeMetaLibraryAd marks missing metrics as NOT_DISCLOSED instead of z
 
   const ad = normalizeMetaLibraryAd(fixture, SOURCE);
   assert.ok(ad);
-  assert.equal(ad?.spend.status, "NOT_DISCLOSED");
+  assert.equal(ad?.spend.status, "CHECKING");
   assert.equal(ad?.spend.min, null);
-  assert.equal(ad?.impressions.status, "NOT_DISCLOSED");
-  assert.equal(ad?.audienceSize.status, "NOT_DISCLOSED");
+  assert.equal(ad?.impressions.status, "CHECKING");
+  assert.equal(ad?.audienceSize.status, "CHECKING");
 });
 
 test("sanitizeRawRecord redacts secrets without removing public payload fields", () => {

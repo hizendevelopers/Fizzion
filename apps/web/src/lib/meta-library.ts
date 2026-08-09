@@ -8,8 +8,15 @@ export const MAX_MAX_ADS = 500;
 export const META_LIBRARY_JOB_TTL_MS = 1000 * 60 * 30;
 export const META_LIBRARY_TEMPORARY_ERROR_STATUSES = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
 
-export type MetaMetricSource = "META_AD_LIBRARY" | "META_AD_DETAIL" | "META_ADVERTISER_TRANSPARENCY";
-export type MetaMetricStatus = "META_DISCLOSED" | "NOT_DISCLOSED";
+export type MetaMetricSource =
+  | "META_AD_LIBRARY"
+  | "META_AD_LIBRARY_DETAIL"
+  | "META_PUBLIC_DETAIL_TEXT"
+  | "META_ADVERTISER_TRANSPARENCY"
+  | "PATHMATICS"
+  | "NONE";
+export type MetaMetricStatus = "CHECKING" | "META_DISCLOSED" | "META_NOT_DISCLOSED" | "ESTIMATED" | "NOT_AVAILABLE";
+export type MetaMetricDataType = "DISCLOSED" | "ESTIMATED" | null;
 
 export type MetaMetric = {
   raw: string | null;
@@ -18,6 +25,9 @@ export type MetaMetric = {
   status: MetaMetricStatus;
   source: MetaMetricSource;
   path: string | null;
+  dataType: MetaMetricDataType;
+  confidence: number | null;
+  retrievedAt: string | null;
 };
 
 export type MetaSpendMetric = MetaMetric & {
@@ -68,12 +78,77 @@ export type MetaLibraryAd = {
   spend: MetaSpendMetric;
   impressions: MetaMetric;
   audienceSize: MetaMetric;
+  metaMetrics: {
+    spend: MetaSpendMetric;
+    impressions: MetaMetric;
+    audienceSize: MetaMetric;
+  };
+  metaDetailMetrics: {
+    spend: MetaSpendMetric;
+    impressions: MetaMetric;
+    audienceSize: MetaMetric;
+  };
+  pathmaticsMetrics: {
+    spend: MetaSpendMetric | null;
+    impressions: MetaMetric | null;
+    audienceSize: MetaMetric | null;
+    providerStatus:
+      | "PENDING"
+      | "PROVIDER_DISABLED"
+      | "PROVIDER_AUTH_ERROR"
+      | "PROVIDER_RATE_LIMITED"
+      | "NO_MATCH"
+      | "LOW_CONFIDENCE_MATCH"
+      | "MATCH_FOUND";
+    providerMessage: string | null;
+  };
+  finalMetrics: {
+    spend: MetaSpendMetric;
+    impressions: MetaMetric;
+    audienceSize: MetaMetric;
+  };
   currency: string | null;
+  landingDomain: string | null;
   rawMetaData: Record<string, unknown>;
   debug: {
     metricCandidates: MetricCandidate[];
     sourceUrl: string | null;
     actorInputUrl: string | null;
+    metaDetail?: {
+      checkedAt: string | null;
+      pageUrl: string;
+      visibleTextSnippet: string | null;
+      structuredCandidates: MetricCandidate[];
+      responses: Array<{ url: string; status: number; bodySnippet: string | null }>;
+    };
+    pathmatics?: {
+      configured: boolean;
+      status:
+        | "PENDING"
+        | "PROVIDER_DISABLED"
+        | "PROVIDER_AUTH_ERROR"
+        | "PROVIDER_RATE_LIMITED"
+        | "NO_MATCH"
+        | "LOW_CONFIDENCE_MATCH"
+        | "MATCH_FOUND";
+      confidence: number | null;
+      matchId: string | null;
+      reasons: string[];
+    };
+  };
+  intelligenceMatch: {
+    provider: "PATHMATICS" | null;
+    confidence: number | null;
+    matchId: string | null;
+    status:
+      | "PENDING"
+      | "PROVIDER_DISABLED"
+      | "PROVIDER_AUTH_ERROR"
+      | "PROVIDER_RATE_LIMITED"
+      | "NO_MATCH"
+      | "LOW_CONFIDENCE_MATCH"
+      | "MATCH_FOUND";
+    reasons: string[];
   };
 };
 
@@ -385,20 +460,57 @@ function normalizeCurrency(rawValue: unknown): string | null {
   return null;
 }
 
-function createNotDisclosedMetric(source: MetaMetricSource): MetaMetric {
+function metricTimestamp() {
+  return new Date().toISOString();
+}
+
+export function createCheckingMetric(source: MetaMetricSource): MetaMetric {
   return {
     raw: null,
     min: null,
     max: null,
-    status: "NOT_DISCLOSED",
+    status: "CHECKING",
     source,
     path: null,
+    dataType: null,
+    confidence: null,
+    retrievedAt: null,
   };
 }
 
-function createNotDisclosedSpendMetric(): MetaSpendMetric {
+export function createCheckingSpendMetric(): MetaSpendMetric {
   return {
-    ...createNotDisclosedMetric("META_AD_LIBRARY"),
+    ...createCheckingMetric("META_AD_LIBRARY"),
+    currency: null,
+  };
+}
+
+export function createMetaNotDisclosedMetric(source: MetaMetricSource): MetaMetric {
+  return {
+    ...createCheckingMetric(source),
+    status: "META_NOT_DISCLOSED",
+    retrievedAt: metricTimestamp(),
+  };
+}
+
+export function createMetaNotDisclosedSpendMetric(source: MetaMetricSource): MetaSpendMetric {
+  return {
+    ...createMetaNotDisclosedMetric(source),
+    currency: null,
+  };
+}
+
+export function createUnavailableMetric(): MetaMetric {
+  return {
+    ...createCheckingMetric("NONE"),
+    status: "NOT_AVAILABLE",
+    retrievedAt: metricTimestamp(),
+  };
+}
+
+export function createUnavailableSpendMetric(): MetaSpendMetric {
+  return {
+    ...createUnavailableMetric(),
     currency: null,
   };
 }
@@ -416,6 +528,9 @@ function asMetric(rawValue: unknown, source: MetaMetricSource, path: string | nu
     status: "META_DISCLOSED",
     source,
     path,
+    dataType: "DISCLOSED",
+    confidence: null,
+    retrievedAt: metricTimestamp(),
   };
 }
 
@@ -434,6 +549,9 @@ function asSpendMetric(rawValue: unknown, currencyValue: unknown, source: MetaMe
     source,
     path,
     currency,
+    dataType: "DISCLOSED",
+    confidence: null,
+    retrievedAt: metricTimestamp(),
   };
 }
 
@@ -526,8 +644,8 @@ function findExactMetricPath(rawAd: Record<string, unknown>, paths: string[]): {
 function extractSpend(rawAd: Record<string, unknown>): MetaSpendMetric {
   const direct = findExactMetricPath(rawAd, ["spend", "snapshot.spend", "ad_details.spend"]);
   const currencyValue = pickFirst(getPath(rawAd, "currency"), getPath(rawAd, "snapshot.currency"));
-  const parsed = direct ? asSpendMetric(direct.value, currencyValue, direct.path === "spend" ? "META_AD_LIBRARY" : "META_AD_DETAIL", direct.path) : null;
-  return parsed ?? createNotDisclosedSpendMetric();
+  const parsed = direct ? asSpendMetric(direct.value, currencyValue, direct.path === "spend" ? "META_AD_LIBRARY" : "META_AD_LIBRARY_DETAIL", direct.path) : null;
+  return parsed ?? createCheckingSpendMetric();
 }
 
 function extractImpressions(rawAd: Record<string, unknown>): MetaMetric {
@@ -539,16 +657,16 @@ function extractImpressions(rawAd: Record<string, unknown>): MetaMetric {
   ]);
 
   if (!direct) {
-    return createNotDisclosedMetric("META_AD_LIBRARY");
+    return createCheckingMetric("META_AD_LIBRARY");
   }
 
   const metric = asMetric(
     direct.value,
-    direct.path === "impressionsWithIndex.impressionsText" || direct.path === "impressions" ? "META_AD_LIBRARY" : "META_AD_DETAIL",
+    direct.path === "impressionsWithIndex.impressionsText" || direct.path === "impressions" ? "META_AD_LIBRARY" : "META_AD_LIBRARY_DETAIL",
     direct.path,
   );
 
-  return metric ?? createNotDisclosedMetric("META_AD_LIBRARY");
+  return metric ?? createCheckingMetric("META_AD_LIBRARY");
 }
 
 function extractAudience(rawAd: Record<string, unknown>): MetaMetric {
@@ -560,20 +678,20 @@ function extractAudience(rawAd: Record<string, unknown>): MetaMetric {
   ]);
 
   if (!direct) {
-    return createNotDisclosedMetric("META_AD_LIBRARY");
+    return createCheckingMetric("META_AD_LIBRARY");
   }
 
   const source: MetaMetricSource =
     direct.path === "reachEstimate"
       ? "META_AD_LIBRARY"
       : direct.path.startsWith("ad_details.aaa_info")
-        ? "META_AD_DETAIL"
+        ? "META_AD_LIBRARY_DETAIL"
         : direct.path.startsWith("ad_details")
-          ? "META_AD_DETAIL"
-          : "META_AD_DETAIL";
+          ? "META_AD_LIBRARY_DETAIL"
+          : "META_AD_LIBRARY_DETAIL";
 
   const metric = asMetric(direct.value, source, direct.path);
-  return metric ?? createNotDisclosedMetric("META_AD_LIBRARY");
+  return metric ?? createCheckingMetric("META_AD_LIBRARY");
 }
 
 function readStatus(rawAd: Record<string, unknown>): "ACTIVE" | "INACTIVE" {
@@ -583,6 +701,19 @@ function readStatus(rawAd: Record<string, unknown>): "ACTIVE" | "INACTIVE" {
 
 function readPageName(rawAd: Record<string, unknown>): string | null {
   return toText(pickFirst(rawAd.pageName, getPath(rawAd, "snapshot.pageName"), rawAd.brand));
+}
+
+function readLandingDomain(rawAd: Record<string, unknown>): string | null {
+  const url = toUrl(pickFirst(getPath(rawAd, "snapshot.linkUrl"), rawAd.linkUrl, rawAd.advertiserUrl));
+  if (!url) {
+    return null;
+  }
+
+  try {
+    return new URL(url).hostname.replace(/^www\./i, "").toLowerCase();
+  } catch {
+    return null;
+  }
 }
 
 function buildAdLibraryUrl(rawAd: Record<string, unknown>, adLibraryId: string): string {
@@ -683,11 +814,17 @@ function mergeDuplicateAds(existing: MetaLibraryAd, incoming: MetaLibraryAd): Me
     spend: existing.spend.status === "META_DISCLOSED" ? existing.spend : incoming.spend,
     impressions: existing.impressions.status === "META_DISCLOSED" ? existing.impressions : incoming.impressions,
     audienceSize: existing.audienceSize.status === "META_DISCLOSED" ? existing.audienceSize : incoming.audienceSize,
+    metaMetrics: existing.metaMetrics,
+    metaDetailMetrics: existing.metaDetailMetrics,
+    pathmaticsMetrics: existing.pathmaticsMetrics,
+    finalMetrics: existing.finalMetrics,
+    landingDomain: existing.landingDomain ?? incoming.landingDomain,
     rawMetaData: existing.rawMetaData,
     debug: {
       ...existing.debug,
       metricCandidates: [...existing.debug.metricCandidates, ...incoming.debug.metricCandidates],
     },
+    intelligenceMatch: existing.intelligenceMatch,
   };
 }
 
@@ -749,7 +886,30 @@ export function normalizeMetaLibraryAd(
     spend: extractSpend(rawAd),
     impressions: extractImpressions(rawAd),
     audienceSize: extractAudience(rawAd),
+    metaMetrics: {
+      spend: createCheckingSpendMetric(),
+      impressions: createCheckingMetric("META_AD_LIBRARY"),
+      audienceSize: createCheckingMetric("META_AD_LIBRARY"),
+    },
+    metaDetailMetrics: {
+      spend: createCheckingSpendMetric(),
+      impressions: createCheckingMetric("META_AD_LIBRARY_DETAIL"),
+      audienceSize: createCheckingMetric("META_AD_LIBRARY_DETAIL"),
+    },
+    pathmaticsMetrics: {
+      spend: null,
+      impressions: null,
+      audienceSize: null,
+      providerStatus: "PENDING",
+      providerMessage: null,
+    },
+    finalMetrics: {
+      spend: createCheckingSpendMetric(),
+      impressions: createCheckingMetric("META_AD_LIBRARY"),
+      audienceSize: createCheckingMetric("META_AD_LIBRARY"),
+    },
     currency: normalizeCurrency(pickFirst(rawAd.currency, rawAd.spend)),
+    landingDomain: readLandingDomain(rawAd),
     rawMetaData: sanitizeRawRecord({
       ...rawAd,
       _source: source,
@@ -759,6 +919,36 @@ export function normalizeMetaLibraryAd(
       sourceUrl: toUrl(rawAd.sourceUrl),
       actorInputUrl: toUrl(rawAd.inputUrl),
     },
+    intelligenceMatch: {
+      provider: null,
+      confidence: null,
+      matchId: null,
+      status: "PENDING",
+      reasons: [],
+    },
+  };
+
+  normalized.metaMetrics = {
+    spend: { ...normalized.spend },
+    impressions: { ...normalized.impressions },
+    audienceSize: { ...normalized.audienceSize },
+  };
+  normalized.metaDetailMetrics = {
+    spend: createCheckingSpendMetric(),
+    impressions: createCheckingMetric("META_AD_LIBRARY_DETAIL"),
+    audienceSize: createCheckingMetric("META_AD_LIBRARY_DETAIL"),
+  };
+  normalized.pathmaticsMetrics = {
+    spend: null,
+    impressions: null,
+    audienceSize: null,
+    providerStatus: "PENDING",
+    providerMessage: null,
+  };
+  normalized.finalMetrics = {
+    spend: { ...normalized.spend },
+    impressions: { ...normalized.impressions },
+    audienceSize: { ...normalized.audienceSize },
   };
 
   if (process.env.NODE_ENV !== "production") {
@@ -824,4 +1014,3 @@ export function normalizeMetaLibraryAds(
     ads: [...adsById.values()],
   };
 }
-
