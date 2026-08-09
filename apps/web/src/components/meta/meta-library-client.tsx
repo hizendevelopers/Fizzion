@@ -178,6 +178,25 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function readJsonResponse<T>(response: Response): Promise<T> {
+  const text = await response.text();
+
+  if (!text.trim()) {
+    throw new Error(`The server returned an empty ${response.status} response.`);
+  }
+
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    const snippet = text.slice(0, 200).replace(/\s+/g, " ").trim();
+    throw new Error(
+      response.ok
+        ? `The server returned an invalid JSON response. ${snippet || "No response body was available."}`
+        : `The server returned an invalid error response (${response.status}). ${snippet || "No response body was available."}`,
+    );
+  }
+}
+
 function formatDate(value: string | null) {
   if (!value) {
     return "Not available";
@@ -327,7 +346,7 @@ export function MetaLibraryClient() {
   async function pollJob(jobId: string) {
     while (true) {
       const response = await fetch(`/api/meta-ads/jobs/${jobId}`, { cache: "no-store" });
-      const data = (await response.json()) as MetaAdsJobResponse & { error?: string };
+      const data = await readJsonResponse<MetaAdsJobResponse & { error?: string }>(response);
       if (!response.ok) {
         throw new Error(data.error ?? "The Meta Ad Library job could not be read.");
       }
@@ -352,7 +371,7 @@ export function MetaLibraryClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: metaUrl, maxAds: Number(maxAds) }),
       });
-      const data = (await response.json()) as { success: boolean; jobId?: string; error?: string };
+      const data = await readJsonResponse<{ success: boolean; jobId?: string; error?: string }>(response);
       if (!response.ok || !data.success || !data.jobId) {
         throw new Error(data.error ?? "The Meta Ad Library scrape could not be started.");
       }
@@ -587,4 +606,3 @@ export function MetaLibraryClient() {
     </div>
   );
 }
-
