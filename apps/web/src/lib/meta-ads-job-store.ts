@@ -178,33 +178,63 @@ async function processMetaDetailBatch(job: MetaAdsJob) {
 
   await Promise.all(
     pendingAds.map(async (ad) => {
-      const cached = await loadMetaAdCache(ad.adLibraryId);
-      if (applyCachedEnrichment(ad, cached)) {
-        return;
-      }
+      try {
+        const cached = await loadMetaAdCache(ad.adLibraryId);
+        if (applyCachedEnrichment(ad, cached)) {
+          return;
+        }
 
-      const detail = await enrichMetaAdFromPublicDetail(ad);
-      ad.debug.metaDetail = {
-        checkedAt: detail.checkedAt,
-        pageUrl: detail.pageUrl,
-        visibleTextSnippet: detail.visibleTextSnippet,
-        structuredCandidates: detail.structuredCandidates,
-        responses: detail.responses,
-      };
-      ad.metaDetailMetrics = detail.metrics;
+        const detail = await enrichMetaAdFromPublicDetail(ad);
+        ad.debug.metaDetail = {
+          checkedAt: detail.checkedAt,
+          pageUrl: detail.pageUrl,
+          transport: detail.transport,
+          errorMessage: detail.errorMessage,
+          visibleTextSnippet: detail.visibleTextSnippet,
+          structuredCandidates: detail.structuredCandidates,
+          responses: detail.responses,
+        };
+        ad.metaDetailMetrics = detail.metrics;
 
-      if (ad.metaMetrics.spend.status !== "META_DISCLOSED" && ad.metaDetailMetrics.spend.status !== "META_DISCLOSED") {
-        ad.metaMetrics.spend = createMetaNotDisclosedSpendMetric("META_AD_LIBRARY_DETAIL");
-      }
-      if (ad.metaMetrics.impressions.status !== "META_DISCLOSED" && ad.metaDetailMetrics.impressions.status !== "META_DISCLOSED") {
-        ad.metaMetrics.impressions = createMetaNotDisclosedMetric("META_AD_LIBRARY_DETAIL");
-      }
-      if (ad.metaMetrics.audienceSize.status !== "META_DISCLOSED" && ad.metaDetailMetrics.audienceSize.status !== "META_DISCLOSED") {
-        ad.metaMetrics.audienceSize = createMetaNotDisclosedMetric("META_AD_LIBRARY_DETAIL");
-      }
+        if (ad.metaMetrics.spend.status !== "META_DISCLOSED" && ad.metaDetailMetrics.spend.status !== "META_DISCLOSED") {
+          ad.metaMetrics.spend = createMetaNotDisclosedSpendMetric("META_AD_LIBRARY_DETAIL");
+        }
+        if (ad.metaMetrics.impressions.status !== "META_DISCLOSED" && ad.metaDetailMetrics.impressions.status !== "META_DISCLOSED") {
+          ad.metaMetrics.impressions = createMetaNotDisclosedMetric("META_AD_LIBRARY_DETAIL");
+        }
+        if (ad.metaMetrics.audienceSize.status !== "META_DISCLOSED" && ad.metaDetailMetrics.audienceSize.status !== "META_DISCLOSED") {
+          ad.metaMetrics.audienceSize = createMetaNotDisclosedMetric("META_AD_LIBRARY_DETAIL");
+        }
 
-      applyFinalMetrics(ad, false);
-      await saveMetaAdCache(ad);
+        applyFinalMetrics(ad, false);
+        await saveMetaAdCache(ad);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Meta detail enrichment failed.";
+        ad.debug.metaDetail = {
+          checkedAt: new Date().toISOString(),
+          pageUrl: ad.adLibraryUrl,
+          transport: "none",
+          errorMessage: message,
+          visibleTextSnippet: null,
+          structuredCandidates: [],
+          responses: [],
+        };
+        ad.metaDetailMetrics = {
+          spend: createMetaNotDisclosedSpendMetric("META_AD_LIBRARY_DETAIL"),
+          impressions: createMetaNotDisclosedMetric("META_AD_LIBRARY_DETAIL"),
+          audienceSize: createMetaNotDisclosedMetric("META_AD_LIBRARY_DETAIL"),
+        };
+        if (ad.metaMetrics.spend.status !== "META_DISCLOSED") {
+          ad.metaMetrics.spend = createMetaNotDisclosedSpendMetric("META_AD_LIBRARY_DETAIL");
+        }
+        if (ad.metaMetrics.impressions.status !== "META_DISCLOSED") {
+          ad.metaMetrics.impressions = createMetaNotDisclosedMetric("META_AD_LIBRARY_DETAIL");
+        }
+        if (ad.metaMetrics.audienceSize.status !== "META_DISCLOSED") {
+          ad.metaMetrics.audienceSize = createMetaNotDisclosedMetric("META_AD_LIBRARY_DETAIL");
+        }
+        applyFinalMetrics(ad, false);
+      }
     }),
   );
 
@@ -461,4 +491,3 @@ export async function refreshMetaAdsJob(jobId: string) {
   await saveJob(job);
   return job;
 }
-

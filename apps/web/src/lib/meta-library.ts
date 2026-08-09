@@ -117,6 +117,8 @@ export type MetaLibraryAd = {
     metaDetail?: {
       checkedAt: string | null;
       pageUrl: string;
+      transport?: "playwright" | "fetch" | "none";
+      errorMessage?: string | null;
       visibleTextSnippet: string | null;
       structuredCandidates: MetricCandidate[];
       responses: Array<{ url: string; status: number; bodySnippet: string | null }>;

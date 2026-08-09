@@ -100,6 +100,8 @@ type MetaLibraryAd = {
     metaDetail?: {
       checkedAt: string | null;
       pageUrl: string;
+      transport?: "playwright" | "fetch" | "none";
+      errorMessage?: string | null;
       visibleTextSnippet: string | null;
       structuredCandidates: Array<{ path: string; value: unknown }>;
       responses: Array<{ url: string; status: number; bodySnippet: string | null }>;
