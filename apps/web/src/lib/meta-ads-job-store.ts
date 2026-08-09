@@ -16,8 +16,10 @@ import {
   validateMetaLibraryUrl,
   withRetry,
   type MetaLibraryAd,
+  type MetaDetailStatus,
   type MetaMetric,
   type MetaSpendMetric,
+  type PathmaticsDebugStatus,
 } from "@/lib/meta-library";
 
 export type MetaAdsJobStatus =
@@ -96,6 +98,77 @@ function cloneMetric<T extends MetaMetric | MetaSpendMetric>(metric: T): T {
   return JSON.parse(JSON.stringify(metric)) as T;
 }
 
+function hasDisclosedMetaDetail(ad: MetaLibraryAd) {
+  return (
+    ad.metaDetailMetrics.spend.status === "META_DISCLOSED" ||
+    ad.metaDetailMetrics.impressions.status === "META_DISCLOSED" ||
+    ad.metaDetailMetrics.audienceSize.status === "META_DISCLOSED"
+  );
+}
+
+function resolveMetaDetailStatus(ad: MetaLibraryAd): MetaDetailStatus {
+  if (hasDisclosedMetaDetail(ad)) {
+    return "META_DISCLOSED";
+  }
+
+  if (ad.debug.metaDetail?.errorMessage) {
+    return "META_BROWSER_FAILED";
+  }
+
+  return "META_NOT_DISCLOSED";
+}
+
+function resolveMetricReason(
+  metric: MetaMetric | MetaSpendMetric,
+  metricName: "spend" | "impressions" | "audience",
+  ad: MetaLibraryAd,
+) {
+  if (metric.source === "PATHMATICS") {
+    return "PATHMATICS_MATCH_FOUND";
+  }
+
+  if (metric.status === "META_DISCLOSED") {
+    return "META_DISCLOSED";
+  }
+
+  const pathmaticsStatus = ad.debug.pathmatics?.status;
+  const metaDetailStatus = ad.debug.metaDetail?.status;
+
+  if (metricName === "audience") {
+    if (metaDetailStatus === "META_BROWSER_FAILED") {
+      return "META_BROWSER_FAILED";
+    }
+    return "META_NOT_DISCLOSED";
+  }
+
+  if (pathmaticsStatus && pathmaticsStatus !== "PENDING") {
+    if (metaDetailStatus === "META_BROWSER_FAILED") {
+      return `${metaDetailStatus};${pathmaticsStatus}`;
+    }
+    if (
+      metaDetailStatus === "META_NOT_DISCLOSED" ||
+      metaDetailStatus === "META_DISCLOSED"
+    ) {
+      return pathmaticsStatus;
+    }
+    return pathmaticsStatus;
+  }
+
+  if (metaDetailStatus === "META_BROWSER_FAILED") {
+    return "META_BROWSER_FAILED";
+  }
+
+  return "META_NOT_DISCLOSED";
+}
+
+function refreshResolutionDebug(ad: MetaLibraryAd) {
+  ad.debug.resolution = {
+    spendReason: resolveMetricReason(ad.finalMetrics.spend, "spend", ad),
+    impressionsReason: resolveMetricReason(ad.finalMetrics.impressions, "impressions", ad),
+    audienceReason: resolveMetricReason(ad.finalMetrics.audienceSize, "audience", ad),
+  };
+}
+
 function applyFinalMetrics(ad: MetaLibraryAd, finalizeUnavailable: boolean) {
   const spend = ad.metaMetrics.spend.status === "META_DISCLOSED"
     ? cloneMetric(ad.metaMetrics.spend)
@@ -131,6 +204,7 @@ function applyFinalMetrics(ad: MetaLibraryAd, finalizeUnavailable: boolean) {
   ad.spend = spend;
   ad.impressions = impressions;
   ad.audienceSize = audienceSize;
+  refreshResolutionDebug(ad);
 }
 
 function needsMetaDetail(ad: MetaLibraryAd) {
@@ -187,9 +261,16 @@ async function processMetaDetailBatch(job: MetaAdsJob) {
         const detail = await enrichMetaAdFromPublicDetail(ad);
         ad.debug.metaDetail = {
           checkedAt: detail.checkedAt,
+          status: "PENDING",
           pageUrl: detail.pageUrl,
           transport: detail.transport,
           errorMessage: detail.errorMessage,
+          actorId: detail.actorId,
+          actorRunId: detail.actorRunId,
+          actorDatasetId: detail.actorDatasetId,
+          pageLoaded: detail.pageLoaded,
+          mainResponseStatus: detail.mainResponseStatus,
+          mainResponseUrl: detail.mainResponseUrl,
           visibleTextSnippet: detail.visibleTextSnippet,
           structuredCandidates: detail.structuredCandidates,
           responses: detail.responses,
@@ -207,14 +288,23 @@ async function processMetaDetailBatch(job: MetaAdsJob) {
         }
 
         applyFinalMetrics(ad, false);
+        ad.debug.metaDetail.status = resolveMetaDetailStatus(ad);
+        refreshResolutionDebug(ad);
         await saveMetaAdCache(ad);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Meta detail enrichment failed.";
         ad.debug.metaDetail = {
           checkedAt: new Date().toISOString(),
+          status: "META_BROWSER_FAILED",
           pageUrl: ad.adLibraryUrl,
           transport: "none",
           errorMessage: message,
+          actorId: null,
+          actorRunId: null,
+          actorDatasetId: null,
+          pageLoaded: false,
+          mainResponseStatus: null,
+          mainResponseUrl: null,
           visibleTextSnippet: null,
           structuredCandidates: [],
           responses: [],
@@ -234,6 +324,7 @@ async function processMetaDetailBatch(job: MetaAdsJob) {
           ad.metaMetrics.audienceSize = createMetaNotDisclosedMetric("META_AD_LIBRARY_DETAIL");
         }
         applyFinalMetrics(ad, false);
+        refreshResolutionDebug(ad);
       }
     }),
   );
@@ -261,31 +352,80 @@ async function processPathmaticsBatch(job: MetaAdsJob) {
 
   await Promise.all(
     pendingAds.map(async (ad) => {
-      const match = await provider.findAdMatch(ad);
-      ad.intelligenceMatch = {
-        provider: match.status === "MATCH_FOUND" ? "PATHMATICS" : null,
-        confidence: match.confidence,
-        matchId: match.matchId,
-        status: match.status,
-        reasons: match.reasons,
-      };
-      ad.debug.pathmatics = {
-        configured: provider.isConfigured(),
-        status: match.status,
-        confidence: match.confidence,
-        matchId: match.matchId,
-        reasons: match.reasons,
-      };
-      ad.pathmaticsMetrics.providerStatus = match.status;
-      ad.pathmaticsMetrics.providerMessage = match.message;
+      try {
+        const match = await provider.findAdMatch(ad);
+        const accepted =
+          match.status === "PATHMATICS_MATCH_FOUND" &&
+          match.confidence != null &&
+          match.confidence * 100 >= provider.getMinimumConfidence();
 
-      if (match.status === "MATCH_FOUND" && match.confidence != null && match.confidence * 100 >= provider.getMinimumConfidence()) {
-        ad.pathmaticsMetrics.spend = await provider.getSpend(match, ad);
-        ad.pathmaticsMetrics.impressions = await provider.getImpressions(match, ad);
-        ad.pathmaticsMetrics.audienceSize = await provider.getAudience(match, ad);
+        const effectiveStatus: PathmaticsDebugStatus =
+          match.status === "PATHMATICS_MATCH_FOUND" && !accepted
+            ? "PATHMATICS_LOW_CONFIDENCE"
+            : match.status;
+
+        ad.intelligenceMatch = {
+          provider: effectiveStatus === "PATHMATICS_MATCH_FOUND" ? "PATHMATICS" : null,
+          confidence: match.confidence,
+          matchId: match.matchId,
+          status: effectiveStatus,
+          reasons: match.reasons,
+        };
+        ad.debug.pathmatics = {
+          configured: provider.isConfigured(),
+          status: effectiveStatus,
+          confidence: match.confidence,
+          matchId: match.matchId,
+          reasons: match.reasons,
+          metricLevel: "UNKNOWN",
+        };
+        ad.pathmaticsMetrics.providerStatus = effectiveStatus;
+        ad.pathmaticsMetrics.providerMessage =
+          !accepted && match.status === "PATHMATICS_MATCH_FOUND"
+            ? `Candidate found but rejected below confidence threshold ${provider.getMinimumConfidence()}.`
+            : match.message;
+
+        if (accepted) {
+          ad.pathmaticsMetrics.spend = await provider.getSpend(match, ad);
+          ad.pathmaticsMetrics.impressions = await provider.getImpressions(match, ad);
+          ad.pathmaticsMetrics.audienceSize = await provider.getAudience(match, ad);
+
+          if (
+            !ad.pathmaticsMetrics.spend &&
+            !ad.pathmaticsMetrics.impressions &&
+            !ad.pathmaticsMetrics.audienceSize
+          ) {
+            ad.pathmaticsMetrics.providerStatus = "PATHMATICS_METRIC_NOT_AD_LEVEL";
+            ad.debug.pathmatics.status = "PATHMATICS_METRIC_NOT_AD_LEVEL";
+            ad.pathmaticsMetrics.providerMessage =
+              "A Pathmatics match exists, but no ad-level metrics were available.";
+            ad.intelligenceMatch.status = "PATHMATICS_METRIC_NOT_AD_LEVEL";
+          }
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "The Pathmatics query failed.";
+        ad.intelligenceMatch = {
+          provider: null,
+          confidence: null,
+          matchId: null,
+          status: "PATHMATICS_QUERY_FAILED",
+          reasons: [message],
+        };
+        ad.debug.pathmatics = {
+          configured: provider.isConfigured(),
+          status: "PATHMATICS_QUERY_FAILED",
+          confidence: null,
+          matchId: null,
+          reasons: [message],
+          metricLevel: "UNKNOWN",
+        };
+        ad.pathmaticsMetrics.providerStatus = "PATHMATICS_QUERY_FAILED";
+        ad.pathmaticsMetrics.providerMessage = message;
       }
 
       applyFinalMetrics(ad, true);
+      refreshResolutionDebug(ad);
       await saveMetaAdCache(ad);
     }),
   );

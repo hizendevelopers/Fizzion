@@ -1,12 +1,6 @@
-import type { MetaLibraryAd, MetaMetric, MetaSpendMetric } from "@/lib/meta-library";
+import type { MetaLibraryAd, MetaMetric, MetaSpendMetric, PathmaticsDebugStatus } from "@/lib/meta-library";
 
-export type ProviderMatchStatus =
-  | "PROVIDER_DISABLED"
-  | "PROVIDER_AUTH_ERROR"
-  | "PROVIDER_RATE_LIMITED"
-  | "NO_MATCH"
-  | "LOW_CONFIDENCE_MATCH"
-  | "MATCH_FOUND";
+export type ProviderMatchStatus = PathmaticsDebugStatus;
 
 export type ProviderMatch = {
   provider: "PATHMATICS";
@@ -193,7 +187,7 @@ class DisabledPathmaticsProvider implements AdIntelligenceProvider {
   async findAdMatch(_ad: MetaLibraryAd): Promise<ProviderMatch> {
     return {
       provider: "PATHMATICS",
-      status: pathmaticsEnabled() ? "PROVIDER_AUTH_ERROR" : "PROVIDER_DISABLED",
+      status: pathmaticsEnabled() ? "PATHMATICS_AUTH_FAILED" : "PATHMATICS_NOT_CONFIGURED",
       confidence: null,
       matchId: null,
       reasons: pathmaticsEnabled()

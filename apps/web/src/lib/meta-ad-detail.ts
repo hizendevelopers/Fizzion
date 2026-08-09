@@ -1,3 +1,4 @@
+import { runMetaBrowserDetailActor } from "@/lib/meta-browser-detail";
 import type { MetaLibraryAd, MetaMetric, MetaSpendMetric, MetricCandidate } from "@/lib/meta-library";
 import {
   createMetaNotDisclosedMetric,
@@ -9,8 +10,14 @@ import {
 export type MetaDetailEnrichment = {
   checkedAt: string;
   pageUrl: string;
-  transport: "playwright" | "fetch" | "none";
+  transport: "apify-playwright" | "none";
   errorMessage: string | null;
+  actorId: string | null;
+  actorRunId: string | null;
+  actorDatasetId: string | null;
+  pageLoaded: boolean;
+  mainResponseStatus: number | null;
+  mainResponseUrl: string | null;
   visibleTextSnippet: string | null;
   structuredCandidates: MetricCandidate[];
   responses: Array<{ url: string; status: number; bodySnippet: string | null }>;
@@ -33,10 +40,12 @@ function metricFromRaw(
   if (raw == null) {
     return null;
   }
+
   const parsed = parseMetaRange(raw);
   if (parsed.raw == null && parsed.min == null && parsed.max == null) {
     return null;
   }
+
   return {
     raw: parsed.raw,
     min: parsed.min,
@@ -60,6 +69,7 @@ function spendFromRaw(
   if (!base) {
     return null;
   }
+
   return {
     ...base,
     currency,
@@ -101,7 +111,7 @@ function extractLabeledMetric(text: string, labels: RegExp[]): string | null {
   return null;
 }
 
-function parseScriptJsonCandidates(scriptTexts: string[], html: string) {
+function parseScriptJsonCandidates(scriptTexts: string[], html: string, responses: MetaDetailEnrichment["responses"]) {
   const candidates: MetricCandidate[] = [];
 
   for (const scriptText of scriptTexts) {
@@ -121,6 +131,30 @@ function parseScriptJsonCandidates(scriptTexts: string[], html: string) {
     }
   }
 
+  for (const response of responses) {
+    if (!response.bodySnippet) {
+      continue;
+    }
+
+    try {
+      const parsed = JSON.parse(response.bodySnippet);
+      const found = findMetricCandidates(parsed);
+      for (const candidate of found) {
+        if (candidate.path.includes("page_spend")) {
+          continue;
+        }
+        if (typeof candidate.value === "string" || typeof candidate.value === "number") {
+          candidates.push({
+            path: `network:${response.url}::${candidate.path}`,
+            value: candidate.value,
+          });
+        }
+      }
+    } catch {
+      continue;
+    }
+  }
+
   if (html.includes("eu_total_reach")) {
     const match = html.match(/eu_total_reach[^0-9]{0,30}(\d{1,12})/i);
     if (match) {
@@ -129,18 +163,6 @@ function parseScriptJsonCandidates(scriptTexts: string[], html: string) {
   }
 
   return candidates;
-}
-
-function extractScriptJsonTexts(html: string) {
-  const scripts: string[] = [];
-  const matches = html.matchAll(/<script[^>]*type=["']application\/json["'][^>]*>([\s\S]*?)<\/script>/gi);
-  for (const match of matches) {
-    const content = match[1]?.trim();
-    if (content) {
-      scripts.push(content);
-    }
-  }
-  return scripts;
 }
 
 function candidateRawValue(value: MetricCandidate["value"]) {
@@ -181,7 +203,7 @@ function pathLooksLikeAdMetric(path: string, metric: "spend" | "impressions" | "
   }
 
   if (metric === "spend") {
-    return /amount_spent|spend/.test(normalized);
+    return /amount_spent|amountspent|spend|currency/.test(normalized);
   }
 
   if (metric === "impressions") {
@@ -207,192 +229,28 @@ function metricFromCandidates(
   }
 
   const raw = candidateRawValue(candidate.value);
-
   if (metric === "spend") {
-    return spendFromRaw(
-      raw,
-      null,
-      "META_AD_LIBRARY_DETAIL",
-      candidate.path,
-    );
+    return spendFromRaw(raw, null, "META_AD_LIBRARY_DETAIL", candidate.path);
   }
 
-  return metricFromRaw(
-    raw,
-    "META_AD_LIBRARY_DETAIL",
-    candidate.path,
-  );
-}
-
-function buildEnrichment(
-  ad: MetaLibraryAd,
-  transport: MetaDetailEnrichment["transport"],
-  payload: {
-    pageText: string;
-    html: string;
-    scriptTexts: string[];
-    responses: MetaDetailEnrichment["responses"];
-    errorMessage?: string | null;
-  },
-): MetaDetailEnrichment {
-  const structuredCandidates = parseScriptJsonCandidates(payload.scriptTexts, payload.html);
-  const textSpend = extractLabeledMetric(payload.pageText, [/^amount spent$/i, /^spend$/i]);
-  const textImpressions = extractLabeledMetric(payload.pageText, [/^impressions$/i]);
-  const textAudience = extractLabeledMetric(payload.pageText, [/^estimated audience size$/i, /^audience size$/i, /^reach$/i]);
-
-  const spend =
-    spendFromRaw(textSpend, ad.currency, "META_PUBLIC_DETAIL_TEXT", "detail.visible_text.spend") ??
-    (metricFromCandidates(structuredCandidates, "spend") as MetaSpendMetric | null) ??
-    createMetaNotDisclosedSpendMetric("META_AD_LIBRARY_DETAIL");
-
-  const impressions =
-    metricFromRaw(textImpressions, "META_PUBLIC_DETAIL_TEXT", "detail.visible_text.impressions") ??
-    (metricFromCandidates(structuredCandidates, "impressions") as MetaMetric | null) ??
-    createMetaNotDisclosedMetric("META_AD_LIBRARY_DETAIL");
-
-  const audienceSize =
-    metricFromRaw(textAudience, "META_PUBLIC_DETAIL_TEXT", "detail.visible_text.audience") ??
-    (metricFromCandidates(structuredCandidates, "audienceSize") as MetaMetric | null) ??
-    createMetaNotDisclosedMetric("META_AD_LIBRARY_DETAIL");
-
-  return {
-    checkedAt: metricNow(),
-    pageUrl: ad.adLibraryUrl,
-    transport,
-    errorMessage: payload.errorMessage ?? null,
-    visibleTextSnippet: payload.pageText.slice(0, 2000) || null,
-    structuredCandidates,
-    responses: payload.responses.slice(0, 20),
-    metrics: {
-      spend,
-      impressions,
-      audienceSize,
-    },
-  };
-}
-
-async function enrichViaFetch(ad: MetaLibraryAd, errorMessage: string | null = null): Promise<MetaDetailEnrichment> {
-  const response = await fetch(ad.adLibraryUrl, {
-    method: "GET",
-    cache: "no-store",
-    headers: {
-      "accept-language": "en-US,en;q=0.9",
-      "user-agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
-    },
-  });
-
-  const html = await response.text();
-  const pageText = [stripHtml(html)].filter(Boolean).join("\n");
-  const scriptTexts = extractScriptJsonTexts(html);
-
-  return buildEnrichment(ad, "fetch", {
-    pageText,
-    html,
-    scriptTexts,
-    responses: [
-      {
-        url: response.url,
-        status: response.status,
-        bodySnippet: html.slice(0, 4000) || null,
-      },
-    ],
-    errorMessage,
-  });
-}
-
-async function enrichViaPlaywright(ad: MetaLibraryAd): Promise<MetaDetailEnrichment> {
-  const playwright = await import("playwright");
-  const browser = await playwright.chromium.launch({ headless: true });
-  const page = await browser.newPage({
-    locale: "en-US",
-    timezoneId: "Asia/Karachi",
-  });
-
-  const responses: MetaDetailEnrichment["responses"] = [];
-
-  page.on("response", async (response) => {
-    const request = response.request();
-    const resourceType = request.resourceType();
-    if (resourceType !== "xhr" && resourceType !== "fetch") {
-      return;
-    }
-
-    let bodySnippet: string | null = null;
-    try {
-      bodySnippet = (await response.text()).slice(0, 4000);
-    } catch {
-      bodySnippet = null;
-    }
-
-    responses.push({
-      url: response.url(),
-      status: response.status(),
-      bodySnippet,
-    });
-  });
-
-  try {
-    await page.goto(ad.adLibraryUrl, { waitUntil: "networkidle", timeout: 60000 }).catch(async () => {
-      await page.waitForTimeout(10000);
-    });
-    await page.waitForTimeout(2500);
-
-    const visibleText = await page.locator("body").innerText().catch(() => "");
-    const html = await page.content();
-    const pageText = [visibleText, stripHtml(html)].filter(Boolean).join("\n");
-    const scriptTexts = await page
-      .locator('script[type="application/json"]')
-      .evaluateAll((nodes) => nodes.map((node) => node.textContent || ""))
-      .catch(() => []);
-
-    return buildEnrichment(ad, "playwright", {
-      pageText,
-      html,
-      scriptTexts,
-      responses,
-    });
-  } finally {
-    await browser.close().catch(() => null);
-  }
-}
-
-function isPlaywrightLoadError(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error);
-  return /playwright|playwright-core|browsers\.json/i.test(message);
+  return metricFromRaw(raw, "META_AD_LIBRARY_DETAIL", candidate.path);
 }
 
 export async function enrichMetaAdFromPublicDetail(ad: MetaLibraryAd): Promise<MetaDetailEnrichment> {
-  try {
-    return await enrichViaPlaywright(ad);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Meta detail browser enrichment failed.";
-    if (!isPlaywrightLoadError(error)) {
-      try {
-        return await enrichViaFetch(ad, message);
-      } catch {
-        return {
-          checkedAt: metricNow(),
-          pageUrl: ad.adLibraryUrl,
-          transport: "none",
-          errorMessage: message,
-          visibleTextSnippet: null,
-          structuredCandidates: [],
-          responses: [],
-          metrics: {
-            spend: createMetaNotDisclosedSpendMetric("META_AD_LIBRARY_DETAIL"),
-            impressions: createMetaNotDisclosedMetric("META_AD_LIBRARY_DETAIL"),
-            audienceSize: createMetaNotDisclosedMetric("META_AD_LIBRARY_DETAIL"),
-          },
-        };
-      }
-    }
+  const actorResult = await runMetaBrowserDetailActor(ad);
 
-    return await enrichViaFetch(ad, message).catch(() => ({
+  if (!actorResult.item) {
+    return {
       checkedAt: metricNow(),
       pageUrl: ad.adLibraryUrl,
       transport: "none",
-      errorMessage: message,
+      errorMessage: actorResult.errorMessage,
+      actorId: actorResult.actorId,
+      actorRunId: actorResult.runId,
+      actorDatasetId: actorResult.datasetId,
+      pageLoaded: false,
+      mainResponseStatus: null,
+      mainResponseUrl: null,
       visibleTextSnippet: null,
       structuredCandidates: [],
       responses: [],
@@ -401,6 +259,55 @@ export async function enrichMetaAdFromPublicDetail(ad: MetaLibraryAd): Promise<M
         impressions: createMetaNotDisclosedMetric("META_AD_LIBRARY_DETAIL"),
         audienceSize: createMetaNotDisclosedMetric("META_AD_LIBRARY_DETAIL"),
       },
-    }));
+    };
   }
+
+  const item = actorResult.item;
+  const pageText = [item.bodyTextSnippet ?? "", stripHtml(item.htmlSnippet ?? "")].filter(Boolean).join("\n");
+  const responses = (item.responses ?? []).map((response) => ({
+    url: response.url,
+    status: response.status,
+    bodySnippet: response.bodySnippet,
+  }));
+  const structuredCandidates = parseScriptJsonCandidates(item.scriptTexts ?? [], item.htmlSnippet ?? "", responses);
+
+  const textSpend = extractLabeledMetric(pageText, [/^amount spent$/i, /^spend$/i]);
+  const textImpressions = extractLabeledMetric(pageText, [/^impressions$/i]);
+  const textAudience = extractLabeledMetric(pageText, [/^estimated audience size$/i, /^audience size$/i, /^reach$/i]);
+
+  const spend =
+    (metricFromCandidates(structuredCandidates, "spend") as MetaSpendMetric | null) ??
+    spendFromRaw(textSpend, ad.currency, "META_PUBLIC_DETAIL_TEXT", "detail.visible_text.spend") ??
+    createMetaNotDisclosedSpendMetric("META_AD_LIBRARY_DETAIL");
+
+  const impressions =
+    (metricFromCandidates(structuredCandidates, "impressions") as MetaMetric | null) ??
+    metricFromRaw(textImpressions, "META_PUBLIC_DETAIL_TEXT", "detail.visible_text.impressions") ??
+    createMetaNotDisclosedMetric("META_AD_LIBRARY_DETAIL");
+
+  const audienceSize =
+    (metricFromCandidates(structuredCandidates, "audienceSize") as MetaMetric | null) ??
+    metricFromRaw(textAudience, "META_PUBLIC_DETAIL_TEXT", "detail.visible_text.audience") ??
+    createMetaNotDisclosedMetric("META_AD_LIBRARY_DETAIL");
+
+  return {
+    checkedAt: metricNow(),
+    pageUrl: item.finalUrl || ad.adLibraryUrl,
+    transport: "apify-playwright",
+    errorMessage: actorResult.errorMessage,
+    actorId: actorResult.actorId,
+    actorRunId: actorResult.runId,
+    actorDatasetId: actorResult.datasetId,
+    pageLoaded: item.pageLoaded,
+    mainResponseStatus: item.mainResponseStatus,
+    mainResponseUrl: item.mainResponseUrl,
+    visibleTextSnippet: pageText.slice(0, 2000) || null,
+    structuredCandidates,
+    responses,
+    metrics: {
+      spend,
+      impressions,
+      audienceSize,
+    },
+  };
 }

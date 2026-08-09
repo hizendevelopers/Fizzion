@@ -10,6 +10,17 @@ type MetaMetricSource =
   | "PATHMATICS"
   | "NONE";
 type MetaMetricStatus = "CHECKING" | "META_DISCLOSED" | "META_NOT_DISCLOSED" | "ESTIMATED" | "NOT_AVAILABLE";
+type MetaDetailStatus = "PENDING" | "META_DISCLOSED" | "META_NOT_DISCLOSED" | "META_BROWSER_FAILED";
+type PathmaticsDebugStatus =
+  | "PENDING"
+  | "PATHMATICS_NOT_CONFIGURED"
+  | "PATHMATICS_AUTH_FAILED"
+  | "PATHMATICS_RATE_LIMITED"
+  | "PATHMATICS_QUERY_FAILED"
+  | "PATHMATICS_NO_MATCH"
+  | "PATHMATICS_LOW_CONFIDENCE"
+  | "PATHMATICS_MATCH_FOUND"
+  | "PATHMATICS_METRIC_NOT_AD_LEVEL";
 
 type MetaMetric = {
   raw: string | null;
@@ -76,14 +87,7 @@ type MetaLibraryAd = {
     spend: MetaSpendMetric | null;
     impressions: MetaMetric | null;
     audienceSize: MetaMetric | null;
-    providerStatus:
-      | "PENDING"
-      | "PROVIDER_DISABLED"
-      | "PROVIDER_AUTH_ERROR"
-      | "PROVIDER_RATE_LIMITED"
-      | "NO_MATCH"
-      | "LOW_CONFIDENCE_MATCH"
-      | "MATCH_FOUND";
+    providerStatus: PathmaticsDebugStatus;
     providerMessage: string | null;
   };
   finalMetrics: {
@@ -99,40 +103,39 @@ type MetaLibraryAd = {
     actorInputUrl: string | null;
     metaDetail?: {
       checkedAt: string | null;
+      status?: MetaDetailStatus;
       pageUrl: string;
-      transport?: "playwright" | "fetch" | "none";
+      transport?: "apify-playwright" | "none";
       errorMessage?: string | null;
+      actorId?: string | null;
+      actorRunId?: string | null;
+      actorDatasetId?: string | null;
+      pageLoaded?: boolean;
+      mainResponseStatus?: number | null;
+      mainResponseUrl?: string | null;
       visibleTextSnippet: string | null;
       structuredCandidates: Array<{ path: string; value: unknown }>;
       responses: Array<{ url: string; status: number; bodySnippet: string | null }>;
     };
     pathmatics?: {
       configured: boolean;
-      status:
-        | "PENDING"
-        | "PROVIDER_DISABLED"
-        | "PROVIDER_AUTH_ERROR"
-        | "PROVIDER_RATE_LIMITED"
-        | "NO_MATCH"
-        | "LOW_CONFIDENCE_MATCH"
-        | "MATCH_FOUND";
+      status: PathmaticsDebugStatus;
       confidence: number | null;
       matchId: string | null;
       reasons: string[];
+      metricLevel?: "AD" | "CREATIVE" | "CAMPAIGN" | "ADVERTISER" | "CHANNEL" | "DATE_AGGREGATE" | "UNKNOWN";
+    };
+    resolution?: {
+      spendReason: string | null;
+      impressionsReason: string | null;
+      audienceReason: string | null;
     };
   };
   intelligenceMatch: {
     provider: "PATHMATICS" | null;
     confidence: number | null;
     matchId: string | null;
-    status:
-      | "PENDING"
-      | "PROVIDER_DISABLED"
-      | "PROVIDER_AUTH_ERROR"
-      | "PROVIDER_RATE_LIMITED"
-      | "NO_MATCH"
-      | "LOW_CONFIDENCE_MATCH"
-      | "MATCH_FOUND";
+    status: PathmaticsDebugStatus;
     reasons: string[];
   };
 };
