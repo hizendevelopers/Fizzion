@@ -7,7 +7,12 @@ coverage
 .pytest_cache
 __pycache__
 .venv
+.venv-ml
+.venv-impressions
 venv
+.pip-cache
+.tmp-pip
+ml/datasets
 *.pyc
 .env
 .env.local

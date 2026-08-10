@@ -159,3 +159,35 @@ export function getYouTubeApiKey(): string {
 export function getOptionalCronSecret() {
   return getEnvValue(["CRON_SECRET", "TV_YOUTUBE_SYNC_SECRET"]);
 }
+
+export function getOptionalMetaAdsInsightsAccessToken() {
+  return getEnvValue(["META_ADS_INSIGHTS_ACCESS_TOKEN", "META_ACCESS_TOKEN"]);
+}
+
+export function getMetaAdsInsightsAccessToken() {
+  const value = getOptionalMetaAdsInsightsAccessToken();
+  if (!value) {
+    throw new Error("META_ADS_INSIGHTS_ACCESS_TOKEN is not configured. Add an authorized Meta Ads Insights token to your server env.");
+  }
+  return value;
+}
+
+export function getOptionalMetaAdsApiVersion() {
+  return getEnvValue(["META_ADS_API_VERSION"]);
+}
+
+export function getMetaAdsApiVersion() {
+  return getOptionalMetaAdsApiVersion() ?? "v23.0";
+}
+
+export function getOptionalMetaAdsAccountIds() {
+  const raw = getEnvValue(["META_ADS_ACCOUNT_IDS"]);
+  if (!raw) {
+    return [];
+  }
+
+  return raw
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}

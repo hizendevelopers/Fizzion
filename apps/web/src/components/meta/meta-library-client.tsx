@@ -7,10 +7,13 @@ type MetaMetricSource =
   | "META_AD_LIBRARY_DETAIL"
   | "META_PUBLIC_DETAIL_TEXT"
   | "META_ADVERTISER_TRANSPARENCY"
+  | "IN_HOUSE_MODEL"
   | "PATHMATICS"
   | "NONE";
 type MetaMetricStatus = "CHECKING" | "META_DISCLOSED" | "META_NOT_DISCLOSED" | "ESTIMATED" | "NOT_AVAILABLE";
 type MetaDetailStatus = "PENDING" | "META_DISCLOSED" | "META_NOT_DISCLOSED" | "META_BROWSER_FAILED";
+type InHouseModelConfidence = "HIGH" | "MEDIUM" | "LOW";
+type InHouseDistributionStatus = "IN_DISTRIBUTION" | "PARTIAL_OOD" | "OUT_OF_DISTRIBUTION";
 type PathmaticsDebugStatus =
   | "PENDING"
   | "PATHMATICS_NOT_CONFIGURED"
@@ -29,9 +32,19 @@ type MetaMetric = {
   status: MetaMetricStatus;
   source: MetaMetricSource;
   path: string | null;
-  dataType: "DISCLOSED" | "ESTIMATED" | null;
+  dataType: "DISCLOSED" | "ESTIMATED" | "MODELED_ESTIMATE" | null;
   confidence: number | null;
   retrievedAt: string | null;
+  low?: number | null;
+  high?: number | null;
+  predictedFrequency?: number | null;
+  modelVersion?: string | null;
+  datasetVersion?: string | null;
+  featureCoverage?: number | null;
+  distributionStatus?: InHouseDistributionStatus | null;
+  confidenceLabel?: InHouseModelConfidence | null;
+  exactReason?: string | null;
+  explanation?: string[];
 };
 
 type MetaSpendMetric = MetaMetric & {
@@ -90,6 +103,9 @@ type MetaLibraryAd = {
     providerStatus: PathmaticsDebugStatus;
     providerMessage: string | null;
   };
+  modelMetrics: {
+    impressions: MetaMetric | null;
+  };
   finalMetrics: {
     spend: MetaSpendMetric;
     impressions: MetaMetric;
@@ -130,6 +146,20 @@ type MetaLibraryAd = {
       impressionsReason: string | null;
       audienceReason: string | null;
     };
+    model?: {
+      status:
+        | "MODEL_NOT_AVAILABLE"
+        | "GROUND_TRUTH_DATA_REQUIRED"
+        | "PREDICTION_AVAILABLE"
+        | "MODEL_RUNTIME_ERROR"
+        | "FEATURES_INSUFFICIENT";
+      modelVersion: string | null;
+      datasetVersion: string | null;
+      confidence: InHouseModelConfidence | null;
+      distributionStatus: InHouseDistributionStatus | null;
+      featureCoverage: number | null;
+      reason: string | null;
+    };
   };
   intelligenceMatch: {
     provider: "PATHMATICS" | null;
@@ -145,6 +175,7 @@ type MetaAdsJobStatus =
   | "FETCHING_META"
   | "META_COMPLETE"
   | "ENRICHING_META_DETAILS"
+  | "MODELING_IMPRESSIONS"
   | "MATCHING_PATHMATICS"
   | "COMPLETE"
   | "FAILED";
@@ -276,6 +307,8 @@ function jobSummary(job: MetaAdsJobResponse | null) {
     case "META_COMPLETE":
       return `${job.progressMessage} Starting detail enrichment...`;
     case "ENRICHING_META_DETAILS":
+      return `${job.progressMessage}`;
+    case "MODELING_IMPRESSIONS":
       return `${job.progressMessage}`;
     case "MATCHING_PATHMATICS":
       return `${job.progressMessage}`;

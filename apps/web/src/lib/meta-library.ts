@@ -13,10 +13,11 @@ export type MetaMetricSource =
   | "META_AD_LIBRARY_DETAIL"
   | "META_PUBLIC_DETAIL_TEXT"
   | "META_ADVERTISER_TRANSPARENCY"
+  | "IN_HOUSE_MODEL"
   | "PATHMATICS"
   | "NONE";
 export type MetaMetricStatus = "CHECKING" | "META_DISCLOSED" | "META_NOT_DISCLOSED" | "ESTIMATED" | "NOT_AVAILABLE";
-export type MetaMetricDataType = "DISCLOSED" | "ESTIMATED" | null;
+export type MetaMetricDataType = "DISCLOSED" | "ESTIMATED" | "MODELED_ESTIMATE" | null;
 export type MetaDetailStatus = "PENDING" | "META_DISCLOSED" | "META_NOT_DISCLOSED" | "META_BROWSER_FAILED";
 export type PathmaticsDebugStatus =
   | "PENDING"
@@ -28,6 +29,8 @@ export type PathmaticsDebugStatus =
   | "PATHMATICS_LOW_CONFIDENCE"
   | "PATHMATICS_MATCH_FOUND"
   | "PATHMATICS_METRIC_NOT_AD_LEVEL";
+export type InHouseModelConfidence = "HIGH" | "MEDIUM" | "LOW";
+export type InHouseDistributionStatus = "IN_DISTRIBUTION" | "PARTIAL_OOD" | "OUT_OF_DISTRIBUTION";
 
 export type MetaMetric = {
   raw: string | null;
@@ -39,6 +42,16 @@ export type MetaMetric = {
   dataType: MetaMetricDataType;
   confidence: number | null;
   retrievedAt: string | null;
+  low?: number | null;
+  high?: number | null;
+  predictedFrequency?: number | null;
+  modelVersion?: string | null;
+  datasetVersion?: string | null;
+  featureCoverage?: number | null;
+  distributionStatus?: InHouseDistributionStatus | null;
+  confidenceLabel?: InHouseModelConfidence | null;
+  exactReason?: string | null;
+  explanation?: string[];
 };
 
 export type MetaSpendMetric = MetaMetric & {
@@ -106,6 +119,9 @@ export type MetaLibraryAd = {
     providerStatus: PathmaticsDebugStatus;
     providerMessage: string | null;
   };
+  modelMetrics: {
+    impressions: MetaMetric | null;
+  };
   finalMetrics: {
     spend: MetaSpendMetric;
     impressions: MetaMetric;
@@ -146,6 +162,20 @@ export type MetaLibraryAd = {
       spendReason: string | null;
       impressionsReason: string | null;
       audienceReason: string | null;
+    };
+    model?: {
+      status:
+        | "MODEL_NOT_AVAILABLE"
+        | "GROUND_TRUTH_DATA_REQUIRED"
+        | "PREDICTION_AVAILABLE"
+        | "MODEL_RUNTIME_ERROR"
+        | "FEATURES_INSUFFICIENT";
+      modelVersion: string | null;
+      datasetVersion: string | null;
+      confidence: InHouseModelConfidence | null;
+      distributionStatus: InHouseDistributionStatus | null;
+      featureCoverage: number | null;
+      reason: string | null;
     };
   };
   intelligenceMatch: {
@@ -480,6 +510,16 @@ export function createCheckingMetric(source: MetaMetricSource): MetaMetric {
     dataType: null,
     confidence: null,
     retrievedAt: null,
+    low: null,
+    high: null,
+    predictedFrequency: null,
+    modelVersion: null,
+    datasetVersion: null,
+    featureCoverage: null,
+    distributionStatus: null,
+    confidenceLabel: null,
+    exactReason: null,
+    explanation: [],
   };
 }
 
@@ -536,6 +576,16 @@ function asMetric(rawValue: unknown, source: MetaMetricSource, path: string | nu
     dataType: "DISCLOSED",
     confidence: null,
     retrievedAt: metricTimestamp(),
+    low: parsed.min,
+    high: parsed.max,
+    predictedFrequency: null,
+    modelVersion: null,
+    datasetVersion: null,
+    featureCoverage: null,
+    distributionStatus: null,
+    confidenceLabel: null,
+    exactReason: null,
+    explanation: [],
   };
 }
 
@@ -822,12 +872,14 @@ function mergeDuplicateAds(existing: MetaLibraryAd, incoming: MetaLibraryAd): Me
     metaMetrics: existing.metaMetrics,
     metaDetailMetrics: existing.metaDetailMetrics,
     pathmaticsMetrics: existing.pathmaticsMetrics,
+    modelMetrics: existing.modelMetrics,
     finalMetrics: existing.finalMetrics,
     landingDomain: existing.landingDomain ?? incoming.landingDomain,
     rawMetaData: existing.rawMetaData,
     debug: {
       ...existing.debug,
       metricCandidates: [...existing.debug.metricCandidates, ...incoming.debug.metricCandidates],
+      model: existing.debug.model ?? incoming.debug.model,
     },
     intelligenceMatch: existing.intelligenceMatch,
   };
@@ -908,6 +960,9 @@ export function normalizeMetaLibraryAd(
       providerStatus: "PENDING",
       providerMessage: null,
     },
+    modelMetrics: {
+      impressions: null,
+    },
     finalMetrics: {
       spend: createCheckingSpendMetric(),
       impressions: createCheckingMetric("META_AD_LIBRARY"),
@@ -923,6 +978,15 @@ export function normalizeMetaLibraryAd(
       metricCandidates,
       sourceUrl: toUrl(rawAd.sourceUrl),
       actorInputUrl: toUrl(rawAd.inputUrl),
+      model: {
+        status: "MODEL_NOT_AVAILABLE",
+        modelVersion: null,
+        datasetVersion: null,
+        confidence: null,
+        distributionStatus: null,
+        featureCoverage: null,
+        reason: "No production in-house impressions model has been loaded.",
+      },
     },
     intelligenceMatch: {
       provider: null,
@@ -949,6 +1013,9 @@ export function normalizeMetaLibraryAd(
     audienceSize: null,
     providerStatus: "PENDING",
     providerMessage: null,
+  };
+  normalized.modelMetrics = {
+    impressions: null,
   };
   normalized.finalMetrics = {
     spend: { ...normalized.spend },

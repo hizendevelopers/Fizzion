@@ -18,8 +18,10 @@ type CachePayload = {
   metaDetail: MetaLibraryAd["debug"]["metaDetail"];
   metaDetailMetrics: MetaLibraryAd["metaDetailMetrics"];
   pathmaticsMetrics: MetaLibraryAd["pathmaticsMetrics"];
+  modelMetrics: MetaLibraryAd["modelMetrics"];
   finalMetrics: MetaLibraryAd["finalMetrics"];
   intelligenceMatch: MetaLibraryAd["intelligenceMatch"];
+  modelDebug: MetaLibraryAd["debug"]["model"];
 };
 
 const memoryCache = new Map<string, { expiresAt: number; payload: CachePayload }>();
@@ -61,12 +63,15 @@ export async function loadMetaAdCache(adLibraryId: string): Promise<CachePayload
       impressions: null,
       audienceSize: null,
     },
-    pathmaticsMetrics: ((data as Record<string, unknown>).pathmatics_json as CachePayload["pathmaticsMetrics"]) ?? {
+    pathmaticsMetrics: (((data as Record<string, unknown>).pathmatics_json as Record<string, unknown>)?.pathmaticsMetrics as CachePayload["pathmaticsMetrics"]) ?? {
       spend: null,
       impressions: null,
       audienceSize: null,
       providerStatus: "PENDING",
       providerMessage: null,
+    },
+    modelMetrics: (((data as Record<string, unknown>).final_metrics_json as Record<string, unknown>)?.modelMetrics as CachePayload["modelMetrics"]) ?? {
+      impressions: null,
     },
     intelligenceMatch: (((data as Record<string, unknown>).pathmatics_json as Record<string, unknown>)?.intelligenceMatch as CachePayload["intelligenceMatch"]) ?? {
       provider: null,
@@ -75,6 +80,7 @@ export async function loadMetaAdCache(adLibraryId: string): Promise<CachePayload
       status: "PENDING",
       reasons: [],
     },
+    modelDebug: (((data as Record<string, unknown>).final_metrics_json as Record<string, unknown>)?.modelDebug as CachePayload["modelDebug"]) ?? undefined,
   };
 
   memoryCache.set(adLibraryId, { expiresAt, payload });
@@ -87,8 +93,10 @@ export async function saveMetaAdCache(ad: MetaLibraryAd) {
     metaDetail: ad.debug.metaDetail ?? undefined,
     metaDetailMetrics: ad.metaDetailMetrics,
     pathmaticsMetrics: ad.pathmaticsMetrics,
+    modelMetrics: ad.modelMetrics,
     finalMetrics: ad.finalMetrics,
     intelligenceMatch: ad.intelligenceMatch,
+    modelDebug: ad.debug.model,
   };
 
   memoryCache.set(ad.adLibraryId, { expiresAt, payload });
@@ -109,6 +117,8 @@ export async function saveMetaAdCache(ad: MetaLibraryAd) {
     final_metrics_json: {
       finalMetrics: ad.finalMetrics,
       metaDetailMetrics: ad.metaDetailMetrics,
+      modelMetrics: ad.modelMetrics,
+      modelDebug: ad.debug.model,
     },
     pathmatics_json: {
       pathmaticsMetrics: ad.pathmaticsMetrics,

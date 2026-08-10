@@ -2,7 +2,12 @@ import { getApifyClient } from "@/lib/apify/client";
 import { getPathmaticsProvider } from "@/lib/ad-intelligence-provider";
 import { loadMetaAdCache, saveMetaAdCache } from "@/lib/meta-ad-cache";
 import { enrichMetaAdFromPublicDetail } from "@/lib/meta-ad-detail";
+import { persistMetaLibraryAds } from "@/lib/meta-library-ad-persistence";
 import { loadMetaAdsJob, persistMetaAdsJob } from "@/lib/meta-ads-persistence";
+import {
+  buildModeledImpressionsMetric,
+  estimateImpressionsWithInHouseModel,
+} from "@/lib/meta-impressions-model";
 import {
   buildMetaAdsActorInput,
   createMetaNotDisclosedMetric,
@@ -27,6 +32,7 @@ export type MetaAdsJobStatus =
   | "FETCHING_META"
   | "META_COMPLETE"
   | "ENRICHING_META_DETAILS"
+  | "MODELING_IMPRESSIONS"
   | "MATCHING_PATHMATICS"
   | "COMPLETE"
   | "FAILED";
@@ -57,6 +63,7 @@ declare global {
 }
 
 const META_DETAIL_BATCH_SIZE = 3;
+const MODEL_BATCH_SIZE = 10;
 const PATHMATICS_BATCH_SIZE = 10;
 
 function getStore(): MetaAdsJobStore {
@@ -92,6 +99,7 @@ function cleanupExpiredJobs() {
 async function saveJob(job: MetaAdsJob) {
   getStore().jobs.set(job.id, job);
   await persistMetaAdsJob(job);
+  await persistMetaLibraryAds(job);
 }
 
 function cloneMetric<T extends MetaMetric | MetaSpendMetric>(metric: T): T {
@@ -125,6 +133,10 @@ function resolveMetricReason(
 ) {
   if (metric.source === "PATHMATICS") {
     return "PATHMATICS_MATCH_FOUND";
+  }
+
+  if (metric.source === "IN_HOUSE_MODEL") {
+    return ad.debug.model?.status ?? "MODEL_NOT_AVAILABLE";
   }
 
   if (metric.status === "META_DISCLOSED") {
@@ -184,6 +196,8 @@ function applyFinalMetrics(ad: MetaLibraryAd, finalizeUnavailable: boolean) {
     ? cloneMetric(ad.metaMetrics.impressions)
     : ad.metaDetailMetrics.impressions.status === "META_DISCLOSED"
       ? cloneMetric(ad.metaDetailMetrics.impressions)
+      : ad.modelMetrics.impressions
+        ? cloneMetric(ad.modelMetrics.impressions)
       : ad.pathmaticsMetrics.impressions
         ? cloneMetric(ad.pathmaticsMetrics.impressions)
         : finalizeUnavailable
@@ -230,12 +244,21 @@ function applyCachedEnrichment(ad: MetaLibraryAd, cached: Awaited<ReturnType<typ
   ad.debug.metaDetail = cached.metaDetail ?? undefined;
   ad.metaDetailMetrics = cached.metaDetailMetrics;
   ad.pathmaticsMetrics = cached.pathmaticsMetrics;
+  ad.modelMetrics = cached.modelMetrics;
   ad.intelligenceMatch = cached.intelligenceMatch;
+  ad.debug.model = cached.modelDebug;
   ad.finalMetrics = cached.finalMetrics;
   ad.spend = cached.finalMetrics.spend;
   ad.impressions = cached.finalMetrics.impressions;
   ad.audienceSize = cached.finalMetrics.audienceSize;
   return true;
+}
+
+function needsModelEstimate(ad: MetaLibraryAd) {
+  return (
+    ad.finalMetrics.impressions.status !== "META_DISCLOSED" &&
+    ad.modelMetrics.impressions == null
+  );
 }
 
 async function processMetaDetailBatch(job: MetaAdsJob) {
@@ -439,6 +462,49 @@ async function processPathmaticsBatch(job: MetaAdsJob) {
   return true;
 }
 
+async function processModeledImpressionsBatch(job: MetaAdsJob) {
+  const pendingAds = job.ads.filter(needsModelEstimate).slice(0, MODEL_BATCH_SIZE);
+  if (pendingAds.length === 0) {
+    return false;
+  }
+
+  touch(job, {
+    status: "MODELING_IMPRESSIONS",
+    progressMessage: `Estimating impressions... ${job.processed} / ${job.ads.length}`,
+  });
+  await saveJob(job);
+
+  await Promise.all(
+    pendingAds.map(async (ad) => {
+      const result = await estimateImpressionsWithInHouseModel(ad);
+      ad.debug.model = {
+        status: result.status,
+        modelVersion: result.prediction?.modelVersion ?? null,
+        datasetVersion: result.prediction?.datasetVersion ?? null,
+        confidence: result.prediction?.confidence ?? null,
+        distributionStatus: result.prediction?.distributionStatus ?? null,
+        featureCoverage: result.prediction?.featureCoverage ?? null,
+        reason: result.reason,
+      };
+
+      ad.modelMetrics.impressions = result.prediction
+        ? buildModeledImpressionsMetric(result.prediction)
+        : null;
+
+      applyFinalMetrics(ad, false);
+      await saveMetaAdCache(ad);
+    }),
+  );
+
+  const processed = job.ads.filter((ad) => ad.debug.model != null).length;
+  touch(job, {
+    processed,
+    progressMessage: `Estimating impressions... ${processed} / ${job.ads.length}`,
+  });
+  await saveJob(job);
+  return true;
+}
+
 export async function getMetaAdsJobById(jobId: string) {
   cleanupExpiredJobs();
   const inMemory = getStore().jobs.get(jobId);
@@ -614,6 +680,11 @@ export async function refreshMetaAdsJob(jobId: string) {
 
   if (job.rawItems.length > 0 && job.ads.some(needsMetaDetail)) {
     await processMetaDetailBatch(job);
+    return job;
+  }
+
+  if (job.rawItems.length > 0 && job.ads.some(needsModelEstimate)) {
+    await processModeledImpressionsBatch(job);
     return job;
   }
 

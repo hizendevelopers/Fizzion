@@ -14,7 +14,10 @@
     "seed:overview-demo": "tsx ./scripts/seed-overview-demo-data.ts",
     "seed:tv-demo": "tsx ./scripts/seed-tv-demo-data.ts",
     "seed:web-demo": "tsx ./scripts/seed-web-demo-data.ts",
-    "seed:tv-dashboard": "tsx ./scripts/seed-tv-dashboard-data.ts"
+    "seed:tv-dashboard": "tsx ./scripts/seed-tv-dashboard-data.ts",
+    "collect:meta-eu-disclosed-labels": "tsx ./scripts/collect-meta-eu-disclosed-labels.ts",
+    "import:meta-ads-insights": "tsx ./scripts/import-meta-ads-insights.ts",
+    "export:meta-impressions-dataset": "tsx ./scripts/export-meta-impressions-dataset.ts"
   },
   "dependencies": {
     "@fizzion/config": "*",
