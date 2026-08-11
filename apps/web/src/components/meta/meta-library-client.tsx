@@ -7,6 +7,7 @@ type MetaMetricSource =
   | "META_AD_LIBRARY_DETAIL"
   | "META_PUBLIC_DETAIL_TEXT"
   | "META_ADVERTISER_TRANSPARENCY"
+  | "PUBLIC_META_TRAINING_DATA"
   | "IN_HOUSE_MODEL"
   | "PATHMATICS"
   | "NONE";
@@ -32,7 +33,7 @@ type MetaMetric = {
   status: MetaMetricStatus;
   source: MetaMetricSource;
   path: string | null;
-  dataType: "DISCLOSED" | "ESTIMATED" | "MODELED_ESTIMATE" | null;
+  dataType: "DISCLOSED" | "ESTIMATED" | "MODELED_ESTIMATE" | "PUBLIC_RANGE" | null;
   confidence: number | null;
   retrievedAt: string | null;
   low?: number | null;
@@ -45,6 +46,10 @@ type MetaMetric = {
   confidenceLabel?: InHouseModelConfidence | null;
   exactReason?: string | null;
   explanation?: string[];
+  displayLabel?: string | null;
+  displaySublabel?: string | null;
+  modelStage?: "EXPERIMENTAL" | "PRODUCTION" | null;
+  trainingRows?: number | null;
 };
 
 type MetaSpendMetric = MetaMetric & {
@@ -159,6 +164,25 @@ type MetaLibraryAd = {
       distributionStatus: InHouseDistributionStatus | null;
       featureCoverage: number | null;
       reason: string | null;
+      predictedFrequency: number | null;
+      low: number | null;
+      estimate: number | null;
+      high: number | null;
+      trainingRows: number | null;
+      stage: "EXPERIMENTAL" | "PRODUCTION" | null;
+    };
+    trainingData?: {
+      exactMatch: boolean;
+      source: "PUBLIC_META_DISCLOSED" | null;
+      adLibraryId: string | null;
+      reach: number | null;
+      reachLow: number | null;
+      reachHigh: number | null;
+      impressions: number | null;
+      impressionsLow: number | null;
+      impressionsHigh: number | null;
+      labelStrength: string | null;
+      recordId: string | null;
     };
   };
   intelligenceMatch: {
@@ -256,9 +280,9 @@ function primaryMedia(ad: MetaLibraryAd) {
   return ad.creative.videoUrls[0] ?? ad.creative.imageUrls[0] ?? ad.creative.cards[0]?.imageUrl ?? null;
 }
 
-function formatMetricValue(metric: MetaMetric | MetaSpendMetric) {
+function formatMetricValue(metric: MetaMetric | MetaSpendMetric, label?: string) {
   if (metric.status === "CHECKING") {
-    return "Checking data...";
+    return label === "Impressions" ? "Calculating estimate..." : "Checking data...";
   }
   if (metric.status === "NOT_AVAILABLE" || metric.status === "META_NOT_DISCLOSED") {
     return "Not available";
@@ -336,6 +360,86 @@ function StaticCard({ label, value }: { label: string; value: string }) {
     <div className="rounded-[1.2rem] border border-[#f0d6cb] bg-white px-4 py-3">
       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9f8b80]">{label}</p>
       <p className="mt-2 text-sm font-semibold text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function compactDisplayNumber(value: number) {
+  if (value >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  }
+  if (value >= 1_000) {
+    return `${(value / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
+  }
+  return `${Math.round(value)}`;
+}
+
+function formatDisplayRange(low: number | null | undefined, high: number | null | undefined) {
+  if (low == null && high == null) {
+    return null;
+  }
+  if (low != null && high != null) {
+    return `${compactDisplayNumber(low)} – ${compactDisplayNumber(high)}`;
+  }
+  return compactDisplayNumber(low ?? high ?? 0);
+}
+
+function ImpressionMetricCard({ metric }: { metric: MetaMetric }) {
+  const value =
+    metric.status === "CHECKING"
+      ? "Calculating estimate..."
+      : metric.status === "NOT_AVAILABLE" || metric.status === "META_NOT_DISCLOSED"
+        ? "Not available"
+        : metric.raw ?? "Not available";
+
+  const label =
+    metric.source === "PUBLIC_META_TRAINING_DATA"
+      ? "PUBLIC META RANGE"
+      : metric.source === "IN_HOUSE_MODEL"
+        ? "ESTIMATED"
+        : metric.status === "META_DISCLOSED"
+          ? "META DISCLOSED"
+          : metric.status === "ESTIMATED" || metric.source === "PATHMATICS"
+            ? "ESTIMATED · PATHMATICS"
+            : metric.status === "CHECKING"
+              ? "CHECKING DATA"
+              : "NOT AVAILABLE";
+
+  const badgeClass =
+    metric.status === "META_DISCLOSED"
+      ? "bg-emerald-100 text-emerald-700"
+      : metric.source === "PUBLIC_META_TRAINING_DATA"
+        ? "bg-orange-100 text-orange-700"
+        : metric.source === "IN_HOUSE_MODEL"
+          ? "bg-violet-100 text-violet-700"
+          : metric.status === "ESTIMATED" || metric.source === "PATHMATICS"
+            ? "bg-amber-100 text-amber-700"
+            : metric.status === "CHECKING"
+              ? "bg-sky-100 text-sky-700"
+              : "bg-slate-200 text-slate-700";
+
+  const likelyRange = metric.source === "IN_HOUSE_MODEL" ? formatDisplayRange(metric.low, metric.high) : null;
+
+  return (
+    <div className="rounded-[1.2rem] border border-[#f0d6cb] bg-white px-4 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9f8b80]">Impressions</p>
+      <p className="mt-2 text-sm font-semibold text-foreground">{value}</p>
+      <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold ${badgeClass}`}>
+        {label}
+      </span>
+      {metric.source === "PUBLIC_META_TRAINING_DATA" ? (
+        <div className="mt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">WEAK RANGE</div>
+      ) : null}
+      {metric.source === "IN_HOUSE_MODEL" ? (
+        <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+          {likelyRange ? <p>Likely range: {likelyRange}</p> : null}
+          <p>EXPERIMENTAL MODEL</p>
+          <p>
+            Confidence: {metric.confidenceLabel ?? "LOW"}
+            {metric.trainingRows ? ` · Training rows: ${metric.trainingRows}` : ""}
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -575,7 +679,7 @@ export function MetaLibraryClient() {
                       {ad.cta ? <div className="inline-flex rounded-full border border-[#ecd6cb] bg-white px-3 py-1 text-xs font-semibold text-[#8a5b46]">CTA: {ad.cta}</div> : null}
                       <div className="grid gap-3 sm:grid-cols-2">
                         <MetricCard label="Spend" metric={ad.finalMetrics.spend} />
-                        <MetricCard label="Impressions" metric={ad.finalMetrics.impressions} />
+                        <ImpressionMetricCard metric={ad.finalMetrics.impressions} />
                         <MetricCard label="Audience size" metric={ad.finalMetrics.audienceSize} />
                         <StaticCard label="Ad type" value={ad.creative.type.toUpperCase()} />
                         <StaticCard label="Started" value={formatDate(ad.startDate)} />
@@ -622,10 +726,13 @@ export function MetaLibraryClient() {
                                 meta: ad.metaMetrics,
                                 metaDetail: ad.metaDetailMetrics,
                                 pathmatics: ad.pathmaticsMetrics,
+                                model: ad.modelMetrics,
+                                trainingData: ad.debug.trainingData,
                                 intelligenceMatch: ad.intelligenceMatch,
                                 final: ad.finalMetrics,
                                 metaDetailDebug: ad.debug.metaDetail,
                                 pathmaticsDebug: ad.debug.pathmatics,
+                                modelDebug: ad.debug.model,
                               },
                               null,
                               2,

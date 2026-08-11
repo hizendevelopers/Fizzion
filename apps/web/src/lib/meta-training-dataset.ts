@@ -796,3 +796,28 @@ export async function getMetaTrainingRow(recordId: string) {
   });
   return rows.find((row) => row.recordId === recordId || row.adLibraryId === recordId) ?? null;
 }
+
+export async function findExactTrainingRowByAdLibraryId(adLibraryId: string) {
+  if (!adLibraryId) {
+    return null;
+  }
+
+  const supabase = getOptionalSupabaseAdminClient();
+  if (!supabase) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("meta_impressions_ground_truth_labels")
+    .select("*")
+    .eq("ad_library_id", adLibraryId)
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) {
+    return null;
+  }
+
+  const row = await getMetaTrainingRow(adLibraryId);
+  return row;
+}

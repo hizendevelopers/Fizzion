@@ -7,6 +7,8 @@ import { loadMetaAdsJob, persistMetaAdsJob } from "@/lib/meta-ads-persistence";
 import {
   buildModeledImpressionsMetric,
   estimateImpressionsWithInHouseModel,
+  buildPublicTrainingRangeMetric,
+  findExactPublicTrainingRange,
 } from "@/lib/meta-impressions-model";
 import {
   buildMetaAdsActorInput,
@@ -131,6 +133,10 @@ function resolveMetricReason(
   metricName: "spend" | "impressions" | "audience",
   ad: MetaLibraryAd,
 ) {
+  if (metric.source === "PUBLIC_META_TRAINING_DATA") {
+    return "PUBLIC_META_RANGE";
+  }
+
   if (metric.source === "PATHMATICS") {
     return "PATHMATICS_MATCH_FOUND";
   }
@@ -196,9 +202,11 @@ function applyFinalMetrics(ad: MetaLibraryAd, finalizeUnavailable: boolean) {
     ? cloneMetric(ad.metaMetrics.impressions)
     : ad.metaDetailMetrics.impressions.status === "META_DISCLOSED"
       ? cloneMetric(ad.metaDetailMetrics.impressions)
+      : ad.debug.trainingData?.exactMatch && ad.finalMetrics.impressions.source === "PUBLIC_META_TRAINING_DATA"
+        ? cloneMetric(ad.finalMetrics.impressions)
       : ad.modelMetrics.impressions
         ? cloneMetric(ad.modelMetrics.impressions)
-      : ad.pathmaticsMetrics.impressions
+        : ad.pathmaticsMetrics.impressions
         ? cloneMetric(ad.pathmaticsMetrics.impressions)
         : finalizeUnavailable
           ? createUnavailableMetric()
@@ -257,7 +265,96 @@ function applyCachedEnrichment(ad: MetaLibraryAd, cached: Awaited<ReturnType<typ
 function needsModelEstimate(ad: MetaLibraryAd) {
   return (
     ad.finalMetrics.impressions.status !== "META_DISCLOSED" &&
+    ad.finalMetrics.impressions.source !== "PUBLIC_META_TRAINING_DATA" &&
     ad.modelMetrics.impressions == null
+  );
+}
+
+async function applyExperimentalImpressionFallback(ad: MetaLibraryAd) {
+  const exactTrainingMatch = await findExactPublicTrainingRange(ad.adLibraryId);
+  ad.debug.trainingData = exactTrainingMatch
+    ? {
+        exactMatch: true,
+        source: "PUBLIC_META_DISCLOSED",
+        adLibraryId: exactTrainingMatch.adLibraryId,
+        reach: exactTrainingMatch.reach,
+        reachLow: exactTrainingMatch.reachLow,
+        reachHigh: exactTrainingMatch.reachHigh,
+        impressions: exactTrainingMatch.impressions,
+        impressionsLow: exactTrainingMatch.impressionsLow,
+        impressionsHigh: exactTrainingMatch.impressionsHigh,
+        labelStrength: exactTrainingMatch.labelStrength,
+        recordId: exactTrainingMatch.recordId,
+      }
+    : {
+        exactMatch: false,
+        source: null,
+        adLibraryId: ad.adLibraryId,
+        reach: null,
+        reachLow: null,
+        reachHigh: null,
+        impressions: null,
+        impressionsLow: null,
+        impressionsHigh: null,
+        labelStrength: null,
+        recordId: null,
+      };
+
+  if (
+    ad.metaMetrics.impressions.status !== "META_DISCLOSED" &&
+    ad.metaDetailMetrics.impressions.status !== "META_DISCLOSED" &&
+    exactTrainingMatch
+  ) {
+    ad.finalMetrics.impressions = buildPublicTrainingRangeMetric(exactTrainingMatch);
+    ad.impressions = ad.finalMetrics.impressions;
+    ad.modelMetrics.impressions = null;
+    ad.debug.model = {
+      status: "MODEL_NOT_AVAILABLE",
+      modelVersion: null,
+      datasetVersion: null,
+      confidence: null,
+      distributionStatus: null,
+      featureCoverage: null,
+      reason: "Exact public Meta weak-range row matched this ad, so the experimental model was skipped.",
+      predictedFrequency: null,
+      low: null,
+      estimate: null,
+      high: null,
+      trainingRows: null,
+      stage: null,
+    };
+    refreshResolutionDebug(ad);
+    return;
+  }
+
+  const result = await estimateImpressionsWithInHouseModel(ad);
+  ad.debug.model = {
+    status: result.status,
+    modelVersion: result.prediction?.modelVersion ?? null,
+    datasetVersion: result.prediction?.datasetVersion ?? null,
+    confidence: result.prediction?.confidence ?? null,
+    distributionStatus: result.prediction?.distributionStatus ?? null,
+    featureCoverage: result.prediction?.featureCoverage ?? null,
+    reason: result.reason,
+    predictedFrequency: result.prediction?.predictedFrequency ?? null,
+    low: result.prediction?.low ?? null,
+    estimate: result.prediction?.estimate ?? null,
+    high: result.prediction?.high ?? null,
+    trainingRows: result.prediction?.trainingRows ?? null,
+    stage: result.prediction?.modelStage ?? null,
+  };
+
+  ad.modelMetrics.impressions = result.prediction
+    ? buildModeledImpressionsMetric(result.prediction)
+    : null;
+}
+
+async function applyExperimentalImpressionFallbacks(job: MetaAdsJob) {
+  await Promise.all(
+    job.ads.map(async (ad) => {
+      await applyExperimentalImpressionFallback(ad);
+      applyFinalMetrics(ad, false);
+    }),
   );
 }
 
@@ -476,21 +573,7 @@ async function processModeledImpressionsBatch(job: MetaAdsJob) {
 
   await Promise.all(
     pendingAds.map(async (ad) => {
-      const result = await estimateImpressionsWithInHouseModel(ad);
-      ad.debug.model = {
-        status: result.status,
-        modelVersion: result.prediction?.modelVersion ?? null,
-        datasetVersion: result.prediction?.datasetVersion ?? null,
-        confidence: result.prediction?.confidence ?? null,
-        distributionStatus: result.prediction?.distributionStatus ?? null,
-        featureCoverage: result.prediction?.featureCoverage ?? null,
-        reason: result.reason,
-      };
-
-      ad.modelMetrics.impressions = result.prediction
-        ? buildModeledImpressionsMetric(result.prediction)
-        : null;
-
+      await applyExperimentalImpressionFallback(ad);
       applyFinalMetrics(ad, false);
       await saveMetaAdCache(ad);
     }),
@@ -514,6 +597,8 @@ export async function getMetaAdsJobById(jobId: string) {
 
   const persisted = await loadMetaAdsJob(jobId);
   if (persisted) {
+    await applyExperimentalImpressionFallbacks(persisted);
+    persisted.ads.forEach((ad) => applyFinalMetrics(ad, persisted.status === "COMPLETE"));
     getStore().jobs.set(jobId, persisted);
   }
 
@@ -586,6 +671,9 @@ export async function refreshMetaAdsJob(jobId: string) {
   }
 
   if (job.status === "FAILED" || job.status === "COMPLETE") {
+    await applyExperimentalImpressionFallbacks(job);
+    job.ads.forEach((ad) => applyFinalMetrics(ad, true));
+    await saveJob(job);
     return job;
   }
 

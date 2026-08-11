@@ -13,11 +13,12 @@ export type MetaMetricSource =
   | "META_AD_LIBRARY_DETAIL"
   | "META_PUBLIC_DETAIL_TEXT"
   | "META_ADVERTISER_TRANSPARENCY"
+  | "PUBLIC_META_TRAINING_DATA"
   | "IN_HOUSE_MODEL"
   | "PATHMATICS"
   | "NONE";
 export type MetaMetricStatus = "CHECKING" | "META_DISCLOSED" | "META_NOT_DISCLOSED" | "ESTIMATED" | "NOT_AVAILABLE";
-export type MetaMetricDataType = "DISCLOSED" | "ESTIMATED" | "MODELED_ESTIMATE" | null;
+export type MetaMetricDataType = "DISCLOSED" | "ESTIMATED" | "MODELED_ESTIMATE" | "PUBLIC_RANGE" | null;
 export type MetaDetailStatus = "PENDING" | "META_DISCLOSED" | "META_NOT_DISCLOSED" | "META_BROWSER_FAILED";
 export type PathmaticsDebugStatus =
   | "PENDING"
@@ -52,6 +53,10 @@ export type MetaMetric = {
   confidenceLabel?: InHouseModelConfidence | null;
   exactReason?: string | null;
   explanation?: string[];
+  displayLabel?: string | null;
+  displaySublabel?: string | null;
+  modelStage?: "EXPERIMENTAL" | "PRODUCTION" | null;
+  trainingRows?: number | null;
 };
 
 export type MetaSpendMetric = MetaMetric & {
@@ -176,6 +181,25 @@ export type MetaLibraryAd = {
       distributionStatus: InHouseDistributionStatus | null;
       featureCoverage: number | null;
       reason: string | null;
+      predictedFrequency: number | null;
+      low: number | null;
+      estimate: number | null;
+      high: number | null;
+      trainingRows: number | null;
+      stage: "EXPERIMENTAL" | "PRODUCTION" | null;
+    };
+    trainingData?: {
+      exactMatch: boolean;
+      source: "PUBLIC_META_DISCLOSED" | null;
+      adLibraryId: string | null;
+      reach: number | null;
+      reachLow: number | null;
+      reachHigh: number | null;
+      impressions: number | null;
+      impressionsLow: number | null;
+      impressionsHigh: number | null;
+      labelStrength: string | null;
+      recordId: string | null;
     };
   };
   intelligenceMatch: {
@@ -986,6 +1010,12 @@ export function normalizeMetaLibraryAd(
         distributionStatus: null,
         featureCoverage: null,
         reason: "No production in-house impressions model has been loaded.",
+        predictedFrequency: null,
+        low: null,
+        estimate: null,
+        high: null,
+        trainingRows: null,
+        stage: null,
       },
     },
     intelligenceMatch: {

@@ -1,8 +1,80 @@
 import { getOptionalSupabaseSecretKey } from "@/lib/env";
 import { getOptionalSupabaseAdminClient } from "@/lib/supabase/server";
 import type { MetaAdsJob } from "@/lib/meta-ads-job-store";
+import {
+  createCheckingMetric,
+  createCheckingSpendMetric,
+  type MetaLibraryAd,
+  type MetaMetric,
+  type MetaSpendMetric,
+} from "@/lib/meta-library";
 
 const META_ADS_JOBS_TABLE = "meta_ads_jobs";
+
+function ensureMetric(metric: unknown, source: "META_AD_LIBRARY" | "META_AD_LIBRARY_DETAIL" = "META_AD_LIBRARY") {
+  return (metric as MetaMetric | null) ?? createCheckingMetric(source);
+}
+
+function ensureSpendMetric(metric: unknown) {
+  return (metric as MetaSpendMetric | null) ?? createCheckingSpendMetric();
+}
+
+function hydratePersistedAd(ad: MetaLibraryAd): MetaLibraryAd {
+  const spend = ensureSpendMetric(ad.spend);
+  const impressions = ensureMetric(ad.impressions);
+  const audienceSize = ensureMetric(ad.audienceSize);
+  const metaMetrics = ad.metaMetrics ?? {
+    spend: ensureSpendMetric(ad.spend),
+    impressions: ensureMetric(ad.impressions),
+    audienceSize: ensureMetric(ad.audienceSize),
+  };
+  const metaDetailMetrics = ad.metaDetailMetrics ?? {
+    spend: createCheckingSpendMetric(),
+    impressions: createCheckingMetric("META_AD_LIBRARY_DETAIL"),
+    audienceSize: createCheckingMetric("META_AD_LIBRARY_DETAIL"),
+  };
+  const pathmaticsMetrics = ad.pathmaticsMetrics ?? {
+    spend: null,
+    impressions: null,
+    audienceSize: null,
+    providerStatus: "PENDING" as const,
+    providerMessage: null,
+  };
+  const modelMetrics = ad.modelMetrics ?? {
+    impressions: null,
+  };
+  const finalMetrics = ad.finalMetrics ?? {
+    spend,
+    impressions,
+    audienceSize,
+  };
+  const debug = ad.debug ?? {
+    metricCandidates: [],
+    sourceUrl: null,
+    actorInputUrl: null,
+  };
+  const intelligenceMatch = ad.intelligenceMatch ?? {
+    provider: null,
+    confidence: null,
+    matchId: null,
+    status: "PENDING" as const,
+    reasons: [],
+  };
+
+  return {
+    ...ad,
+    spend,
+    impressions,
+    audienceSize,
+    metaMetrics,
+    metaDetailMetrics,
+    pathmaticsMetrics,
+    modelMetrics,
+    finalMetrics,
+    debug,
+    intelligenceMatch,
+  };
+}
 
 type MetaAdsJobRow = {
   id: string;
@@ -51,7 +123,7 @@ function fromRow(row: Record<string, unknown>): MetaAdsJob {
     processed: Number(row.processed_count ?? 0),
     actorRunId: typeof row.actor_run_id === "string" ? row.actor_run_id : null,
     datasetId: typeof row.dataset_id === "string" ? row.dataset_id : null,
-    ads: Array.isArray(row.ads_json) ? (row.ads_json as MetaAdsJob["ads"]) : [],
+    ads: Array.isArray(row.ads_json) ? (row.ads_json as MetaAdsJob["ads"]).map(hydratePersistedAd) : [],
     rawItems: Array.isArray(row.raw_items_json) ? (row.raw_items_json as MetaAdsJob["rawItems"]) : [],
     error: typeof row.error_message === "string" ? row.error_message : null,
     createdAt: String(row.created_at ?? new Date().toISOString()),

@@ -18,6 +18,7 @@
     "collect:meta-training-dataset": "tsx ./scripts/collect-meta-training-dataset.ts",
     "collect:meta-eu-disclosed-labels": "tsx ./scripts/collect-meta-eu-disclosed-labels.ts",
     "import:meta-training-dataset": "tsx ./scripts/import-meta-training-dataset.ts",
+    "backfill:meta-impression-estimates": "tsx ./scripts/backfill-meta-impression-estimates.ts",
     "import:meta-ads-insights": "tsx ./scripts/import-meta-ads-insights.ts",
     "export:meta-impressions-dataset": "tsx ./scripts/export-meta-impressions-dataset.ts"
   },
