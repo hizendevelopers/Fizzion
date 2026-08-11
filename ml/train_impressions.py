@@ -7,6 +7,7 @@ from collections import defaultdict
 from statistics import median
 
 from common import (
+    csv_number,
     ensure_output_dir,
     feature_key,
     json_dump,
@@ -18,6 +19,10 @@ from common import (
     safe_frequency,
     summarize_error,
 )
+
+
+def num(record: dict, key: str):
+    return csv_number(record.get(key))
 
 
 def baseline_predict(train_records: list[dict], target_records: list[dict]) -> tuple[list[float], dict[str, float]]:
@@ -86,8 +91,10 @@ def detect_deps() -> dict[str, bool]:
 def build_feature_rows(records: list[dict]) -> list[dict]:
     rows: list[dict] = []
     for record in records:
-        reach = float(record.get("reach") or 0)
-        frequency = safe_frequency(record.get("impressions"), record.get("reach"))
+        reach_value = num(record, "reach")
+        impressions_value = num(record, "impressions")
+        reach = float(reach_value or 0)
+        frequency = safe_frequency(impressions_value, reach_value)
         if reach <= 0 or frequency is None:
             continue
         platforms = set(record.get("platforms") or [])
@@ -100,7 +107,7 @@ def build_feature_rows(records: list[dict]) -> list[dict]:
                 "measurement_end": record.get("measurementEnd") or "",
                 "reach": reach,
                 "logReach": math.log1p(reach),
-                "activeDays": float(record.get("activeDays") or 0),
+                "activeDays": float(num(record, "activeDays") or 0),
                 "platformCount": float(len(platforms)),
                 "platformFacebook": 1.0 if "FACEBOOK" in platforms else 0.0,
                 "platformInstagram": 1.0 if "INSTAGRAM" in platforms else 0.0,
@@ -112,9 +119,11 @@ def build_feature_rows(records: list[dict]) -> list[dict]:
                 "headlineLength": float(len(headline)),
                 "descriptionLength": float(len(description)),
                 "hasLandingDomain": 1.0 if record.get("landingDomain") else 0.0,
-                "variationGroupSize": float(record.get("variationCount") or record.get("similarAds") or 0),
+                "variationGroupSize": float(
+                    num(record, "variationCount") or num(record, "similarAds") or 0,
+                ),
                 "labelQuality": record.get("labelQuality") or "UNKNOWN",
-                "impressions": float(record.get("impressions") or 0),
+                "impressions": float(impressions_value or 0),
                 "frequency": frequency,
                 "target": math.log1p(frequency),
             },
@@ -253,6 +262,45 @@ def main() -> int:
 
     dependency_status = detect_deps()
     feature_rows = build_feature_rows(records)
+    exact_label_rows = sum(
+        1
+        for record in records
+        if num(record, "reach") is not None
+        and num(record, "reach") > 0
+        and num(record, "impressions") is not None
+        and num(record, "impressions") > 0
+    )
+    weak_range_rows = sum(
+        1
+        for record in records
+        if (num(record, "reachLow") is not None or num(record, "reachHigh") is not None)
+        and (num(record, "impressionsLow") is not None or num(record, "impressionsHigh") is not None)
+        and not (
+            num(record, "reach") is not None
+            and num(record, "reach") > 0
+            and num(record, "impressions") is not None
+            and num(record, "impressions") > 0
+        )
+    )
+
+    if not feature_rows:
+        print(
+            json.dumps(
+                {
+                    "status": "EXACT_LABELS_REQUIRED",
+                    "datasetVersion": paths.version,
+                    "alignedRecordCount": len(records),
+                    "exactLabelRows": exact_label_rows,
+                    "weakRangeRows": weak_range_rows,
+                    "message": (
+                        "Aligned rows exist, but none contain exact compatible reach and impressions. "
+                        "Current dataset is weak-range only, so defensible supervised training is blocked."
+                    ),
+                },
+                indent=2,
+            ),
+        )
+        return 3
 
     train_group, test_group = group_holdout(records)
     baseline_group_predictions, baseline_groups = baseline_predict(train_group, test_group)

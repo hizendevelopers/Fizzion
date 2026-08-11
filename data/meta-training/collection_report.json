@@ -1,0 +1,65 @@
+{
+  "actorId": "apify~facebook-ads-scraper",
+  "actorRuns": [
+    {
+      "runId": "J8glLWpJFt8rx2xy9",
+      "datasetId": "Owzl9zxCH0flXYOXM",
+      "queryUrl": "https://www.facebook.com/ads/library/?active_status=all&ad_type=political_and_issue_ads&country=DE&search_type=keyword_unordered&media_type=all&q=klima",
+      "datasetCount": 250
+    },
+    {
+      "runId": "4XVDzFn2ymSQyCXd0",
+      "datasetId": "39AuFoGE48nzNfCT7",
+      "queryUrl": "https://www.facebook.com/ads/library/?active_status=all&ad_type=political_and_issue_ads&country=DE&search_type=keyword_unordered&media_type=all&q=wahl",
+      "datasetCount": 250
+    },
+    {
+      "runId": "Gw1QDMHbOsfGx3CEr",
+      "datasetId": "f5U1KXTVEHRZihvtK",
+      "queryUrl": "https://www.facebook.com/ads/library/?active_status=all&ad_type=political_and_issue_ads&country=DE&search_type=keyword_unordered&media_type=all&q=energie",
+      "datasetCount": 250
+    },
+    {
+      "runId": "9fIAHYv2MHMKxN7Nj",
+      "datasetId": "pjkTnadvXhGQwn78h",
+      "queryUrl": "https://www.facebook.com/ads/library/?active_status=all&ad_type=political_and_issue_ads&country=DE&search_type=keyword_unordered&media_type=all&q=partei",
+      "datasetCount": 250
+    },
+    {
+      "runId": "ksf4XAhnGeslKQvsm",
+      "datasetId": "KP3gMzhmLSCNZriTu",
+      "queryUrl": "https://www.facebook.com/ads/library/?active_status=all&ad_type=political_and_issue_ads&country=FR&search_type=keyword_unordered&media_type=all&q=climat",
+      "datasetCount": 62
+    }
+  ],
+  "rawCap": 10000,
+  "exactOnly": false,
+  "minValidRowsTarget": 1000,
+  "rawAds": 1062,
+  "uniqueAds": 1049,
+  "adsWithReach": 1024,
+  "adsWithImpressions": 184,
+  "adsWithBoth": 182,
+  "alignedTrainingRows": 191,
+  "strongRows": 0,
+  "weakRangeRows": 191,
+  "uniqueAdvertisers": 77,
+  "countries": [
+    "NL",
+    "DE"
+  ],
+  "platformMix": {
+    "INSTAGRAM": 29,
+    "FACEBOOK+INSTAGRAM": 121,
+    "FACEBOOK": 41
+  },
+  "creativeMix": {
+    "VIDEO": 90,
+    "UNKNOWN": 28,
+    "IMAGE": 73
+  },
+  "newRowsAddedThisRun": 182,
+  "collectionStatus": "PAUSED",
+  "stopReason": "APIFY_ERROR",
+  "latestError": "Monthly usage hard limit exceeded. Please upgrade your subscription or contact support@apify.com"
+}

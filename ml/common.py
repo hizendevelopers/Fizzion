@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import math
 import os
@@ -17,6 +18,10 @@ class DatasetPaths:
     directory: Path
     records_path: Path
     metadata_path: Path
+    fallback_json_path: Path
+    fallback_csv_path: Path
+    fallback_collection_report_path: Path
+    fallback_quality_report_path: Path
 
 
 def parse_common_args(description: str) -> argparse.Namespace:
@@ -38,6 +43,10 @@ def resolve_dataset_paths(dataset_version: str | None, dataset_dir: str | None) 
         directory=directory,
         records_path=directory / "records.jsonl",
         metadata_path=directory / "metadata.json",
+        fallback_json_path=directory / "training_dataset.json",
+        fallback_csv_path=directory / "training_dataset.csv",
+        fallback_collection_report_path=directory / "collection_report.json",
+        fallback_quality_report_path=directory / "data_quality_report.json",
     )
 
 
@@ -50,18 +59,48 @@ def latest_dataset_version(base_dir: Path) -> str:
 
 def load_metadata(paths: DatasetPaths) -> dict[str, Any]:
     if not paths.metadata_path.exists():
+        if paths.fallback_collection_report_path.exists():
+            return json.loads(paths.fallback_collection_report_path.read_text(encoding="utf-8"))
+        if paths.fallback_quality_report_path.exists():
+            return json.loads(paths.fallback_quality_report_path.read_text(encoding="utf-8"))
         return {}
     return json.loads(paths.metadata_path.read_text(encoding="utf-8"))
 
 
 def load_records(paths: DatasetPaths) -> list[dict[str, Any]]:
-    if not paths.records_path.exists():
-        return []
     records: list[dict[str, Any]] = []
-    for line in paths.records_path.read_text(encoding="utf-8").splitlines():
-        if line.strip():
-            records.append(json.loads(line))
-    return records
+    if paths.records_path.exists():
+        for line in paths.records_path.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                records.append(json.loads(line))
+        return records
+
+    if paths.fallback_json_path.exists():
+        payload = json.loads(paths.fallback_json_path.read_text(encoding="utf-8"))
+        if isinstance(payload, list):
+            return [record for record in payload if isinstance(record, dict)]
+
+    if paths.fallback_csv_path.exists():
+        with paths.fallback_csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
+            reader = csv.DictReader(handle)
+            return [dict(row) for row in reader]
+
+    return []
+
+
+def csv_number(value: Any) -> float | int | None:
+    if value is None or value == "":
+        return None
+    if isinstance(value, (int, float)):
+        return value
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        number = float(text)
+    except ValueError:
+        return None
+    return int(number) if number.is_integer() else number
 
 
 def ensure_output_dir(output_dir: str | None, fallback_name: str) -> Path:
