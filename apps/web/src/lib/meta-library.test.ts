@@ -188,6 +188,20 @@ test("normalizeMetaLibraryAd uses ad_details.aaa_info.eu_total_reach as real aud
   assert.equal(ad?.audienceSize.path, "ad_details.aaa_info.eu_total_reach");
 });
 
+test("normalizeMetaLibraryAd never treats the advertiser page's total like count as ad-level reactions", () => {
+  // Confirmed against a real Apify payload: snapshot.pageLikeCount is
+  // the advertiser PAGE's total fan count (e.g. ~107M for a large
+  // global brand), not engagement on one specific ad. Using it as a
+  // "reactions" fallback previously produced a multi-billion-impression
+  // estimate from the engagement cross-check model.
+  const fixture = nikeFixture();
+  fixture.snapshot.pageLikeCount = 107_072_530;
+
+  const ad = normalizeMetaLibraryAd(fixture, SOURCE);
+  assert.ok(ad);
+  assert.equal(ad?.engagement.reactions, null);
+});
+
 test("normalizeMetaLibraryAds deduplicates exact duplicate rows by primary ad id", () => {
   const normalized = normalizeMetaLibraryAds([nikeFixture(), nikeFixture()], SOURCE);
   assert.equal(normalized.rawCount, 2);

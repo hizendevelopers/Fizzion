@@ -868,13 +868,13 @@ function readEngagementSignals(rawAd: Record<string, unknown>): {
   shares: number | null;
   videoViews: number | null;
 } {
+  // Deliberately NOT falling back to snapshot.pageLikeCount: that is the
+  // advertiser PAGE's total fan count (e.g. Coca-Cola's ~107M global
+  // Facebook likes), not engagement on this one ad — confirmed against
+  // a real Apify payload, where using it as a "reactions" fallback
+  // produced a nonsensical multi-billion-impression estimate.
   const reactions = toNumber(
-    pickFirst(
-      rawAd.reactionCount,
-      rawAd.likeCount,
-      getPath(rawAd, "snapshot.reactionCount"),
-      getPath(rawAd, "snapshot.pageLikeCount"),
-    ),
+    pickFirst(rawAd.reactionCount, rawAd.likeCount, getPath(rawAd, "snapshot.reactionCount")),
   );
   const comments = toNumber(pickFirst(rawAd.commentCount, getPath(rawAd, "snapshot.commentCount")));
   const shares = toNumber(pickFirst(rawAd.shareCount, getPath(rawAd, "snapshot.shareCount")));
