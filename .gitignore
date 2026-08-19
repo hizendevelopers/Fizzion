@@ -33,3 +33,9 @@ tmp-dev-*.log
 .tmp-*.log
 apps/web/.data
 .vercel/
+
+# Local operational logs / captures (never intended for commit)
+*.log
+.vercel.production.env
+protection-check.log
+.codex-logs/
