@@ -58,7 +58,6 @@ export type MetaAdsJob = {
 
 type MetaAdsJobStore = {
   jobs: Map<string, MetaAdsJob>;
-  activeWorkers: Set<string>;
 };
 
 declare global {
@@ -73,12 +72,7 @@ function getStore(): MetaAdsJobStore {
   if (!globalThis.__metaAdsJobStore__) {
     globalThis.__metaAdsJobStore__ = {
       jobs: new Map<string, MetaAdsJob>(),
-      activeWorkers: new Set<string>(),
     };
-  }
-
-  if (!globalThis.__metaAdsJobStore__.activeWorkers) {
-    globalThis.__metaAdsJobStore__.activeWorkers = new Set<string>();
   }
 
   return globalThis.__metaAdsJobStore__;
@@ -102,10 +96,6 @@ function cleanupExpiredJobs() {
       store.jobs.delete(jobId);
     }
   }
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function saveJob(job: MetaAdsJob) {
@@ -616,58 +606,22 @@ export async function getMetaAdsJobById(jobId: string) {
   return persisted;
 }
 
-async function failJob(jobId: string, stage: MetaAdsJobStatus, error: unknown) {
-  const job = await getMetaAdsJobById(jobId);
-  if (!job) {
-    return;
+/**
+ * Advances a job by exactly one bounded stage-batch, swallowing errors.
+ * Intended to be called from `after()` in the polling route, after the
+ * response has already been sent, purely so the *next* poll finds the
+ * job further along. It is never the only thing driving a job forward —
+ * every GET request also calls `refreshMetaAdsJob` synchronously before
+ * responding — so if this best-effort call never runs (or the instance
+ * is recycled before it finishes), the job still makes progress on the
+ * next poll.
+ */
+export async function advanceMetaAdsJobInBackground(jobId: string) {
+  try {
+    await refreshMetaAdsJob(jobId);
+  } catch {
+    // Best-effort only — the next synchronous poll will retry.
   }
-
-  touch(job, {
-    status: "FAILED",
-    error: error instanceof Error ? error.message : "The Meta Ad Library job failed.",
-    progressMessage: "The Meta Ad Library job failed.",
-  });
-  await saveJob(job);
-}
-
-export function ensureMetaAdsJobWorker(jobId: string) {
-  const store = getStore();
-  if (store.activeWorkers.has(jobId)) {
-    return;
-  }
-
-  store.activeWorkers.add(jobId);
-  void (async () => {
-    let currentStage: MetaAdsJobStatus = "QUEUED";
-
-    try {
-      for (let attempt = 0; attempt < 240; attempt += 1) {
-        const job = await refreshMetaAdsJob(jobId);
-        if (!job) {
-          return;
-        }
-
-        currentStage = job.status;
-
-        if (job.status === "COMPLETE" || job.status === "FAILED") {
-          return;
-        }
-
-        if (job.status === "FETCHING_META" && job.rawItems.length === 0) {
-          await sleep(2000);
-          continue;
-        }
-
-        await sleep(50);
-      }
-
-      await failJob(jobId, currentStage, new Error("Meta job worker exceeded its retry window before reaching a terminal state."));
-    } catch (error) {
-      await failJob(jobId, currentStage, error);
-    } finally {
-      store.activeWorkers.delete(jobId);
-    }
-  })();
 }
 
 export async function createMetaAdsJob(url: string, maxAds: unknown) {

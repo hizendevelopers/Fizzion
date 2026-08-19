@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 
 import { queueWebAdvertisingScan } from "@/lib/web-ad-data";
 import { executeQueuedWebAdvertisingScan } from "@/lib/web-ad-scan-runner";
@@ -17,21 +17,22 @@ export async function POST(
       return tvApiError("WEBSITE_NOT_FOUND", "Web advertising website was not found.", 404, requestId);
     }
 
-    const execution =
-      queuedScan.deduplicated
-        ? null
-        : await executeQueuedWebAdvertisingScan(queuedScan.runId);
+    // The actual Playwright scan (page load, screenshots, uploads) can
+    // take well past a typical serverless response budget, so it runs
+    // after this response is sent rather than blocking the request.
+    // queueWebAdvertisingScan already wrote a "queued"/"running" row the
+    // client can poll (GET /api/web-advertising/websites/[id]).
+    if (!queuedScan.deduplicated) {
+      after(() => executeQueuedWebAdvertisingScan(queuedScan.runId));
+    }
 
     return NextResponse.json({
       ok: true,
       requestId,
       message: queuedScan.deduplicated
         ? "A scan is already queued or running for this website."
-        : execution?.adsDetected
-          ? `Website scan completed successfully. ${execution.adsDetected} advertisement candidate(s) captured.`
-          : "Website scan completed successfully, but no advertisement candidates were detected on the monitored page.",
+        : "Website scan queued. This can take a minute — refresh to see it complete.",
       scan: queuedScan,
-      execution,
     });
   } catch (error) {
     return tvApiError(

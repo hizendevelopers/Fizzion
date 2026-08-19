@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 
-import { ensureMetaAdsJobWorker, getMetaAdsJobById } from "@/lib/meta-ads-job-store";
+import { advanceMetaAdsJobInBackground, refreshMetaAdsJob } from "@/lib/meta-ads-job-store";
 import type { MetaLibraryAd } from "@/lib/meta-library";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +40,14 @@ export async function GET(
 ) {
   try {
     const { jobId } = await context.params;
-    const job = await getMetaAdsJobById(jobId);
+
+    // Advances the job by exactly one bounded stage-batch (Apify status
+    // check, or one enrichment/model/Pathmatics batch) and returns the
+    // fresh state. This is the only thing that drives the job forward —
+    // there is no separate background worker — so progress is tied
+    // directly to the client's poll cadence, which is safe under
+    // serverless scaling (no long-lived in-process loop to lose).
+    const job = await refreshMetaAdsJob(jobId);
 
     if (!job) {
       return NextResponse.json(
@@ -56,8 +63,12 @@ export async function GET(
       );
     }
 
+    // Best-effort: get one more stage done in the background after the
+    // response is sent, so the next poll (in ~2s) finds the job further
+    // along. Never required for correctness — see refreshMetaAdsJob call
+    // above, which every poll performs synchronously regardless.
     if (job.status !== "COMPLETE" && job.status !== "FAILED") {
-      ensureMetaAdsJobWorker(jobId);
+      after(() => advanceMetaAdsJobInBackground(jobId));
     }
 
     return NextResponse.json(
