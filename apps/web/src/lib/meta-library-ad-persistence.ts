@@ -151,6 +151,8 @@ export async function loadPersistedMetaLibraryAds(jobId: string): Promise<MetaLi
         audienceSize,
       },
       currency: null,
+      countryHint: null,
+      engagement: { reactions: null, comments: null, shares: null, videoViews: null },
       landingDomain: typeof row.landing_domain === "string" ? row.landing_domain : null,
       rawMetaData: (row.raw_meta_data as Record<string, unknown>) ?? {},
       debug: (row.debug_json as MetaLibraryAd["debug"]) ?? {

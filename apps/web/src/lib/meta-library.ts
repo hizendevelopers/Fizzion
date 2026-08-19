@@ -30,7 +30,7 @@ export type PathmaticsDebugStatus =
   | "PATHMATICS_LOW_CONFIDENCE"
   | "PATHMATICS_MATCH_FOUND"
   | "PATHMATICS_METRIC_NOT_AD_LEVEL";
-export type InHouseModelConfidence = "HIGH" | "MEDIUM" | "LOW";
+export type InHouseModelConfidence = "VERY_HIGH" | "HIGH" | "MEDIUM" | "LOW";
 export type InHouseDistributionStatus = "IN_DISTRIBUTION" | "PARTIAL_OOD" | "OUT_OF_DISTRIBUTION";
 
 export type MetaMetric = {
@@ -134,6 +134,15 @@ export type MetaLibraryAd = {
   };
   currency: string | null;
   landingDomain: string | null;
+  /** Best-effort ISO-2 country hint; null when not disclosed/inferable. */
+  countryHint: string | null;
+  /** Best-effort organic engagement signals; fields are null when not found. */
+  engagement: {
+    reactions: number | null;
+    comments: number | null;
+    shares: number | null;
+    videoViews: number | null;
+  };
   rawMetaData: Record<string, unknown>;
   debug: {
     metricCandidates: MetricCandidate[];
@@ -202,6 +211,15 @@ export type MetaLibraryAd = {
       labelStrength: string | null;
       recordId: string | null;
     };
+    /**
+     * Full confidence-weighted impressions assessment (Meta lower-bound
+     * model, spend/CPM, reach/frequency, engagement, and video
+     * cross-checks). Present once the estimation pipeline has run for
+     * this ad; typed loosely here to avoid a circular import with
+     * meta-impressions-heuristic-model.ts.
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    impressionsAssessment?: any;
   };
   intelligenceMatch: {
     provider: "PATHMATICS" | null;
@@ -215,6 +233,8 @@ export type MetaLibraryAd = {
 export type NormalizeMetaLibraryAdsOptions = {
   actorRunId: string;
   datasetId: string;
+  /** The Ad Library URL the job was started from, used as a country-hint fallback. */
+  searchUrl?: string;
   onProgress?: (processed: number, total: number) => void;
 };
 
@@ -796,6 +816,75 @@ function readLandingDomain(rawAd: Record<string, unknown>): string | null {
   }
 }
 
+/**
+ * Best-effort country hint for the impressions model's benchmark
+ * selection (Step 10 of the estimation methodology). Most commercial
+ * ads don't disclose a target country at all — Meta only requires that
+ * disclosure for EU/political ads — so this frequently returns null,
+ * which callers must treat as "use the global default benchmark," not
+ * as an error.
+ */
+function readCountryHint(rawAd: Record<string, unknown>, searchUrl?: string | null): string | null {
+  const direct = toText(
+    pickFirst(
+      rawAd.country,
+      rawAd.countries,
+      getPath(rawAd, "snapshot.country"),
+      getPath(rawAd, "ad_details.aaa_info.eu_total_reach_country"),
+    ),
+  );
+  if (direct) {
+    return direct.trim().toUpperCase().slice(0, 2);
+  }
+
+  const urlToCheck = searchUrl ?? toText(rawAd.inputUrl) ?? toText(rawAd.sourceUrl);
+  if (urlToCheck) {
+    try {
+      const parsed = new URL(urlToCheck);
+      const countryParam = parsed.searchParams.get("country");
+      if (countryParam && countryParam.toUpperCase() !== "ALL") {
+        return countryParam.trim().toUpperCase().slice(0, 2);
+      }
+    } catch {
+      // Not a parseable URL — fall through to null.
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Best-effort engagement signals (reactions/comments/shares/video
+ * views). These are organic-post metrics, not ad metrics — Meta's Ad
+ * Library only exposes them for the rare "boost an existing post" ad
+ * format, and even then usually doesn't surface them publicly. This
+ * returns null fields whenever nothing is found rather than guessing,
+ * so the engagement/video cross-check models can honestly report
+ * "insufficient data" instead of fabricating a number.
+ */
+function readEngagementSignals(rawAd: Record<string, unknown>): {
+  reactions: number | null;
+  comments: number | null;
+  shares: number | null;
+  videoViews: number | null;
+} {
+  const reactions = toNumber(
+    pickFirst(
+      rawAd.reactionCount,
+      rawAd.likeCount,
+      getPath(rawAd, "snapshot.reactionCount"),
+      getPath(rawAd, "snapshot.pageLikeCount"),
+    ),
+  );
+  const comments = toNumber(pickFirst(rawAd.commentCount, getPath(rawAd, "snapshot.commentCount")));
+  const shares = toNumber(pickFirst(rawAd.shareCount, getPath(rawAd, "snapshot.shareCount")));
+  const videoViews = toNumber(
+    pickFirst(rawAd.videoViewCount, getPath(rawAd, "snapshot.videoViewCount"), getPath(rawAd, "snapshot.videos.0.videoViewCount")),
+  );
+
+  return { reactions, comments, shares, videoViews };
+}
+
 function buildAdLibraryUrl(rawAd: Record<string, unknown>, adLibraryId: string): string {
   const exact = toUrl(pickFirst(rawAd.adLibraryUrl, rawAd.url, rawAd.sourceUrl));
   if (exact && exact.includes("/ads/library/")) {
@@ -818,7 +907,7 @@ export function findMetricCandidates(obj: unknown, path = "", results: MetricCan
   for (const [key, value] of Object.entries(obj)) {
     const currentPath = path ? `${path}.${key}` : key;
 
-    if (/spend|impression|reach|audience|currency/i.test(key)) {
+    if (/spend|impression|reach|audience|currency|reaction|like|comment|share|videoview|country/i.test(key)) {
       results.push({ path: currentPath, value });
     }
 
@@ -912,7 +1001,7 @@ function mergeDuplicateAds(existing: MetaLibraryAd, incoming: MetaLibraryAd): Me
 
 export function normalizeMetaLibraryAd(
   rawAd: Record<string, unknown>,
-  source: { actorRunId: string; datasetId: string },
+  source: { actorRunId: string; datasetId: string; searchUrl?: string },
 ): MetaLibraryAd | null {
   const adLibraryId = toText(pickFirst(rawAd.adArchiveID, rawAd.adArchiveId, rawAd.libraryID, rawAd.id));
   if (!adLibraryId) {
@@ -995,6 +1084,8 @@ export function normalizeMetaLibraryAd(
     },
     currency: normalizeCurrency(pickFirst(rawAd.currency, rawAd.spend)),
     landingDomain: readLandingDomain(rawAd),
+    countryHint: readCountryHint(rawAd, source.searchUrl),
+    engagement: readEngagementSignals(rawAd),
     rawMetaData: sanitizeRawRecord({
       ...rawAd,
       _source: source,
@@ -1096,6 +1187,7 @@ export function normalizeMetaLibraryAds(
     const normalized = normalizeMetaLibraryAd(item, {
       actorRunId: options.actorRunId,
       datasetId: options.datasetId,
+      searchUrl: options.searchUrl,
     });
 
     processedCount += 1;

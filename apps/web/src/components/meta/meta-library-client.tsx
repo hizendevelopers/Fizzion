@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import type { ImpressionsAssessment } from "@/lib/meta-impressions-heuristic-model";
+
 type MetaMetricSource =
   | "META_AD_LIBRARY"
   | "META_AD_LIBRARY_DETAIL"
@@ -185,6 +187,7 @@ type MetaLibraryAd = {
       labelStrength: string | null;
       recordId: string | null;
     };
+    impressionsAssessment?: ImpressionsAssessment;
   };
   intelligenceMatch: {
     provider: "PATHMATICS" | null;
@@ -478,6 +481,112 @@ function ImpressionMetricCard({ metric }: { metric: MetaMetric }) {
   );
 }
 
+function confidenceBadgeClass(confidence: string) {
+  if (confidence === "VERY_HIGH" || confidence === "HIGH") return "bg-emerald-100 text-emerald-700";
+  if (confidence === "MEDIUM") return "bg-amber-100 text-amber-700";
+  if (confidence === "INSUFFICIENT_DATA") return "bg-slate-200 text-slate-700";
+  return "bg-orange-100 text-orange-700";
+}
+
+function ImpressionsBreakdown({ assessment }: { assessment: ImpressionsAssessment }) {
+  const orderedKeys = ["META_LOWER_BOUND", "SPEND_CPM", "REACH_FREQUENCY", "ENGAGEMENT", "VIDEO_VIEWS"] as const;
+
+  return (
+    <div className="mt-3 space-y-4 text-sm">
+      <div className="grid gap-2 sm:grid-cols-4">
+        <StaticCard label="Country" value={assessment.country ?? "Not determined"} />
+        <StaticCard label="Status" value={assessment.status} />
+        <StaticCard label="Start date" value={formatDate(assessment.startDate)} />
+        <StaticCard label="Days running" value={assessment.daysRunning != null ? String(assessment.daysRunning) : "Not available"} />
+      </div>
+
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#9f8b80]">Observed data</p>
+        {assessment.observedData.length ? (
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-foreground">
+            {assessment.observedData.map((line, index) => (
+              <li key={index}>{line}</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 text-xs text-muted-foreground">No public delivery data was observed for this ad.</p>
+        )}
+      </div>
+
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#9f8b80]">Assumptions</p>
+        {assessment.assumptions.length ? (
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+            {assessment.assumptions.map((line, index) => (
+              <li key={index}>{line}</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 text-xs text-muted-foreground">No benchmark assumptions were required.</p>
+        )}
+      </div>
+
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#9f8b80]">Calculations</p>
+        <div className="mt-2 space-y-2">
+          {orderedKeys.map((key) => {
+            const model = assessment.subModels.find((item) => item.key === key);
+            if (!model) return null;
+            return (
+              <div className="rounded-[1rem] border border-[#f0d6cb] bg-white px-3 py-2" key={key}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-foreground">{model.label}</span>
+                  {model.available ? (
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                      weight {(model.effectiveWeight * 100).toFixed(0)}%
+                    </span>
+                  ) : null}
+                </div>
+                {model.available ? (
+                  <>
+                    <p className="mt-1 text-[11px] text-muted-foreground">Formula: {model.formula}</p>
+                    <p className="mt-1 text-xs text-foreground">{model.calculation}</p>
+                  </>
+                ) : (
+                  <p className="mt-1 text-xs text-muted-foreground">Insufficient data{model.reason ? ` — ${model.reason}` : "."}</p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="rounded-[1rem] border border-[#f0d6cb] bg-[#fff8f5] px-3 py-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[#9f8b80]">Final result</span>
+          <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold ${confidenceBadgeClass(assessment.final.confidence)}`}>
+            {assessment.final.confidence.replace(/_/g, " ")}
+          </span>
+        </div>
+        {assessment.final.low != null && assessment.final.high != null && assessment.final.best != null ? (
+          <>
+            <p className="mt-2 text-sm font-semibold text-foreground">
+              Range: {formatDisplayRange(assessment.final.low, assessment.final.high)} · Best estimate: {compactDisplayNumber(assessment.final.best)}
+            </p>
+          </>
+        ) : (
+          <p className="mt-2 text-sm font-semibold text-foreground">Insufficient data to construct a meaningful estimate.</p>
+        )}
+        <p className="mt-1 text-xs text-muted-foreground">{assessment.final.narrative}</p>
+        <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-[#b45309]">
+          {assessment.final.classification === "META_REPORTED_EXACT"
+            ? "Meta-reported exact data"
+            : assessment.final.classification === "META_RANGE_DERIVED"
+              ? "Meta-range-derived estimate — not exact"
+              : assessment.final.classification === "MODEL_BASED_ESTIMATE"
+                ? "Model-based estimate — not exact"
+                : "Insufficient public data"}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function MetaLibraryClient() {
   const [mode, setMode] = useState<"search" | "lookup">("search");
   const [metaUrl, setMetaUrl] = useState(DEFAULT_URL);
@@ -488,6 +597,7 @@ export function MetaLibraryClient() {
   const [job, setJob] = useState<MetaAdsJobResponse | null>(null);
   const [restored, setRestored] = useState(false);
   const [expandedAdId, setExpandedAdId] = useState<string | null>(null);
+  const [breakdownAdId, setBreakdownAdId] = useState<string | null>(null);
 
   useEffect(() => {
     // Restoring saved state from localStorage only after mount (client
@@ -587,6 +697,7 @@ export function MetaLibraryClient() {
     setLoading(true);
     setErrorMessage(null);
     setExpandedAdId(null);
+    setBreakdownAdId(null);
     try {
       const response = await fetch("/api/meta-ads/scrape", {
         method: "POST",
@@ -793,6 +904,8 @@ export function MetaLibraryClient() {
           {ads.map((ad) => {
             const media = primaryMedia(ad);
             const isExpanded = expandedAdId === ad.adLibraryId;
+            const isBreakdownOpen = breakdownAdId === ad.adLibraryId;
+            const assessment = ad.debug.impressionsAssessment;
             return (
               <article key={ad.adLibraryId} className="overflow-hidden rounded-[2rem] border border-[#f0d6cb] bg-[#fff8f5] shadow-[0_12px_32px_rgba(112,74,43,0.08)]">
                 <div className="flex items-start gap-4 border-b border-[#f0d6cb] bg-white/80 px-5 py-4">
@@ -857,6 +970,19 @@ export function MetaLibraryClient() {
                       Open in Meta Ad Library
                     </a>
                   </div>
+
+                  {assessment ? (
+                    <div className="rounded-[1.25rem] border border-[#e5cabd] bg-white/70 p-3">
+                      <button
+                        type="button"
+                        onClick={() => setBreakdownAdId(isBreakdownOpen ? null : ad.adLibraryId)}
+                        className="text-sm font-semibold text-[#8a5b46]"
+                      >
+                        {isBreakdownOpen ? "Hide full calculation breakdown" : "View full calculation breakdown"}
+                      </button>
+                      {isBreakdownOpen ? <ImpressionsBreakdown assessment={assessment} /> : null}
+                    </div>
+                  ) : null}
 
                   {IS_DEV ? (
                     <div className="rounded-[1.25rem] border border-dashed border-[#e5cabd] bg-white/70 p-3">

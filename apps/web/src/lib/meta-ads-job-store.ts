@@ -5,11 +5,11 @@ import { enrichMetaAdFromPublicDetail } from "@/lib/meta-ad-detail";
 import { persistMetaLibraryAds } from "@/lib/meta-library-ad-persistence";
 import { loadMetaAdsJob, persistMetaAdsJob } from "@/lib/meta-ads-persistence";
 import {
-  buildModeledImpressionsMetric,
   estimateImpressionsWithInHouseModel,
   buildPublicTrainingRangeMetric,
   findExactPublicTrainingRange,
 } from "@/lib/meta-impressions-model";
+import { buildImpressionsAssessment, buildHeuristicImpressionsMetric } from "@/lib/meta-impressions-heuristic-model";
 import {
   buildMetaAdsActorInput,
   createMetaNotDisclosedMetric,
@@ -347,9 +347,29 @@ async function applyExperimentalImpressionFallback(ad: MetaLibraryAd) {
     stage: result.prediction?.modelStage ?? null,
   };
 
-  ad.modelMetrics.impressions = result.prediction
-    ? buildModeledImpressionsMetric(result.prediction)
-    : null;
+  // Confidence-weighted assessment: Meta lower-bound model first, then
+  // spend/CPM, the existing reach×frequency baseline, engagement, and
+  // video cross-checks, combined per the specified methodology. This
+  // wraps (not replaces) the existing baseline above — its prediction
+  // is passed in as one of the cross-check models.
+  const assessment = buildImpressionsAssessment(
+    ad,
+    result.prediction
+      ? {
+          low: result.prediction.low,
+          high: result.prediction.high,
+          estimate: result.prediction.estimate,
+          confidenceLabel: result.prediction.confidence,
+          predictedFrequency: result.prediction.predictedFrequency,
+        }
+      : null,
+  );
+  ad.debug.impressionsAssessment = assessment;
+  // Preserve the existing null-means-"no usable model estimate" contract
+  // that applyFinalMetrics/needsModelEstimate rely on — only set a
+  // metric when the assessment actually produced one, so a genuinely
+  // insufficient-data result still lets Pathmatics have a turn.
+  ad.modelMetrics.impressions = assessment.final.confidence === "INSUFFICIENT_DATA" ? null : buildHeuristicImpressionsMetric(assessment);
 }
 
 async function applyExperimentalImpressionFallbacks(job: MetaAdsJob) {
@@ -737,6 +757,7 @@ export async function refreshMetaAdsJob(jobId: string) {
         const normalized = normalizeMetaLibraryAds(rawItems, {
           actorRunId: job.actorRunId,
           datasetId,
+          searchUrl: job.url,
         });
 
         for (const ad of normalized.ads) {
