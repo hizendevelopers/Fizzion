@@ -195,7 +195,7 @@ test("normalizeMetaLibraryAd never treats the advertiser page's total like count
   // "reactions" fallback previously produced a multi-billion-impression
   // estimate from the engagement cross-check model.
   const fixture = nikeFixture();
-  fixture.snapshot.pageLikeCount = 107_072_530;
+  (fixture.snapshot as Record<string, unknown>).pageLikeCount = 107_072_530;
 
   const ad = normalizeMetaLibraryAd(fixture, SOURCE);
   assert.ok(ad);
