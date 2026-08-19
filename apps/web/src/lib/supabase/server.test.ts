@@ -1,7 +1,8 @@
-import { test } from "vitest";
+import { afterEach, beforeEach, test } from "vitest";
 import assert from "node:assert/strict";
 
 import {
+  __setEnvFileCacheForTests,
   getOptionalSupabaseSecretKey,
   getSupabaseProjectId,
   getSupabasePublishableKey,
@@ -11,56 +12,82 @@ import {
 // These env accessors intentionally have NO hardcoded fallback credential
 // (see the security audit: a hardcoded fallback previously pointed every
 // unconfigured environment at the same live Supabase project). They read
-// from process.env first, then from a local .env.local/.env file on disk
-// as a convenience for local development. These tests exercise that
-// real configuration (this repo's .env.local) rather than mocking it.
+// from process.env first, then — as a local dev convenience — from a
+// .env.local/.env file on disk, cached at module scope. Each test pins
+// that file-fallback cache to `{}` via __setEnvFileCacheForTests, so
+// these tests exercise only process.env and behave identically whether
+// or not a real .env.local happens to exist on the machine running them.
 
-test("supabase project id resolves from configured environment", () => {
-  const projectId = getSupabaseProjectId();
-  assert.equal(typeof projectId, "string");
-  assert.ok(projectId && projectId.length > 0);
+const MANAGED_KEYS = [
+  "NEXT_PUBLIC_SUPABASE_URL",
+  "SUPABASE_URL",
+  "NEXT_PUBLIC_SUPABASE_PROJECT_URL",
+  "SUPABASE_PROJECT_ID",
+  "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+  "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+  "NEXT_PUBLIC_SUPABASE_KEY",
+  "SUPABASE_PUBLISHABLE_KEY",
+  "SUPABASE_ANON_KEY",
+  "SUPABASE_KEY",
+  "SUPABASE_SECRET_KEY",
+  "SUPABASE_SERVICE_ROLE_KEY",
+] as const;
+
+let savedEnv: Record<string, string | undefined>;
+
+beforeEach(() => {
+  savedEnv = {};
+  for (const key of MANAGED_KEYS) {
+    savedEnv[key] = process.env[key];
+    delete process.env[key];
+  }
+  __setEnvFileCacheForTests({});
 });
 
-test("supabase url resolves to an https Supabase project URL", () => {
-  const url = getSupabaseUrl();
-  assert.match(url, /^https:\/\/.+\.supabase\.co$/);
+afterEach(() => {
+  for (const key of MANAGED_KEYS) {
+    if (savedEnv[key] === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = savedEnv[key];
+    }
+  }
+  __setEnvFileCacheForTests(null);
 });
 
-test("supabase publishable key resolves from configured environment", () => {
-  const key = getSupabasePublishableKey();
-  assert.equal(typeof key, "string");
-  assert.ok(key.length > 0);
+test("supabase url resolves directly from NEXT_PUBLIC_SUPABASE_URL", () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example-project.supabase.co";
+  assert.equal(getSupabaseUrl(), "https://example-project.supabase.co");
 });
 
-test("optional supabase secret key resolves from configured environment", () => {
-  assert.equal(typeof getOptionalSupabaseSecretKey(), "string");
+test("supabase url falls back to building one from the project id", () => {
+  process.env.SUPABASE_PROJECT_ID = "abcxyz123456";
+  assert.equal(getSupabaseUrl(), "https://abcxyz123456.supabase.co");
 });
 
 test("supabase url throws a clear error when nothing is configured", () => {
-  const originalEnv = { ...process.env };
+  assert.throws(() => getSupabaseUrl(), /not configured/i);
+});
 
-  for (const key of [
-    "NEXT_PUBLIC_SUPABASE_URL",
-    "SUPABASE_URL",
-    "NEXT_PUBLIC_SUPABASE_PROJECT_URL",
-    "SUPABASE_PROJECT_ID",
-  ]) {
-    delete process.env[key];
-  }
+test("supabase project id resolves from SUPABASE_PROJECT_ID", () => {
+  process.env.SUPABASE_PROJECT_ID = "my-project-id";
+  assert.equal(getSupabaseProjectId(), "my-project-id");
+});
 
-  try {
-    // Force the module's file-based fallback cache to miss by pointing
-    // it at a cwd with no env file (repo root always has .env.local, so
-    // we can't fully isolate this without changing cwd — instead assert
-    // the function either returns a valid URL sourced from the real
-    // config, or throws the documented configuration error; either
-    // outcome proves there is no silently-injected hardcoded default).
-    const url = getSupabaseUrl();
-    assert.match(url, /^https:\/\/.+\.supabase\.co$/);
-  } catch (error) {
-    assert.ok(error instanceof Error);
-    assert.match(error.message, /not configured/i);
-  } finally {
-    process.env = originalEnv;
-  }
+test("supabase publishable key resolves from any of its aliases", () => {
+  process.env.SUPABASE_ANON_KEY = "anon-key-value";
+  assert.equal(getSupabasePublishableKey(), "anon-key-value");
+});
+
+test("supabase publishable key throws a clear error when nothing is configured", () => {
+  assert.throws(() => getSupabasePublishableKey(), /not configured/i);
+});
+
+test("optional supabase secret key returns undefined when unset, without throwing", () => {
+  assert.equal(getOptionalSupabaseSecretKey(), undefined);
+});
+
+test("optional supabase secret key resolves once configured", () => {
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-value";
+  assert.equal(getOptionalSupabaseSecretKey(), "service-role-value");
 });

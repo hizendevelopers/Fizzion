@@ -15,7 +15,7 @@ import {
 
 const SOURCE = { actorRunId: "run-123", datasetId: "ds-456" };
 
-function nikeFixture(): any {
+function nikeFixture(): Record<string, unknown> {
   return {
     inputUrl:
       "https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=US&q=nike&search_type=keyword_unordered",

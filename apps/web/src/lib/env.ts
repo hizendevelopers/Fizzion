@@ -204,3 +204,14 @@ export function getOptionalMetaAdsAccountIds() {
     .map((item) => item.trim())
     .filter(Boolean);
 }
+
+/**
+ * Test-only escape hatch: pins the lazily-computed .env-file fallback
+ * cache to an explicit value (or clears it with `null`) so tests can
+ * exercise the "nothing configured"/"only process.env is set" paths
+ * deterministically, regardless of whether a real .env.local happens to
+ * exist on the machine running the tests. Not used by application code.
+ */
+export function __setEnvFileCacheForTests(cache: Record<string, string> | null) {
+  serverEnvFileCache = cache;
+}

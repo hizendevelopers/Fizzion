@@ -455,6 +455,10 @@ export function MetaLibraryClient() {
   const [expandedAdId, setExpandedAdId] = useState<string | null>(null);
 
   useEffect(() => {
+    // Restoring saved state from localStorage only after mount (client
+    // only, avoids an SSR/hydration mismatch) — the setState calls here
+    // are the restore itself, not a derived-state side effect.
+    /* eslint-disable react-hooks/set-state-in-effect */
     try {
       const raw = window.localStorage.getItem(META_LIBRARY_STORAGE_KEY);
       if (!raw) {
@@ -470,6 +474,7 @@ export function MetaLibraryClient() {
     } finally {
       setRestored(true);
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
 
   useEffect(() => {
