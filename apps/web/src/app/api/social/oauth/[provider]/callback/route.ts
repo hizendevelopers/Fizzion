@@ -36,6 +36,12 @@ export async function GET(
     );
   }
 
+  // Live OAuth token exchange isn't wired up for any provider — the app
+  // connects accounts through the Apify-based public-scrape flow
+  // instead (see /api/social/connect/[provider] and
+  // /api/social/connections/apify-connect). Nothing in the UI links to
+  // this route today; it's kept only so a stale bookmarked callback URL
+  // fails with a clear, honest error instead of a stack trace.
   try {
     const result = await completeSocialOAuthConnection({
       provider: providerParsed.data,
@@ -49,11 +55,11 @@ export async function GET(
       connectionId: result.connectionId,
       mode: result.mode,
     });
-  } catch (error) {
+  } catch {
     return socialApiError(
-      "OAUTH_CALLBACK_FAILED",
-      error instanceof Error ? error.message : "OAuth callback failed.",
-      409,
+      "OAUTH_NOT_SUPPORTED",
+      `Live OAuth sign-in isn't available for ${providerParsed.data} yet. Use the "Connect account" flow instead, which imports public data via Apify.`,
+      501,
       requestId,
     );
   }
