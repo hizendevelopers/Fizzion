@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { makeRequestId, tvApiError } from "@/lib/tv-api";
 import { extractImageUrlFromHtml, normalizeWebScreenshotUrl } from "@/lib/web-screenshot-url";
+import { bufferWithLimit, safeRemoteFetch } from "@/lib/safe-remote-fetch";
 
 function normalizeProxyUrl(rawUrl: string | null) {
   if (!rawUrl) throw new Error("Image URL is required.");
@@ -9,15 +10,33 @@ function normalizeProxyUrl(rawUrl: string | null) {
 }
 
 async function fetchRemoteResource(source: string) {
-  return fetch(source, {
-    headers: {
-      Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8,text/html;q=0.7",
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
-    },
-    redirect: "follow",
-    signal: AbortSignal.timeout(20_000),
-    cache: "no-store",
-  });
+  // redirect: "manual" — we don't want a redirect to quietly land on an
+  // internal address after we've already validated the original host.
+  // Each hop below goes back through safeRemoteFetch, which re-resolves
+  // and re-validates the new target before following it.
+  let currentUrl = source;
+  for (let hop = 0; hop < 5; hop += 1) {
+    const response = await safeRemoteFetch(currentUrl, {
+      headers: {
+        Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8,text/html;q=0.7",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
+      },
+      redirect: "manual",
+      signal: AbortSignal.timeout(20_000),
+      cache: "no-store",
+    });
+
+    if ([301, 302, 303, 307, 308].includes(response.status)) {
+      const location = response.headers.get("location");
+      if (!location) return response;
+      currentUrl = new URL(location, currentUrl).toString();
+      continue;
+    }
+
+    return response;
+  }
+
+  throw new Error("Too many redirects while fetching the remote resource.");
 }
 
 async function resolveImageResponse(source: string) {
@@ -66,9 +85,9 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const source = normalizeProxyUrl(searchParams.get("url"));
     const { response, resolvedSource, contentType } = await resolveImageResponse(source);
-    const buffer = Buffer.from(await response.arrayBuffer());
+    const buffer = await bufferWithLimit(response);
 
-    return new NextResponse(buffer, {
+    return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
         "Content-Type": contentType,

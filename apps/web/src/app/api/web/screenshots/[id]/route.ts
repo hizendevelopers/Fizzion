@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getOptionalSupabaseAdminClient } from "@/lib/supabase/server";
 import { makeRequestId, tvApiError } from "@/lib/tv-api";
 import { extractImageUrlFromHtml, isAppRelativeImagePath, normalizeWebScreenshotUrl } from "@/lib/web-screenshot-url";
+import { safeRemoteFetch } from "@/lib/safe-remote-fetch";
 
 const ORGANIZATION_SLUG = "coca_cola_iraq";
 
@@ -51,22 +52,55 @@ async function resolveOrganizationId() {
   throw new Error(`Organization ${ORGANIZATION_SLUG} not found.`);
 }
 
-async function fetchRemoteResource(url: string) {
-  return fetch(url, {
-    method: "GET",
-    headers: {
-      Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8,text/html;q=0.7",
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
-    },
-    redirect: "follow",
-    signal: AbortSignal.timeout(15_000),
-    cache: "no-store",
-  });
+const REQUEST_HEADERS = {
+  Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8,text/html;q=0.7",
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
+};
+
+/**
+ * `trusted` fetches (the app's own origin, for app-relative image paths)
+ * skip the private-IP check — the target host comes from `request.url`,
+ * not from user input, so it may legitimately be localhost/an internal
+ * address in some deployments. Everything else is user-supplied and
+ * goes through safeRemoteFetch with each redirect hop re-validated.
+ */
+async function fetchRemoteResource(url: string, trusted: boolean) {
+  let currentUrl = url;
+  for (let hop = 0; hop < 5; hop += 1) {
+    const response = trusted
+      ? await fetch(currentUrl, {
+          method: "GET",
+          headers: REQUEST_HEADERS,
+          redirect: "manual",
+          signal: AbortSignal.timeout(15_000),
+          cache: "no-store",
+        })
+      : await safeRemoteFetch(currentUrl, {
+          method: "GET",
+          headers: REQUEST_HEADERS,
+          redirect: "manual",
+          signal: AbortSignal.timeout(15_000),
+          cache: "no-store",
+        });
+
+    if ([301, 302, 303, 307, 308].includes(response.status)) {
+      const location = response.headers.get("location");
+      if (!location) return response;
+      currentUrl = new URL(location, currentUrl).toString();
+      continue;
+    }
+
+    return response;
+  }
+
+  throw new Error("Too many redirects while fetching the remote resource.");
 }
 
 async function resolveRemoteImageUrl(url: string, requestOrigin: string) {
+  const trusted = isAppRelativeImagePath(url);
   const fetchUrl = resolveFetchUrl(url, requestOrigin);
-  const response = await fetchRemoteResource(fetchUrl);
+  const response = await fetchRemoteResource(fetchUrl, trusted);
 
   if (!response.ok) {
     throw new Error(`Image URL returned ${response.status}.`);
@@ -85,7 +119,7 @@ async function resolveRemoteImageUrl(url: string, requestOrigin: string) {
   }
 
   const resolvedUrl = normalizeWebScreenshotUrl(extractedImageUrl);
-  const imageResponse = await fetchRemoteResource(resolvedUrl);
+  const imageResponse = await fetchRemoteResource(resolvedUrl, false);
   if (!imageResponse.ok) {
     throw new Error(`Image URL returned ${imageResponse.status}.`);
   }

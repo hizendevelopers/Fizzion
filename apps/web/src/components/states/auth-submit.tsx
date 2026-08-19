@@ -6,23 +6,30 @@ import type { AuthActionState } from "@/app/(auth)/login/actions";
 import { buttonStyles } from "@/lib/button-styles";
 
 type AuthSubmitProps = {
-  action: (state: AuthActionState) => Promise<AuthActionState>;
+  action: (state: AuthActionState, formData: FormData) => Promise<AuthActionState>;
   buttonLabel: string;
+  children: React.ReactNode;
 };
 
-export function AuthSubmit({ action, buttonLabel }: AuthSubmitProps) {
+export function AuthSubmit({ action, buttonLabel, children }: AuthSubmitProps) {
   const [state, formAction, pending] = useActionState(action, null);
 
   return (
-    <form action={formAction} className="mt-6">
-      <button
-        className={`${buttonStyles.primary} h-12 w-full`}
-        disabled={pending}
-        type="submit"
-      >
+    <form action={formAction} className="space-y-4">
+      {children}
+      <button className={`${buttonStyles.primary} h-12 w-full`} disabled={pending} type="submit">
         {pending ? "Working..." : buttonLabel}
       </button>
-      {state ? <p className="mt-4 text-sm leading-6 text-muted-foreground">{state.message}</p> : null}
+      {state ? (
+        <p
+          className={`text-sm leading-6 ${
+            state.status === "error" ? "text-brand-red" : "text-muted-foreground"
+          }`}
+          role={state.status === "error" ? "alert" : undefined}
+        >
+          {state.message}
+        </p>
+      ) : null}
     </form>
   );
 }
