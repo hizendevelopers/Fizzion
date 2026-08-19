@@ -1,12 +1,18 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-// Deliberately NOT importing from "@/lib/env" here: that module reads
-// local .env files via node:fs as a dev convenience, and Turbopack
-// refuses to bundle node:fs into the Edge Middleware runtime at all
-// (even behind a runtime guard — it's a build-time restriction). Edge
-// Middleware always has NEXT_PUBLIC_*/server env vars available via
-// process.env directly, so we read them here without that fallback.
+// Deliberately NOT importing from "@/lib/env" here: that module falls
+// back to reading local .env files via node:fs when a var isn't in
+// process.env (needed in this monorepo because .env.local lives at the
+// repo root, one level above apps/web, which Next's own env loader
+// doesn't search by default). Turbopack refuses to bundle node:fs into
+// this file's runtime at all — a build-time restriction, not a runtime
+// guard — so that fallback can't be used here. Instead, local dev keeps
+// a copy of the root .env.local at apps/web/.env.local (gitignored;
+// re-copy it if you update the root one) so Next's normal loader picks
+// it up and process.env.NEXT_PUBLIC_* / process.env.SUPABASE_* resolve
+// directly, same as any real deployment where the platform injects env
+// vars itself rather than relying on a checked-in file.
 function getEdgeSupabaseUrl() {
   const projectId = process.env.SUPABASE_PROJECT_ID;
   const url =
