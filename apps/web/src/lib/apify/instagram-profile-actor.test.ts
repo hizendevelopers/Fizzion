@@ -1,4 +1,4 @@
-import test from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 
 import { INSTAGRAM_SUPPLEMENTAL_PROFILE_ACTORS } from "@/lib/apify/actors";

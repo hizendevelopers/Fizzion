@@ -22,6 +22,8 @@ jobs:
         run: npm run lint --workspace web
       - name: Typecheck web app
         run: npm run typecheck --workspace web
+      - name: Test web app
+        run: npm run test --workspace web
       - name: Build web app
         run: npm run build --workspace web
 

@@ -1,24 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { updateSupabaseSession } from "@/lib/supabase/middleware";
-
-const PUBLIC_PAGE_PATHS = new Set(["/login", "/forgot-password", "/mfa", "/set-password"]);
-const PUBLIC_EXACT_PATHS = new Set(["/auth/callback"]);
-const PUBLIC_API_PREFIXES = [
-  "/api/social/webhooks",
-  "/api/tv/youtube/channels/scheduled-sync",
-  "/api/health",
-];
-
-function isPublicPath(pathname: string) {
-  if (PUBLIC_EXACT_PATHS.has(pathname)) return true;
-  if (PUBLIC_PAGE_PATHS.has(pathname)) return true;
-  return PUBLIC_API_PREFIXES.some((prefix) => pathname.startsWith(prefix));
-}
-
-function isAdminPath(pathname: string) {
-  return pathname.startsWith("/admin") || pathname.startsWith("/api/admin");
-}
+import { isAdminPath, isPublicPath } from "@/lib/proxy-routing";
 
 /**
  * Checks the caller's organization membership for the `admin` role via a
