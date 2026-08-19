@@ -152,6 +152,7 @@ type MetaLibraryAd = {
       audienceReason: string | null;
     };
     model?: {
+      attempted?: boolean;
       status:
         | "MODEL_NOT_AVAILABLE"
         | "GROUND_TRUTH_DATA_REQUIRED"
@@ -486,20 +487,59 @@ export function MetaLibraryClient() {
   const ads = useMemo(() => job?.ads ?? [], [job]);
 
   async function pollJob(jobId: string) {
+    let consecutiveFailures = 0;
+
     while (true) {
-      const response = await fetch(`/api/meta-ads/jobs/${jobId}`, { cache: "no-store" });
-      const data = await readJsonResponse<MetaAdsJobResponse & { error?: string }>(response);
-      if (!response.ok) {
-        throw new Error(data.error ?? "The Meta Ad Library job could not be read.");
+      try {
+        const response = await fetch(`/api/meta-ads/jobs/${jobId}`, { cache: "no-store" });
+        const data = await readJsonResponse<
+          MetaAdsJobResponse & {
+            error?:
+              | string
+              | {
+                  code?: string;
+                  message?: string;
+                  stage?: string | null;
+                };
+          }
+        >(response);
+
+        if (!response.ok) {
+          const responseError = data.error as
+            | string
+            | {
+                code?: string;
+                message?: string;
+                stage?: string | null;
+              }
+            | undefined;
+          const message =
+            typeof responseError === "string"
+              ? responseError
+              : responseError?.message ?? `The Meta Ad Library job returned ${response.status}.`;
+          throw new Error(message);
+        }
+
+        consecutiveFailures = 0;
+        setJob(data);
+
+        if (data.status === "COMPLETE") {
+          return;
+        }
+        if (data.status === "FAILED") {
+          throw new Error(data.error && typeof data.error === "string" ? data.error : "The Meta Ad Library scrape failed.");
+        }
+
+        await sleep(2000);
+      } catch (error) {
+        consecutiveFailures += 1;
+
+        if (consecutiveFailures >= 5) {
+          throw error;
+        }
+
+        await sleep(Math.min(2000 * 2 ** (consecutiveFailures - 1), 10000));
       }
-      setJob(data);
-      if (data.status === "COMPLETE") {
-        return;
-      }
-      if (data.status === "FAILED") {
-        throw new Error(data.error ?? "The Meta Ad Library scrape failed.");
-      }
-      await sleep(2000);
     }
   }
 

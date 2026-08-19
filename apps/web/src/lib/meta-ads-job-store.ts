@@ -58,6 +58,7 @@ export type MetaAdsJob = {
 
 type MetaAdsJobStore = {
   jobs: Map<string, MetaAdsJob>;
+  activeWorkers: Set<string>;
 };
 
 declare global {
@@ -72,7 +73,12 @@ function getStore(): MetaAdsJobStore {
   if (!globalThis.__metaAdsJobStore__) {
     globalThis.__metaAdsJobStore__ = {
       jobs: new Map<string, MetaAdsJob>(),
+      activeWorkers: new Set<string>(),
     };
+  }
+
+  if (!globalThis.__metaAdsJobStore__.activeWorkers) {
+    globalThis.__metaAdsJobStore__.activeWorkers = new Set<string>();
   }
 
   return globalThis.__metaAdsJobStore__;
@@ -96,6 +102,10 @@ function cleanupExpiredJobs() {
       store.jobs.delete(jobId);
     }
   }
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function saveJob(job: MetaAdsJob) {
@@ -266,7 +276,8 @@ function needsModelEstimate(ad: MetaLibraryAd) {
   return (
     ad.finalMetrics.impressions.status !== "META_DISCLOSED" &&
     ad.finalMetrics.impressions.source !== "PUBLIC_META_TRAINING_DATA" &&
-    ad.modelMetrics.impressions == null
+    ad.modelMetrics.impressions == null &&
+    ad.debug.model?.attempted !== true
   );
 }
 
@@ -309,6 +320,7 @@ async function applyExperimentalImpressionFallback(ad: MetaLibraryAd) {
     ad.impressions = ad.finalMetrics.impressions;
     ad.modelMetrics.impressions = null;
     ad.debug.model = {
+      attempted: true,
       status: "MODEL_NOT_AVAILABLE",
       modelVersion: null,
       datasetVersion: null,
@@ -329,6 +341,7 @@ async function applyExperimentalImpressionFallback(ad: MetaLibraryAd) {
 
   const result = await estimateImpressionsWithInHouseModel(ad);
   ad.debug.model = {
+    attempted: true,
     status: result.status,
     modelVersion: result.prediction?.modelVersion ?? null,
     datasetVersion: result.prediction?.datasetVersion ?? null,
@@ -597,12 +610,64 @@ export async function getMetaAdsJobById(jobId: string) {
 
   const persisted = await loadMetaAdsJob(jobId);
   if (persisted) {
-    await applyExperimentalImpressionFallbacks(persisted);
-    persisted.ads.forEach((ad) => applyFinalMetrics(ad, persisted.status === "COMPLETE"));
     getStore().jobs.set(jobId, persisted);
   }
 
   return persisted;
+}
+
+async function failJob(jobId: string, stage: MetaAdsJobStatus, error: unknown) {
+  const job = await getMetaAdsJobById(jobId);
+  if (!job) {
+    return;
+  }
+
+  touch(job, {
+    status: "FAILED",
+    error: error instanceof Error ? error.message : "The Meta Ad Library job failed.",
+    progressMessage: "The Meta Ad Library job failed.",
+  });
+  await saveJob(job);
+}
+
+export function ensureMetaAdsJobWorker(jobId: string) {
+  const store = getStore();
+  if (store.activeWorkers.has(jobId)) {
+    return;
+  }
+
+  store.activeWorkers.add(jobId);
+  void (async () => {
+    let currentStage: MetaAdsJobStatus = "QUEUED";
+
+    try {
+      for (let attempt = 0; attempt < 240; attempt += 1) {
+        const job = await refreshMetaAdsJob(jobId);
+        if (!job) {
+          return;
+        }
+
+        currentStage = job.status;
+
+        if (job.status === "COMPLETE" || job.status === "FAILED") {
+          return;
+        }
+
+        if (job.status === "FETCHING_META" && job.rawItems.length === 0) {
+          await sleep(2000);
+          continue;
+        }
+
+        await sleep(50);
+      }
+
+      await failJob(jobId, currentStage, new Error("Meta job worker exceeded its retry window before reaching a terminal state."));
+    } catch (error) {
+      await failJob(jobId, currentStage, error);
+    } finally {
+      store.activeWorkers.delete(jobId);
+    }
+  })();
 }
 
 export async function createMetaAdsJob(url: string, maxAds: unknown) {

@@ -169,6 +169,7 @@ export type MetaLibraryAd = {
       audienceReason: string | null;
     };
     model?: {
+      attempted?: boolean;
       status:
         | "MODEL_NOT_AVAILABLE"
         | "GROUND_TRUTH_DATA_REQUIRED"
@@ -1003,6 +1004,7 @@ export function normalizeMetaLibraryAd(
       sourceUrl: toUrl(rawAd.sourceUrl),
       actorInputUrl: toUrl(rawAd.inputUrl),
       model: {
+        attempted: false,
         status: "MODEL_NOT_AVAILABLE",
         modelVersion: null,
         datasetVersion: null,

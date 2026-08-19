@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getApifyApiToken } from "@/lib/env";
-import { createMetaAdsJob } from "@/lib/meta-ads-job-store";
+import { createMetaAdsJob, ensureMetaAdsJobWorker } from "@/lib/meta-ads-job-store";
 import { sanitizeMaxAds, validateMetaLibraryUrl } from "@/lib/meta-library";
 
 export const dynamic = "force-dynamic";
@@ -42,6 +42,7 @@ export async function POST(request: Request) {
 
   try {
     const job = await createMetaAdsJob(validatedUrl.url, maxAds);
+    ensureMetaAdsJobWorker(job.id);
     return NextResponse.json({
       success: true,
       jobId: job.id,
