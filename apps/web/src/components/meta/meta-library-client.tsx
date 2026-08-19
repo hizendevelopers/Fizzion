@@ -317,6 +317,39 @@ function metricBadgeClass(metric: MetaMetric | MetaSpendMetric) {
   return "bg-slate-200 text-slate-700";
 }
 
+/**
+ * Accepts either a bare Meta ad ID (the long numeric string Meta uses,
+ * e.g. from the ad's "..." menu → Ad details) or a full Ad Library URL,
+ * and normalizes it into the single-ad Ad Library URL
+ * (facebook.com/ads/library/?id=<id>) that the scrape pipeline expects.
+ */
+function normalizeAdIdOrUrl(input: string): { ok: true; url: string } | { ok: false; error: string } {
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return { ok: false, error: "Paste a Meta ad ID or Ad Library URL." };
+  }
+
+  if (/^\d{6,}$/.test(trimmed)) {
+    return { ok: true, url: `https://www.facebook.com/ads/library/?id=${trimmed}` };
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return { ok: false, error: "Enter a valid Meta Ad Library URL, or the numeric ad ID on its own." };
+  }
+
+  if (!["facebook.com", "www.facebook.com"].includes(parsed.hostname.toLowerCase())) {
+    return { ok: false, error: "The URL must be a facebook.com Ad Library link." };
+  }
+  if (!parsed.pathname.toLowerCase().includes("/ads/library")) {
+    return { ok: false, error: "The URL must point to Meta Ad Library (/ads/library), not a regular Facebook page or post." };
+  }
+
+  return { ok: true, url: parsed.toString() };
+}
+
 function jobSummary(job: MetaAdsJobResponse | null) {
   if (!job) {
     return null;
@@ -446,8 +479,10 @@ function ImpressionMetricCard({ metric }: { metric: MetaMetric }) {
 }
 
 export function MetaLibraryClient() {
+  const [mode, setMode] = useState<"search" | "lookup">("search");
   const [metaUrl, setMetaUrl] = useState(DEFAULT_URL);
   const [maxAds, setMaxAds] = useState(DEFAULT_MAX_ADS);
+  const [adIdOrUrl, setAdIdOrUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [job, setJob] = useState<MetaAdsJobResponse | null>(null);
@@ -548,7 +583,7 @@ export function MetaLibraryClient() {
     }
   }
 
-  async function handleFetchAds() {
+  async function submitJob(url: string, maxAdsValue: number) {
     setLoading(true);
     setErrorMessage(null);
     setExpandedAdId(null);
@@ -556,7 +591,7 @@ export function MetaLibraryClient() {
       const response = await fetch("/api/meta-ads/scrape", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: metaUrl, maxAds: Number(maxAds) }),
+        body: JSON.stringify({ url, maxAds: maxAdsValue }),
       });
       const data = await readJsonResponse<{ success: boolean; jobId?: string; error?: string }>(response);
       if (!response.ok || !data.success || !data.jobId) {
@@ -571,8 +606,8 @@ export function MetaLibraryClient() {
         processed: 0,
         actorRunId: null,
         datasetId: null,
-        url: metaUrl,
-        maxAds: Number(maxAds),
+        url,
+        maxAds: maxAdsValue,
         ads: [],
         rawItems: [],
         error: null,
@@ -587,6 +622,21 @@ export function MetaLibraryClient() {
     }
   }
 
+  async function handleFetchAds() {
+    await submitJob(metaUrl, Number(maxAds));
+  }
+
+  async function handleLookupAd() {
+    const normalized = normalizeAdIdOrUrl(adIdOrUrl);
+    if (!normalized.ok) {
+      setErrorMessage(normalized.error);
+      return;
+    }
+    // A direct id= lookup should return just that one ad — keep it
+    // small and fast rather than reusing the bulk "max ads" setting.
+    await submitJob(normalized.url, 1);
+  }
+
   const summary = jobSummary(job);
 
   return (
@@ -597,7 +647,7 @@ export function MetaLibraryClient() {
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-red">Meta Ad Library research</p>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground">Meta Library</h1>
             <p className="mt-3 max-w-4xl text-sm leading-7 text-muted-foreground">
-              Paste a public Meta Ad Library URL and fetch every ad returned by Meta through Apify. The app now checks Meta first, then optional advertising-intelligence fallback if configured, while keeping source labels separate.
+              Search the public Meta Ad Library, or look up one specific ad by its ID or link. Meta doesn&apos;t disclose exact impressions for ordinary ads it doesn&apos;t belong to you — the app checks Meta first, then estimates from public training data, an in-house model, or Pathmatics if configured, and always labels which one produced the number.
             </p>
           </div>
           <span className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700">
@@ -608,42 +658,93 @@ export function MetaLibraryClient() {
 
       <section className="rounded-[1.8rem] border border-border bg-white p-5 shadow-[var(--shadow-soft)]">
         <div className="grid gap-4">
-          <label className="space-y-2">
-            <span className="text-sm font-semibold text-foreground">Paste Meta Ad Library URL</span>
-            <textarea
-              value={metaUrl}
-              onChange={(event) => setMetaUrl(event.target.value)}
-              className="min-h-[120px] w-full rounded-[1.25rem] border border-border bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
-              placeholder="https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=US&q=nike&search_type=keyword_unordered"
-            />
-          </label>
-
-          <div className="grid gap-4 md:grid-cols-[180px_1fr] md:items-end">
-            <label className="space-y-2">
-              <span className="text-sm font-semibold text-foreground">Max ads</span>
-              <input
-                type="number"
-                min={1}
-                max={500}
-                value={maxAds}
-                onChange={(event) => setMaxAds(event.target.value)}
-                className="h-12 w-full rounded-[1.25rem] border border-border bg-background px-4 text-sm text-foreground outline-none transition focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
-              />
-            </label>
-            <div className="flex flex-col gap-3 md:items-start">
-              <button
-                type="button"
-                onClick={handleFetchAds}
-                disabled={loading}
-                className="inline-flex h-12 items-center justify-center rounded-full bg-brand-red px-6 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                {loading ? "Fetching ads..." : "Fetch Ads"}
-              </button>
-              <p className="text-xs leading-6 text-muted-foreground">
-                Backend stages: Fetch Meta ads, check Meta detail pages, then optional Pathmatics fallback if an authorized provider is configured.
-              </p>
-            </div>
+          <div className="inline-flex w-fit rounded-full border border-border bg-[var(--color-surface)] p-1">
+            <button
+              type="button"
+              onClick={() => setMode("search")}
+              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                mode === "search" ? "bg-brand-red text-white" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Search ads
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("lookup")}
+              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                mode === "lookup" ? "bg-brand-red text-white" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Look up one ad
+            </button>
           </div>
+
+          {mode === "search" ? (
+            <>
+              <label className="space-y-2">
+                <span className="text-sm font-semibold text-foreground">Paste Meta Ad Library URL</span>
+                <textarea
+                  value={metaUrl}
+                  onChange={(event) => setMetaUrl(event.target.value)}
+                  className="min-h-[120px] w-full rounded-[1.25rem] border border-border bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
+                  placeholder="https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=US&q=nike&search_type=keyword_unordered"
+                />
+              </label>
+
+              <div className="grid gap-4 md:grid-cols-[180px_1fr] md:items-end">
+                <label className="space-y-2">
+                  <span className="text-sm font-semibold text-foreground">Max ads</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={500}
+                    value={maxAds}
+                    onChange={(event) => setMaxAds(event.target.value)}
+                    className="h-12 w-full rounded-[1.25rem] border border-border bg-background px-4 text-sm text-foreground outline-none transition focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
+                  />
+                </label>
+                <div className="flex flex-col gap-3 md:items-start">
+                  <button
+                    type="button"
+                    onClick={handleFetchAds}
+                    disabled={loading}
+                    className="inline-flex h-12 items-center justify-center rounded-full bg-brand-red px-6 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {loading ? "Fetching ads..." : "Fetch Ads"}
+                  </button>
+                  <p className="text-xs leading-6 text-muted-foreground">
+                    Backend stages: Fetch Meta ads, check Meta detail pages, then optional Pathmatics fallback if an authorized provider is configured.
+                  </p>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <label className="space-y-2">
+                <span className="text-sm font-semibold text-foreground">Ad ID or Ad Library link</span>
+                <input
+                  type="text"
+                  value={adIdOrUrl}
+                  onChange={(event) => setAdIdOrUrl(event.target.value)}
+                  className="h-12 w-full rounded-[1.25rem] border border-border bg-background px-4 text-sm text-foreground outline-none transition focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
+                  placeholder="1249043200627555 or https://www.facebook.com/ads/library/?id=1249043200627555"
+                />
+              </label>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <button
+                  type="button"
+                  onClick={handleLookupAd}
+                  disabled={loading}
+                  className="inline-flex h-12 items-center justify-center rounded-full bg-brand-red px-6 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {loading ? "Looking up ad..." : "Look up ad"}
+                </button>
+                <p className="max-w-2xl text-xs leading-6 text-muted-foreground">
+                  Find the ad ID from the ad&apos;s &quot;...&quot; menu → &quot;Ad details&quot; in the Meta Ad Library, or paste the full link. If this isn&apos;t your own ad, Meta doesn&apos;t disclose exact impressions — you&apos;ll get the same clearly-labeled estimate the search flow produces, just without searching first.
+                </p>
+              </div>
+            </>
+          )}
 
           {summary ? (
             <div className="rounded-[1.25rem] border border-border bg-[var(--color-surface)] px-4 py-3 text-sm text-foreground">
