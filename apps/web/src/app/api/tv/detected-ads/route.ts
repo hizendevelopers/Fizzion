@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 
-import { getTvDetectedAds, parseTvFiltersFromSearchParams } from "@/lib/tv-analytics";
+import {
+  getTvDetectedAds,
+  parseDetectedAdsFiltersFromSearchParams,
+} from "@/lib/tv-analytics";
 import { makeRequestId, tvApiError } from "@/lib/tv-api";
 
 export async function GET(request: Request) {
@@ -9,7 +12,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
 
   try {
-    const filters = parseTvFiltersFromSearchParams(searchParams);
+    const filters = parseDetectedAdsFiltersFromSearchParams(searchParams);
     const payload = await getTvDetectedAds(filters);
 
     return NextResponse.json({

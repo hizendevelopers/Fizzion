@@ -7,6 +7,7 @@ import Link from "next/link";
 import { AreaTrendCard, CategoryBarCard, ShareOfVoiceCard } from "@/components/states/insight-charts";
 import { YouTubeLiveEmbed } from "@/components/tv/youtube-live-embed";
 import { YouTubeTvMonitor } from "@/components/tv/youtube-tv-monitor";
+import { formatCompactUsdFromCurrency, formatUsdFromCurrency } from "@/lib/display-currency";
 import type { ConnectedYouTubeTvChannel } from "@/lib/youtube-tv-data";
 import { cn } from "@/lib/utils";
 import {
@@ -80,9 +81,7 @@ function formatCompactNumber(value: number) {
 }
 
 function formatCurrency(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 0,
-  }).format(value);
+  return formatUsdFromCurrency(value, "PKR");
 }
 
 function formatDurationLabel(durationMs: number) {
@@ -297,7 +296,7 @@ export function TvIntelligenceDashboard({
   const topBrands = adBrands.map((brand) => ({
     label: brand,
     value: filteredAds.filter((ad) => ad.brand === brand).length,
-    note: `${formatCurrency(filteredAds.filter((ad) => ad.brand === brand).reduce((sum, ad) => sum + ad.estimatedMediaValue, 0))} PKR`,
+    note: formatCurrency(filteredAds.filter((ad) => ad.brand === brand).reduce((sum, ad) => sum + ad.estimatedMediaValue, 0)),
   })).filter((entry) => entry.value > 0);
 
   const filteredYouTubeChannels = youtubeChannels
@@ -329,8 +328,8 @@ export function TvIntelligenceDashboard({
       <section className="rounded-[2.1rem] border border-white/85 bg-white/90 p-6 shadow-[var(--shadow-card)]">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-red">Media Monitoring</p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground">TV Intelligence</h1>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-red">Media Intelligence Reimagined</p>
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground">TV</h1>
             <p className="mt-3 max-w-4xl text-sm leading-7 text-muted-foreground">
               Monitor linear news channels, review detected advertisements, and watch connected YouTube live feeds
               from one clean intelligence surface without leaving the platform.
@@ -412,7 +411,7 @@ export function TvIntelligenceDashboard({
           <section className="grid gap-4 xl:grid-cols-4">
             <MetricCard label="Detected advertisements" value={String(filteredAds.length)} note="Updated by active filters" />
             <MetricCard label="Total ad duration" value={`${totalAdDurationSeconds}s`} note="Summed across filtered airings" />
-            <MetricCard label="Estimated ad value" value={`${formatCurrency(totalMediaValue)} PKR`} note="Derived from stored or configured rate logic" />
+            <MetricCard label="Estimated ad value" value={formatCurrency(totalMediaValue)} note="Derived from stored or configured rate logic" />
             <MetricCard label="Top channel" value={channelShare[0]?.label ?? "Not available"} note={channelShare[0]?.valueLabel ?? "No filtered distribution"} />
           </section>
 
@@ -430,7 +429,7 @@ export function TvIntelligenceDashboard({
               data={valueTrend}
               color="#39bb1f"
               fill="rgba(57,187,31,0.14)"
-              formatter={(value) => `${formatCompactNumber(value)} PKR`}
+              formatter={(value) => formatCompactUsdFromCurrency(value, "PKR")}
             />
             <AreaTrendCard
               title="Advertisement duration trend"
@@ -481,7 +480,7 @@ export function TvIntelligenceDashboard({
                   <MetricMini label="Connection status" value={channel.connectionStatus} />
                   <MetricMini label="Total detected ads" value={String(channel.totalDetectedAds)} />
                   <MetricMini label="Total duration" value={formatDurationLabel(channel.totalAdDurationMs)} />
-                  <MetricMini label="Estimated value" value={`${formatCurrency(channel.estimatedAdvertisingValue)} PKR`} />
+                  <MetricMini label="Estimated value" value={formatCurrency(channel.estimatedAdvertisingValue)} />
                   <MetricMini label="Last detected ad" value={channel.lastDetectedAdTime} />
                   <MetricMini label="Status feed" value={channel.liveStatus} />
                 </div>
@@ -517,7 +516,7 @@ export function TvIntelligenceDashboard({
                 <div className="grid gap-2 sm:grid-cols-3">
                   <MetricMini label="Filtered ads" value={String(selectedChannel.adItems.length)} />
                   <MetricMini label="Ad duration" value={formatDurationLabel(selectedChannel.adItems.reduce((sum, ad) => sum + ad.durationMs, 0))} />
-                  <MetricMini label="Ad value" value={`${formatCurrency(selectedChannel.adItems.reduce((sum, ad) => sum + ad.estimatedMediaValue, 0))} PKR`} />
+                  <MetricMini label="Ad value" value={formatCurrency(selectedChannel.adItems.reduce((sum, ad) => sum + ad.estimatedMediaValue, 0))} />
                 </div>
               </div>
 
@@ -560,7 +559,7 @@ export function TvIntelligenceDashboard({
                             <MetricMini label="End time" value={ad.endTimeLabel} />
                             <MetricMini label="Duration" value={ad.durationLabel} />
                             <MetricMini label="Occurrences" value={String(ad.occurrenceCount)} />
-                            <MetricMini label="Media value" value={`${formatCurrency(ad.estimatedMediaValue)} PKR`} />
+                            <MetricMini label="Media value" value={formatCurrency(ad.estimatedMediaValue)} />
                             <MetricMini label="Confidence" value={ad.detectionConfidenceLabel} />
                           </div>
 
@@ -799,7 +798,7 @@ export function TvIntelligenceDashboard({
                       </div>
                       <div className="mt-3 grid gap-2 md:grid-cols-2">
                         <MetricMini label="Duration" value={ad.durationLabel} />
-                        <MetricMini label="Value" value={`${formatCurrency(ad.estimatedMediaValue)} PKR`} />
+                        <MetricMini label="Value" value={formatCurrency(ad.estimatedMediaValue)} />
                       </div>
                     </button>
                   ))
@@ -845,7 +844,7 @@ export function TvIntelligenceDashboard({
                       <MetricMini label="Date" value={selectedAd.startTimeLabel} />
                       <MetricMini label="End time" value={selectedAd.endTimeLabel} />
                       <MetricMini label="Duration" value={selectedAd.durationLabel} />
-                      <MetricMini label="Media value" value={`${formatCurrency(selectedAd.estimatedMediaValue)} PKR`} />
+                      <MetricMini label="Media value" value={formatCurrency(selectedAd.estimatedMediaValue)} />
                       <MetricMini label="Occurrences" value={String(selectedAd.occurrenceCount)} />
                       <MetricMini label="Confidence" value={selectedAd.detectionConfidenceLabel} />
                       {selectedAd.resolutionLabel ? <MetricMini label="Resolution" value={selectedAd.resolutionLabel} /> : null}

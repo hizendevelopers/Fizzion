@@ -74,7 +74,7 @@ export async function POST(request: Request) {
     createdOccurrences: processing.createdOccurrences,
     message:
       processing.createdOccurrences > 0
-        ? "Upload completion recorded. Processing finished and advertisement occurrences are now available in TV Intelligence."
+        ? "Upload completion recorded. Processing finished and advertisement occurrences are now available in TV."
         : "Upload completion recorded. Processing finished but no deterministic advertisement fixtures fit inside the uploaded duration.",
   });
 }

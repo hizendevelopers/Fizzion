@@ -1,7 +1,5 @@
 import type { AppLocale } from "@/lib/preferences";
 
-import { ClockIcon } from "./ui-icons";
-import { PreferenceSwitchers } from "./preference-switchers";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 
@@ -34,33 +32,16 @@ export function AppShell({
   copy,
 }: AppShellProps) {
   return (
-    <div className="h-screen overflow-hidden bg-background px-3 py-3 text-foreground lg:px-4 lg:py-4">
-      <div className="surface-premium flex h-[calc(100vh-1.5rem)] overflow-hidden rounded-[2.25rem] border border-white/70 backdrop-blur-xl">
+    <div className="min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,#fff4ea_0%,#fffaf6_24%,#fff1ee_58%,#fef8f5_100%)] px-3 py-3 text-foreground lg:px-4 lg:py-4">
+      <div className="surface-premium flex h-[calc(100vh-1.5rem)] items-stretch overflow-hidden rounded-[2.15rem] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.95)_0%,rgba(255,252,251,0.92)_100%)] shadow-[0_30px_80px_rgba(73,18,16,0.1)] backdrop-blur-xl">
         <Sidebar labels={copy.nav} />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          {/* Main header bar: Title + Co-branding */}
           <div className="sticky top-0 z-40 shrink-0">
-            <Topbar />
+            <Topbar locale={locale} timezone={timezone} />
           </div>
 
-          {/* Controls row: Language + Timezone + Freshness badge */}
-          <div className="flex shrink-0 items-center justify-end gap-2 border-b border-white bg-[#1A1F29]/90 px-4 py-2 lg:px-8">
-            <PreferenceSwitchers
-              copy={{
-                languageLabel: copy.languageLabel,
-                timezoneLabel: copy.timezoneLabel,
-              }}
-              locale={locale}
-              timezone={timezone}
-            />
-            <span className="inline-flex h-9 items-center gap-2 rounded-full border border-[#35C76F]/18 bg-[#E8F8EE] px-4 text-sm font-medium text-[#14532D]">
-              <ClockIcon className="h-4 w-4" />
-              {copy.dataFreshness}: Live
-            </span>
-          </div>
-
-          <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-6 lg:px-8" id="main-content">
-            <div className="mx-auto w-full max-w-[1500px]">
+          <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-5 lg:px-8 lg:py-6" id="main-content">
+            <div className="mx-auto w-full max-w-[1480px]">
               {children}
             </div>
           </main>

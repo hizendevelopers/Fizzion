@@ -1,7 +1,8 @@
-import test from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 
 import { cn } from "./utils";
+import { convertAmountToUsd, formatCompactUsdFromCurrency, formatUsdFromCurrency } from "./display-currency";
 import {
   buildTvRecordingFilename,
   calculateContextWindow,
@@ -75,4 +76,11 @@ test("isSourceAuthorizedForRecording enforces approved status and permissions", 
 test("detectBoundaryCrossing identifies ads spanning segment edges", () => {
   assert.equal(detectBoundaryCrossing(44_800, 45_180, 45_000), true);
   assert.equal(detectBoundaryCrossing(10_000, 20_000, 45_000), false);
+});
+
+test("display currency helpers convert PKR and IQD values into USD labels", () => {
+  assert.equal(formatUsdFromCurrency(277.67, "PKR"), "$1");
+  assert.equal(formatUsdFromCurrency(1310.17, "IQD"), "$1");
+  assert.equal(convertAmountToUsd(555.34, "PKR"), 2);
+  assert.equal(formatCompactUsdFromCurrency(2776700, "PKR"), "$10K");
 });

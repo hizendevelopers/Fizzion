@@ -79,6 +79,17 @@ export function calculateEngagementRateByReach(input: {
   return (100 * (input.engagements ?? 0)) / input.reach;
 }
 
+export function calculateEngagementRateByLikesAndViews(input: {
+  likes?: number | null;
+  views?: number | null;
+}) {
+  if (!input.views || input.views <= 0) {
+    return null;
+  }
+
+  return (100 * (input.likes ?? 0)) / input.views;
+}
+
 export function calculateFollowerGrowthRate(input: {
   followersStart?: number | null;
   followersEnd?: number | null;

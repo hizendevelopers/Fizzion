@@ -1,0 +1,28 @@
+{
+  "datasetVersion": "2026-08-10-apify-only-expanded",
+  "exactOnly": false,
+  "rawAds": 1062,
+  "uniqueAds": 1049,
+  "adsWithReach": 1024,
+  "adsWithImpressions": 184,
+  "adsWithBoth": 182,
+  "alignedTrainingRows": 191,
+  "strongRows": 0,
+  "weakRangeRows": 191,
+  "uniqueAdvertisers": 77,
+  "countries": [
+    "NL",
+    "DE"
+  ],
+  "platformMix": {
+    "INSTAGRAM": 29,
+    "FACEBOOK+INSTAGRAM": 121,
+    "FACEBOOK": 41
+  },
+  "creativeMix": {
+    "VIDEO": 90,
+    "UNKNOWN": 28,
+    "IMAGE": 73
+  },
+  "newRowsAddedThisRun": 182
+}

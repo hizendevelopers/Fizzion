@@ -204,6 +204,17 @@ export function WebIcon({ className }: IconProps) {
   );
 }
 
+export function MetaLibraryIcon({ className }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <rect x="4" y="7" width="16" height="10" rx="2.5" />
+      <path d="M8 7V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v1" />
+      <path d="M7 12h10" />
+      <path d="M7 15h7" />
+    </BaseIcon>
+  );
+}
+
 export function CreativeIcon({ className }: IconProps) {
   return (
     <BaseIcon className={className}>
@@ -239,6 +250,16 @@ export function ReportIcon({ className }: IconProps) {
       <path d="M7 18V9" />
       <path d="M12 18V6" />
       <path d="M17 18v-4" />
+    </BaseIcon>
+  );
+}
+
+export function DownloadIcon({ className }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <path d="M12 5v9" />
+      <path d="m8.5 10.5 3.5 3.5 3.5-3.5" />
+      <path d="M5 18.5h14" />
     </BaseIcon>
   );
 }

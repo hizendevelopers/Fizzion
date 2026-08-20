@@ -1,5 +1,6 @@
 import { getSocialPortfolioSummary, listSocialConnections } from "@/lib/social-data";
 import { getWebAdvertisingAnalytics, listWebAdvertisingAds, listWebAdvertisingWebsites } from "@/lib/web-ad-data";
+import { isBeverageScopedBrand } from "@/lib/beverage-scope";
 import { listOohAssets } from "@/lib/ooh/ooh-data";
 import { getOptionalSupabaseAdminClient } from "@/lib/supabase/server";
 
@@ -159,21 +160,36 @@ export async function getMonitoringDashboardData() {
   ]);
 
   const campaignRows = ((campaignsRes.data ?? []) as GenericRow[]);
-  const brandRows = ((brandsRes.data ?? []) as GenericRow[]).filter((row) => !Boolean(row["is_dummy_brand"]));
+  const brandRows = ((brandsRes.data ?? []) as GenericRow[])
+    .filter((row) => !Boolean(row["is_dummy_brand"]))
+    .filter((row) =>
+      isBeverageScopedBrand({
+        name: rowString(row, "name"),
+        category: rowNullableString(row, "category"),
+      }),
+    );
   const tvRows = ((tvOccurrencesRes.data ?? []) as GenericRow[]);
 
   const validBrands = brandRows.map((row) => rowString(row, "name")).filter(Boolean);
   const validBrandSet = new Set(validBrands.map((name) => name.toLowerCase()));
+  const filteredTvRows = tvRows.filter((row) => validBrandSet.has(rowString(row, "brand_name").toLowerCase()));
+  const filteredWebAds = webAds.filter((ad) => ad.brandName && validBrandSet.has(ad.brandName.toLowerCase()));
+  const matchedSocialConnections = socialConnections.filter((connection) =>
+    validBrands.some((brand) => connection.accountName.toLowerCase().includes(brand.toLowerCase())),
+  );
+  const filteredSocialPublishedContent = matchedSocialConnections.reduce((sum, connection) => sum + (connection.contentCount ?? 0), 0);
+  const filteredSocialReach = matchedSocialConnections.reduce((sum, connection) => sum + (connection.reach ?? 0), 0);
+  const filteredSocialEngagements = matchedSocialConnections.reduce((sum, connection) => sum + (connection.engagements ?? 0), 0);
 
   const touchpointsByBrand = new Map<string, number>();
 
-  for (const row of tvRows) {
+  for (const row of filteredTvRows) {
     const brand = rowString(row, "brand_name");
     if (!brand) continue;
     touchpointsByBrand.set(brand, (touchpointsByBrand.get(brand) ?? 0) + 1);
   }
 
-  for (const ad of webAds) {
+  for (const ad of filteredWebAds) {
     if (!ad.brandName) continue;
     touchpointsByBrand.set(ad.brandName, (touchpointsByBrand.get(ad.brandName) ?? 0) + 1);
   }
@@ -183,7 +199,7 @@ export async function getMonitoringDashboardData() {
     touchpointsByBrand.set(asset.brandName, (touchpointsByBrand.get(asset.brandName) ?? 0) + 1);
   }
 
-  for (const connection of socialConnections) {
+  for (const connection of matchedSocialConnections) {
     const matchedBrand = validBrands.find((brand) => connection.accountName.toLowerCase().includes(brand.toLowerCase()));
     if (!matchedBrand) continue;
     touchpointsByBrand.set(matchedBrand, (touchpointsByBrand.get(matchedBrand) ?? 0) + Math.max(connection.contentCount ?? 0, 1));
@@ -223,12 +239,12 @@ export async function getMonitoringDashboardData() {
   const brandNameLookup = new Map(brandProfiles.map((brand) => [brand.name.toLowerCase(), brand]));
 
   const campaignTouchpoints = new Map<string, number>();
-  for (const row of tvRows) {
+  for (const row of filteredTvRows) {
     const campaign = rowString(row, "campaign_name");
     if (!campaign) continue;
     campaignTouchpoints.set(campaign.toLowerCase(), (campaignTouchpoints.get(campaign.toLowerCase()) ?? 0) + 1);
   }
-  for (const ad of webAds) {
+  for (const ad of filteredWebAds) {
     if (!ad.campaignName) continue;
     campaignTouchpoints.set(ad.campaignName.toLowerCase(), (campaignTouchpoints.get(ad.campaignName.toLowerCase()) ?? 0) + 1);
   }
@@ -288,24 +304,24 @@ export async function getMonitoringDashboardData() {
   const creatives: CreativeProfile[] = [];
 
   const totalTouchpoints =
-    socialSummary.totalPublishedContent +
-    webAnalytics.adsDetected +
+    filteredSocialPublishedContent +
+    filteredWebAds.length +
     oohAssets.items.length +
-    tvRows.length;
+    filteredTvRows.length;
 
   const cokeBrand = brandProfiles.find((brand) => brand.name.toLowerCase().includes("coca-cola"));
   const cokeShareOfVoice = cokeBrand?.shareOfVoice ?? 0;
 
   const tvByDay = new Map<string, number>();
-  for (const row of tvRows) {
+  for (const row of filteredTvRows) {
     const startedAt = rowNullableString(row, "started_at");
     if (!startedAt) continue;
     const key = startedAt.slice(5, 10);
     tvByDay.set(key, (tvByDay.get(key) ?? 0) + 1);
   }
 
-  const webAverage = webAnalytics.adsDetected > 0 ? Math.max(1, Math.round(webAnalytics.adsDetected / 14)) : 0;
-  const socialAverage = socialSummary.totalPublishedContent > 0 ? Math.max(1, Math.round(socialSummary.totalPublishedContent / 14)) : 0;
+  const webAverage = filteredWebAds.length > 0 ? Math.max(1, Math.round(filteredWebAds.length / 14)) : 0;
+  const socialAverage = filteredSocialPublishedContent > 0 ? Math.max(1, Math.round(filteredSocialPublishedContent / 14)) : 0;
 
   return {
     summary: {
@@ -314,13 +330,13 @@ export async function getMonitoringDashboardData() {
       reportCount: reports.length,
       competitorCount: competitorBrands.length,
       totalTouchpoints,
-      socialAccounts: socialConnections.length,
+      socialAccounts: matchedSocialConnections.length,
       webSources: websites.length,
-      tvOccurrences: tvRows.length,
+      tvOccurrences: filteredTvRows.length,
       oohAssets: oohAssets.items.length,
-      totalReach: socialSummary.totalReach,
-      totalEngagements: socialSummary.totalEngagements,
-      totalWebAds: webAnalytics.adsDetected,
+      totalReach: filteredSocialReach,
+      totalEngagements: filteredSocialEngagements,
+      totalWebAds: filteredWebAds.length,
       cokeShareOfVoice,
       lastRefreshLabel: new Date().toISOString(),
     },
@@ -347,9 +363,9 @@ export async function getMonitoringDashboardData() {
     },
     distributions: {
       campaignChannels: [
-        { label: "TV", value: tvRows.length, note: "TV occurrence monitoring" },
-        { label: "Social", value: socialSummary.totalPublishedContent, note: "Connected social content" },
-        { label: "Web", value: webAnalytics.adsDetected, note: "Verified web ad occurrences" },
+        { label: "TV", value: filteredTvRows.length, note: "TV occurrence monitoring" },
+        { label: "Social", value: filteredSocialPublishedContent, note: "Connected social content" },
+        { label: "Web", value: filteredWebAds.length, note: "Verified web ad occurrences" },
         { label: "OOH", value: oohAssets.items.length, note: "OOH asset records" },
       ].filter((item) => item.value > 0),
       brandTouchpoints: brandProfiles

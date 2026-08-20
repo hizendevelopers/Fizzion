@@ -15,6 +15,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const platform = body?.platform as SocialProviderKey;
     const inputValue = body?.input?.trim();
+    const personaHint = body?.persona === "influencer" || body?.persona === "brand" ? body.persona : "brand";
 
     if (!platform || !["tiktok", "instagram", "youtube", "facebook"].includes(platform)) {
       return socialApiError("INVALID_PLATFORM", "Please select a valid platform (tiktok, instagram, youtube, facebook).", 400, requestId);
@@ -73,39 +74,74 @@ export async function POST(request: Request) {
       return socialApiError("ACCOUNT_CREATE_FAILED", accountError?.message ?? "Could not create social account record.", 500, requestId);
     }
 
-    // Create connection record
-    const { data: connection, error: connError } = await supabase
+    const baseConnectionPayload = {
+      organization_id: organizationId,
+      social_account_id: socialAccount.id,
+      connection_type: platform,
+      status: "pending",
+      connection_status: "pending",
+      sync_status: "queued",
+      input_value: inputValue,
+      normalized_url: normalized.normalizedUrl,
+      username: normalized.username ?? normalized.handle,
+      account_type: personaHint === "influencer" ? "influencer_creator" : "brand_account",
+      apify_actor_id: APIFY_ACTORS[platform],
+      token_status: "not_required",
+      sandbox_mode: false,
+      metadata: {
+        source: "apify_scrape",
+        persona: personaHint,
+        normalizedInput: normalized,
+      },
+      updated_at: now,
+    };
+
+    const { data: existingConnection } = await supabase
       .from("social_connections")
-      .insert({
-        organization_id: organizationId,
-        social_account_id: socialAccount.id,
-        connection_type: platform,
-        status: "pending",
-        connection_status: "pending",
-        sync_status: "queued",
-        input_value: inputValue,
-        normalized_url: normalized.normalizedUrl,
-        username: normalized.username ?? normalized.handle,
-        account_type: "public_scrape",
-        apify_actor_id: APIFY_ACTORS[platform],
-        token_status: "not_required",
-        sandbox_mode: false,
-        metadata: {
-          source: "apify_scrape",
-          normalizedInput: normalized,
-        },
-        created_at: now,
-        updated_at: now,
-      })
       .select("id")
+      .eq("organization_id", organizationId)
+      .eq("social_account_id", socialAccount.id)
+      .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    if (connError || !connection?.id) {
-      return socialApiError("CONNECTION_CREATE_FAILED", connError?.message ?? "Could not create connection record.", 500, requestId);
+    let connectionId: string | null = null;
+
+    if (existingConnection?.id) {
+      const { data: updatedConnection, error: connError } = await supabase
+        .from("social_connections")
+        .update(baseConnectionPayload)
+        .eq("id", existingConnection.id)
+        .select("id")
+        .limit(1)
+        .maybeSingle();
+
+      if (connError || !updatedConnection?.id) {
+        return socialApiError("CONNECTION_CREATE_FAILED", connError?.message ?? "Could not reuse social connection record.", 500, requestId);
+      }
+
+      connectionId = updatedConnection.id;
+    } else {
+      const { data: connection, error: connError } = await supabase
+        .from("social_connections")
+        .insert({
+          ...baseConnectionPayload,
+          created_at: now,
+        })
+        .select("id")
+        .limit(1)
+        .maybeSingle();
+
+      if (connError || !connection?.id) {
+        return socialApiError("CONNECTION_CREATE_FAILED", connError?.message ?? "Could not create connection record.", 500, requestId);
+      }
+
+      connectionId = connection.id;
     }
 
-    const connectionId = connection.id;
+    if (!connectionId) {
+      return socialApiError("CONNECTION_CREATE_FAILED", "Could not determine the active connection record.", 500, requestId);
+    }
 
     {
       const { error: jobError } = await supabase.from("social_sync_jobs").insert({

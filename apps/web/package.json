@@ -8,14 +8,27 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "tsx --test ./src/lib/utils.test.ts ./src/lib/capture-utils.test.ts ./src/lib/supabase/server.test.ts ./src/lib/social-utils.test.ts ./src/lib/social-security.test.ts ./src/lib/social-providers.test.ts ./src/lib/apify/instagram-profile-actor.test.ts ./src/lib/apify/instagram-posts-actor.test.ts ./src/lib/web-ad-data.test.ts ./src/lib/ooh/demo-data.test.ts ./src/lib/ooh/ooh-import.test.ts ./src/lib/overview-analytics.test.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "generate:ooh-demo-images": "tsx ./scripts/generate-ooh-demo-images.ts",
-    "seed:tv-demo": "tsx ./scripts/seed-tv-demo-data.ts"
+    "generate:web-demo-images": "tsx ./scripts/generate-web-demo-images.ts",
+    "seed:overview-demo": "tsx ./scripts/seed-overview-demo-data.ts",
+    "seed:tv-demo": "tsx ./scripts/seed-tv-demo-data.ts",
+    "seed:web-demo": "tsx ./scripts/seed-web-demo-data.ts",
+    "seed:tv-dashboard": "tsx ./scripts/seed-tv-dashboard-data.ts",
+    "collect:meta-training-dataset": "tsx ./scripts/collect-meta-training-dataset.ts",
+    "collect:meta-eu-disclosed-labels": "tsx ./scripts/collect-meta-eu-disclosed-labels.ts",
+    "import:meta-training-dataset": "tsx ./scripts/import-meta-training-dataset.ts",
+    "backfill:meta-impression-estimates": "tsx ./scripts/backfill-meta-impression-estimates.ts",
+    "import:meta-ads-insights": "tsx ./scripts/import-meta-ads-insights.ts",
+    "export:meta-impressions-dataset": "tsx ./scripts/export-meta-impressions-dataset.ts",
+    "invite:first-admin": "tsx ./scripts/invite-first-admin.ts"
   },
   "dependencies": {
     "@fizzion/config": "*",
     "@fizzion/types": "*",
     "@fizzion/ui": "*",
+    "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.110.7",
     "apify-client": "^2.23.4",
     "maplibre-gl": "^5.24.0",
@@ -36,6 +49,7 @@
     "eslint-config-next": "16.2.10",
     "tailwindcss": "^4",
     "tsx": "^4.20.3",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.11"
   }
 }

@@ -1,11 +1,12 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import type { OohAreaItem, OohAssetDetail, OohBrandItem } from "@/lib/ooh/ooh-data";
 import type { OohAssetCreateInput } from "@/lib/ooh/ooh-schemas";
+import { formatUsdFromCurrency } from "@/lib/display-currency";
 import { OohCoordinatePicker } from "./ooh-coordinate-picker";
 
 type OohAssetFormProps = {
@@ -18,8 +19,10 @@ type OohAssetFormProps = {
 
 function buildDefaultFormValue(asset?: OohAssetDetail | null, initialMediaType?: "BILLBOARD" | "DIGITAL_SCREEN"): OohAssetCreateInput {
   const currentPlacement = asset?.placements.find((placement) => placement.status === "CURRENT") ?? asset?.placements[0];
-  const currentImageCreative = asset?.images.find((image) => image.imageType === "CREATIVE");
-  const currentImageProof = asset?.images.find((image) => image.imageType === "PROOF_OF_PLAY");
+  const currentPrimaryImage =
+    asset?.images.find((image) => image.isPrimary) ??
+    asset?.images.find((image) => image.imageType === "SITE_PHOTO") ??
+    asset?.images[0];
 
   return {
     assetCode: asset?.assetCode ?? "",
@@ -60,8 +63,8 @@ function buildDefaultFormValue(asset?: OohAssetDetail | null, initialMediaType?:
     weeklyCost: currentPlacement?.weeklyCost ?? null,
     monthlyCost: currentPlacement?.monthlyCost ?? null,
     currency: currentPlacement?.currency ?? (asset?.city === "Baghdad" ? "IQD" : "PKR"),
-    creativeImageUrl: currentPlacement?.creativeImageUrl ?? currentImageCreative?.imageUrl ?? null,
-    proofOfPlayUrl: currentPlacement?.proofOfPlayUrl ?? currentImageProof?.imageUrl ?? null,
+    creativeImageUrl: currentPlacement?.creativeImageUrl ?? null,
+    proofOfPlayUrl: currentPlacement?.proofOfPlayUrl ?? null,
     placementStatus: (currentPlacement?.status as "CURRENT" | "SCHEDULED" | "COMPLETED" | undefined) ?? "CURRENT",
     availabilityStartDate: asset?.availability[0]?.startDate ?? null,
     availabilityEndDate: asset?.availability[0]?.endDate ?? null,
@@ -85,14 +88,17 @@ function buildDefaultFormValue(asset?: OohAssetDetail | null, initialMediaType?:
     loopLengthSeconds: asset?.digitalSpecification?.loopLengthSeconds ?? 60,
     spotLengthSeconds: asset?.digitalSpecification?.spotLengthSeconds ?? 10,
     estimatedPlaysPerDay: asset?.digitalSpecification?.estimatedPlaysPerDay ?? null,
-    images:
-      asset?.images.map((image) => ({
-        imageUrl: image.imageUrl,
-        imageType: image.imageType as "SITE_PHOTO" | "CREATIVE" | "PROOF_OF_PLAY",
-        altText: image.altText,
-        sortOrder: image.sortOrder,
-        isPrimary: image.isPrimary,
-      })) ?? [],
+    images: currentPrimaryImage
+      ? [
+          {
+            imageUrl: currentPrimaryImage.imageUrl,
+            imageType: "SITE_PHOTO",
+            altText: currentPrimaryImage.altText,
+            sortOrder: 0,
+            isPrimary: true,
+          },
+        ]
+      : [],
   };
 }
 
@@ -116,8 +122,24 @@ function formatMoney(value: number | null | undefined, currency: string | null |
   if (value === null || value === undefined) {
     return "Not available";
   }
+  return formatUsdFromCurrency(value, currency);
+}
 
-  return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value)} ${currency ?? ""}`.trim();
+function normalizeExternalImageUrl(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith("/")) return trimmed;
+  try {
+    const parsed = new URL(trimmed);
+    const googleImageParam = parsed.searchParams.get("imgurl") ?? parsed.searchParams.get("url");
+    if (googleImageParam) {
+      return normalizeExternalImageUrl(googleImageParam);
+    }
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
 }
 
 export function OohAssetForm({ mode, areas, brands, initialAsset, initialMediaType }: OohAssetFormProps) {
@@ -154,57 +176,71 @@ export function OohAssetForm({ mode, areas, brands, initialAsset, initialMediaTy
     setForm((current) => ({ ...current, [key]: value }));
   }
 
-  async function uploadImages(files: FileList | null, imageType: "SITE_PHOTO" | "CREATIVE" | "PROOF_OF_PLAY") {
+  const setSingleImage = useCallback((uploadedImage: OohAssetCreateInput["images"][number]) => {
+    setForm((current) => {
+      return {
+        ...current,
+        images: [
+          {
+            ...uploadedImage,
+            imageType: "SITE_PHOTO",
+            sortOrder: 0,
+            isPrimary: true,
+          },
+        ],
+      };
+    });
+  }, []);
+
+  async function uploadImages(files: FileList | null) {
     if (!files || files.length === 0) return;
     setBusy(true);
     setStatus(null);
     try {
-      const uploadedImages: OohAssetCreateInput["images"] = [];
-      for (const file of Array.from(files)) {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("folder", imageType.toLowerCase());
-        const response = await fetch("/api/ooh/uploads", {
-          method: "POST",
-          body: formData,
-        });
-        const payload = await response.json();
-        if (!response.ok) {
-          throw new Error(payload?.error?.message ?? "Upload failed.");
-        }
-        uploadedImages.push({
-          imageUrl: payload.imageUrl as string,
-          imageType,
-          altText: `${form.locationName || form.assetCode || "OOH asset"} ${imageType.toLowerCase().replaceAll("_", " ")}`,
-          sortOrder: form.images.length + uploadedImages.length,
-          isPrimary: form.images.length === 0 && imageType === "SITE_PHOTO",
-        });
-      }
-      setForm((current) => {
-        const nextImages = [...current.images, ...uploadedImages];
-        const latestSitePhoto = [...uploadedImages].reverse().find((image) => image.imageType === "SITE_PHOTO") ?? null;
-        const latestCreative = [...uploadedImages].reverse().find((image) => image.imageType === "CREATIVE") ?? null;
-        const latestProof = [...uploadedImages].reverse().find((image) => image.imageType === "PROOF_OF_PLAY") ?? null;
-        const normalizedImages = nextImages.map((image, index) => ({
-          ...image,
-          isPrimary: latestSitePhoto
-            ? image.imageUrl === latestSitePhoto.imageUrl
-            : image.isPrimary || index === 0,
-        }));
-
-        return {
-          ...current,
-          images: normalizedImages,
-          creativeImageUrl: latestCreative?.imageUrl ?? current.creativeImageUrl,
-          proofOfPlayUrl: latestProof?.imageUrl ?? current.proofOfPlayUrl,
-        };
+      const file = Array.from(files)[0];
+      if (!file) return;
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("folder", "site_photo");
+      const response = await fetch("/api/ooh/uploads", {
+        method: "POST",
+        body: formData,
       });
-      setStatus(`${uploadedImages.length} image${uploadedImages.length > 1 ? "s" : ""} uploaded successfully.`);
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.error?.message ?? "Upload failed.");
+      }
+      setSingleImage({
+        imageUrl: payload.imageUrl as string,
+        imageType: "SITE_PHOTO",
+        altText: `${form.locationName || form.assetCode || "OOH asset"} image`,
+        sortOrder: 0,
+        isPrimary: true,
+      });
+      setStatus("Image uploaded successfully.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Image upload failed.");
     } finally {
       setBusy(false);
     }
+  }
+
+  function addImageUrl(imageUrl: string) {
+    const normalized = normalizeExternalImageUrl(imageUrl);
+    if (!normalized) {
+      setStatus("Enter a valid image URL or root-relative media path.");
+      return false;
+    }
+
+    setSingleImage({
+      imageUrl: normalized,
+      imageType: "SITE_PHOTO",
+      altText: `${form.locationName || form.assetCode || "OOH asset"} image`,
+      sortOrder: 0,
+      isPrimary: true,
+    });
+    setStatus("Image URL added successfully.");
+    return true;
   }
 
   async function submit() {
@@ -431,15 +467,18 @@ export function OohAssetForm({ mode, areas, brands, initialAsset, initialMediaTy
           <FormSection title="Image upload">
             <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
               <div className="space-y-4">
-                <UploadField label="Site photos" onChange={(files) => uploadImages(files, "SITE_PHOTO")} disabled={busy} />
-                <UploadField label="Creative images" onChange={(files) => uploadImages(files, "CREATIVE")} disabled={busy} />
-                <UploadField label="Proof of play" onChange={(files) => uploadImages(files, "PROOF_OF_PLAY")} disabled={busy} />
+                <UploadField
+                  label="Asset image"
+                  disabled={busy}
+                  onChange={uploadImages}
+                  onAddUrl={addImageUrl}
+                />
                 <TextField label="Notes" value={form.notes ?? ""} onChange={(value) => updateField("notes", value || null)} />
               </div>
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid gap-3 md:grid-cols-1">
                 {form.images.length === 0 ? (
-                  <div className="rounded-3xl border border-dashed border-border bg-panel-soft px-5 py-10 text-center text-sm text-muted-foreground md:col-span-2">
-                    Upload site photos, creative assets, or proof-of-play images to preview them here.
+                  <div className="rounded-3xl border border-dashed border-border bg-panel-soft px-5 py-10 text-center text-sm text-muted-foreground">
+                    Upload one image or paste a direct image URL to preview the selected billboard or digital screen here.
                   </div>
                 ) : null}
                 {form.images.map((image, index) => (
@@ -459,21 +498,6 @@ export function OohAssetForm({ mode, areas, brands, initialAsset, initialMediaTy
                         }
                       />
                       <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          className="rounded-full border border-border bg-panel-soft px-3 py-2 text-xs"
-                          onClick={() =>
-                            setForm((current) => ({
-                              ...current,
-                              images: current.images.map((item, itemIndex) => ({
-                                ...item,
-                                isPrimary: itemIndex === index,
-                              })),
-                            }))
-                          }
-                        >
-                          {image.isPrimary ? "Primary image" : "Set primary"}
-                        </button>
                         <button
                           type="button"
                           className="rounded-full border border-warning/35 bg-warning-soft px-3 py-2 text-xs"
@@ -615,23 +639,68 @@ function SelectField({
 function UploadField({
   label,
   onChange,
+  onAddUrl,
   disabled,
 }: {
   label: string;
   onChange: (files: FileList | null) => void;
+  onAddUrl: (url: string) => boolean;
   disabled: boolean;
 }) {
+  const [isDragging, setIsDragging] = useState(false);
+  const [url, setUrl] = useState("");
+
   return (
-    <label className="grid gap-2 text-sm">
+    <div className="grid gap-2 text-sm">
       <span className="font-medium text-foreground">{label}</span>
-      <input
-        type="file"
-        accept=".jpg,.jpeg,.png,.webp,.svg,image/jpeg,image/png,image/webp,image/svg+xml"
-        multiple
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.files)}
-        className="rounded-2xl border border-border bg-panel-soft px-4 py-3 text-sm file:mr-3 file:rounded-full file:border-0 file:bg-white file:px-3 file:py-2 file:text-sm"
-      />
-    </label>
+      <label
+        className={`rounded-2xl border border-dashed px-4 py-4 transition ${isDragging ? "border-brand-red bg-brand-red-soft/40" : "border-border bg-panel-soft"}`}
+        onDragOver={(event) => {
+          event.preventDefault();
+          if (!disabled) setIsDragging(true);
+        }}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={(event) => {
+          event.preventDefault();
+          setIsDragging(false);
+          if (disabled) return;
+          onChange(event.dataTransfer.files);
+        }}
+      >
+        <input
+          type="file"
+          accept=".jpg,.jpeg,.png,.webp,.svg,image/jpeg,image/png,image/webp,image/svg+xml"
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.files)}
+          className="hidden"
+        />
+        <div className="flex flex-col gap-2">
+          <span className="text-sm font-medium text-foreground">Drag and drop one image here</span>
+          <span className="text-xs text-muted-foreground">Or click this area to browse and upload a JPG, PNG, WEBP, or SVG file.</span>
+        </div>
+      </label>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <input
+          type="url"
+          value={url}
+          disabled={disabled}
+          placeholder="Paste image URL or /media/path"
+          onChange={(event) => setUrl(event.target.value)}
+          className="min-w-0 flex-1 rounded-2xl border border-border bg-panel-soft px-4 py-3 text-sm"
+        />
+        <button
+          type="button"
+          disabled={disabled || url.trim().length === 0}
+          onClick={() => {
+            if (onAddUrl(url)) {
+              setUrl("");
+            }
+          }}
+          className="rounded-full border border-border bg-white px-4 py-3 text-sm font-medium text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          Add URL
+        </button>
+      </div>
+    </div>
   );
 }

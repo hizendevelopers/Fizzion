@@ -12,11 +12,48 @@ type Props = {
   compact?: boolean;
 };
 
+const ACTIVE_STATUSES = new Set(["queued", "running"]);
+const POLL_INTERVAL_MS = 3000;
+const MAX_POLLS = 40; // ~2 minutes
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export function WebAdScanButton({ websiteId, compact = false }: Props) {
   const router = useRouter();
   const [isPending, setIsPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  async function pollUntilDone() {
+    for (let attempt = 0; attempt < MAX_POLLS; attempt += 1) {
+      await sleep(POLL_INTERVAL_MS);
+
+      try {
+        const response = await fetch(`/api/web-advertising/websites/${websiteId}`, { cache: "no-store" });
+        const payload = (await response.json().catch(() => null)) as
+          | { website?: { runs?: Array<{ status?: string; ads_detected?: number }> } }
+          | null;
+        const latestRun = payload?.website?.runs?.[0];
+
+        router.refresh();
+
+        if (!latestRun || !ACTIVE_STATUSES.has(String(latestRun.status ?? "").toLowerCase())) {
+          setMessage(
+            latestRun?.status === "failed"
+              ? "Website scan failed. Check the crawl history for details."
+              : `Scan complete. ${latestRun?.ads_detected ?? 0} advertisement candidate(s) captured.`,
+          );
+          return;
+        }
+      } catch {
+        // Keep polling — a single failed status check shouldn't abort.
+      }
+    }
+
+    setMessage("The scan is taking longer than expected. Refresh to check its latest status.");
+  }
 
   async function handleClick() {
     setMessage(null);
@@ -37,6 +74,7 @@ export function WebAdScanButton({ websiteId, compact = false }: Props) {
 
       setMessage(payload?.message ?? "Website scan queued.");
       router.refresh();
+      await pollUntilDone();
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Website scan could not be started.");
     } finally {

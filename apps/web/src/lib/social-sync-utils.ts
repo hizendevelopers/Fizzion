@@ -62,6 +62,52 @@ export interface ScrapeBundleResult {
   }>;
 }
 
+function compactRawPayload(value: unknown, depth = 0): unknown {
+  if (value == null) {
+    return value;
+  }
+
+  if (depth > 3) {
+    return "[trimmed]";
+  }
+
+  if (Array.isArray(value)) {
+    const trimmedItems = value.slice(0, 12).map((item) => compactRawPayload(item, depth + 1));
+    return value.length > 12 ? [...trimmedItems, `[+${value.length - 12} more]`] : trimmedItems;
+  }
+
+  if (typeof value !== "object") {
+    return value;
+  }
+
+  const source = value as Record<string, unknown>;
+  const trimmed: Record<string, unknown> = {};
+
+  for (const key of Object.keys(source).slice(0, 80)) {
+    if (
+      key === "latestComments" ||
+      key === "comments" ||
+      key === "latestPosts" ||
+      key === "childPosts" ||
+      key === "topComments" ||
+      key === "edge_media_to_comment"
+    ) {
+      continue;
+    }
+
+    trimmed[key] = compactRawPayload(source[key], depth + 1);
+  }
+
+  return trimmed;
+}
+
+function compactRawPayloadRecord(value: unknown): Record<string, unknown> {
+  const compacted = compactRawPayload(value);
+  return compacted && typeof compacted === "object" && !Array.isArray(compacted)
+    ? (compacted as Record<string, unknown>)
+    : {};
+}
+
 const DEFAULT_INSTAGRAM_RESULTS_LIMIT = 2500;
 const INSTAGRAM_PRIMARY_RESULTS_LIMIT_CAP = 100;
 
@@ -381,7 +427,7 @@ export async function processAndSaveResults(
         engagements: profile.engagements,
         engagement_rate: profile.engagementRate,
         raw_data_json: {
-          ...profile.rawData,
+          ...compactRawPayloadRecord(profile.rawData),
           supplementalProfileImported: supplementalProfileItems.length > 0,
         },
         captured_at: now,
@@ -435,13 +481,12 @@ export async function processAndSaveResults(
             published_at: content.publishedAt?.toISOString() ?? now,
             permalink: content.permalink,
             is_paid: false,
-            duration_seconds: content.durationSeconds,
             location_name: null,
             paid_status: "organic",
             processing_status: "ready",
             content_status: "published",
             raw_payload_json: {
-              ...content.rawData,
+              ...compactRawPayloadRecord(content.rawData),
               supplementalProfileImported: supplementalProfileItems.length > 0,
             },
           },
@@ -453,7 +498,15 @@ export async function processAndSaveResults(
         .limit(1)
         .maybeSingle();
 
-      if (postError || !post?.id) continue;
+      if (postError || !post?.id) {
+        console.error("Failed to upsert social post", {
+          connectionId,
+          provider: platform,
+          externalContentId: content.externalContentId,
+          message: postError?.message ?? "Missing social post id after upsert.",
+        });
+        continue;
+      }
       savedContent++;
 
       const existingMedia = await supabase
@@ -519,7 +572,7 @@ export async function processAndSaveResults(
         engagements: content.engagements,
         engagement_rate: content.engagementRate,
         raw_metrics_json: {
-          ...content.rawData,
+          ...compactRawPayloadRecord(content.rawData),
           supplementalProfileImported: supplementalProfileItems.length > 0,
         },
       });
@@ -545,7 +598,7 @@ export async function processAndSaveResults(
             engagementRate: content.engagementRate,
           },
           raw_metrics_json: {
-            ...content.rawData,
+            ...compactRawPayloadRecord(content.rawData),
             supplementalProfileImported: supplementalProfileItems.length > 0,
           },
         },
@@ -575,7 +628,7 @@ export async function processAndSaveResults(
               comment_likes: comment.likes,
               replies_count: comment.repliesCount ?? 0,
               published_at: comment.publishedAt?.toISOString() ?? now,
-              raw_payload_json: comment.rawData,
+              raw_payload_json: compactRawPayload(comment.rawData),
             },
             { onConflict: "social_post_id,external_comment_id" },
           );

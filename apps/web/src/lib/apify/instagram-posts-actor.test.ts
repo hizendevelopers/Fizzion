@@ -1,4 +1,4 @@
-import test from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 
 import { APIFY_ACTORS, INSTAGRAM_CONTENT_FALLBACK_ACTORS } from "@/lib/apify/actors";

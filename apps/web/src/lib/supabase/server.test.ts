@@ -1,122 +1,93 @@
-import test from "node:test";
+import { afterEach, beforeEach, test } from "vitest";
 import assert from "node:assert/strict";
 
 import {
+  __setEnvFileCacheForTests,
   getOptionalSupabaseSecretKey,
   getSupabaseProjectId,
   getSupabasePublishableKey,
   getSupabaseUrl,
 } from "@/lib/env";
 
-test("supabase project id fallback is stable", () => {
-  assert.equal(getSupabaseProjectId(), "urhfqdjhecohdapynglm");
+// These env accessors intentionally have NO hardcoded fallback credential
+// (see the security audit: a hardcoded fallback previously pointed every
+// unconfigured environment at the same live Supabase project). They read
+// from process.env first, then — as a local dev convenience — from a
+// .env.local/.env file on disk, cached at module scope. Each test pins
+// that file-fallback cache to `{}` via __setEnvFileCacheForTests, so
+// these tests exercise only process.env and behave identically whether
+// or not a real .env.local happens to exist on the machine running them.
+
+const MANAGED_KEYS = [
+  "NEXT_PUBLIC_SUPABASE_URL",
+  "SUPABASE_URL",
+  "NEXT_PUBLIC_SUPABASE_PROJECT_URL",
+  "SUPABASE_PROJECT_ID",
+  "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+  "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+  "NEXT_PUBLIC_SUPABASE_KEY",
+  "SUPABASE_PUBLISHABLE_KEY",
+  "SUPABASE_ANON_KEY",
+  "SUPABASE_KEY",
+  "SUPABASE_SECRET_KEY",
+  "SUPABASE_SERVICE_ROLE_KEY",
+] as const;
+
+let savedEnv: Record<string, string | undefined>;
+
+beforeEach(() => {
+  savedEnv = {};
+  for (const key of MANAGED_KEYS) {
+    savedEnv[key] = process.env[key];
+    delete process.env[key];
+  }
+  __setEnvFileCacheForTests({});
 });
 
-test("supabase url falls back to the project id when the direct url env is missing", () => {
-  const previousPublicUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const previousServerUrl = process.env.SUPABASE_URL;
-  const previousProjectId = process.env.SUPABASE_PROJECT_ID;
-
-  delete process.env.NEXT_PUBLIC_SUPABASE_URL;
-  delete process.env.SUPABASE_URL;
-  process.env.SUPABASE_PROJECT_ID = "urhfqdjhecohdapynglm";
-
-  assert.equal(getSupabaseUrl(), "https://urhfqdjhecohdapynglm.supabase.co");
-
-  if (previousPublicUrl === undefined) {
-    delete process.env.NEXT_PUBLIC_SUPABASE_URL;
-  } else {
-    process.env.NEXT_PUBLIC_SUPABASE_URL = previousPublicUrl;
+afterEach(() => {
+  for (const key of MANAGED_KEYS) {
+    if (savedEnv[key] === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = savedEnv[key];
+    }
   }
-
-  if (previousServerUrl === undefined) {
-    delete process.env.SUPABASE_URL;
-  } else {
-    process.env.SUPABASE_URL = previousServerUrl;
-  }
-
-  if (previousProjectId === undefined) {
-    delete process.env.SUPABASE_PROJECT_ID;
-  } else {
-    process.env.SUPABASE_PROJECT_ID = previousProjectId;
-  }
+  __setEnvFileCacheForTests(null);
 });
 
-test("optional supabase secret key can resolve from server env files when process env is missing", () => {
-  const previousSecretKey = process.env.SUPABASE_SECRET_KEY;
-  const previousServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  delete process.env.SUPABASE_SECRET_KEY;
-  delete process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  assert.equal(typeof getOptionalSupabaseSecretKey(), "string");
-
-  if (previousSecretKey === undefined) {
-    delete process.env.SUPABASE_SECRET_KEY;
-  } else {
-    process.env.SUPABASE_SECRET_KEY = previousSecretKey;
-  }
-
-  if (previousServiceRoleKey === undefined) {
-    delete process.env.SUPABASE_SERVICE_ROLE_KEY;
-  } else {
-    process.env.SUPABASE_SERVICE_ROLE_KEY = previousServiceRoleKey;
-  }
+test("supabase url resolves directly from NEXT_PUBLIC_SUPABASE_URL", () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example-project.supabase.co";
+  assert.equal(getSupabaseUrl(), "https://example-project.supabase.co");
 });
 
-test("supabase publishable key falls back to the project default when env aliases are missing", () => {
-  const previousPublicPublishable = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  const previousPublicAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const previousPublicKey = process.env.NEXT_PUBLIC_SUPABASE_KEY;
-  const previousServerPublishable = process.env.SUPABASE_PUBLISHABLE_KEY;
-  const previousServerAnon = process.env.SUPABASE_ANON_KEY;
-  const previousServerKey = process.env.SUPABASE_KEY;
+test("supabase url falls back to building one from the project id", () => {
+  process.env.SUPABASE_PROJECT_ID = "abcxyz123456";
+  assert.equal(getSupabaseUrl(), "https://abcxyz123456.supabase.co");
+});
 
-  delete process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  delete process.env.NEXT_PUBLIC_SUPABASE_KEY;
-  delete process.env.SUPABASE_PUBLISHABLE_KEY;
-  delete process.env.SUPABASE_ANON_KEY;
-  delete process.env.SUPABASE_KEY;
+test("supabase url throws a clear error when nothing is configured", () => {
+  assert.throws(() => getSupabaseUrl(), /not configured/i);
+});
 
-  assert.equal(
-    getSupabasePublishableKey(),
-    "sb_publishable_DnSUdzVV1z24mMrG-IvxNA_dW223WKV",
-  );
+test("supabase project id resolves from SUPABASE_PROJECT_ID", () => {
+  process.env.SUPABASE_PROJECT_ID = "my-project-id";
+  assert.equal(getSupabaseProjectId(), "my-project-id");
+});
 
-  if (previousPublicPublishable === undefined) {
-    delete process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  } else {
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = previousPublicPublishable;
-  }
+test("supabase publishable key resolves from any of its aliases", () => {
+  process.env.SUPABASE_ANON_KEY = "anon-key-value";
+  assert.equal(getSupabasePublishableKey(), "anon-key-value");
+});
 
-  if (previousPublicAnon === undefined) {
-    delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  } else {
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = previousPublicAnon;
-  }
+test("supabase publishable key throws a clear error when nothing is configured", () => {
+  assert.throws(() => getSupabasePublishableKey(), /not configured/i);
+});
 
-  if (previousPublicKey === undefined) {
-    delete process.env.NEXT_PUBLIC_SUPABASE_KEY;
-  } else {
-    process.env.NEXT_PUBLIC_SUPABASE_KEY = previousPublicKey;
-  }
+test("optional supabase secret key returns undefined when unset, without throwing", () => {
+  assert.equal(getOptionalSupabaseSecretKey(), undefined);
+});
 
-  if (previousServerPublishable === undefined) {
-    delete process.env.SUPABASE_PUBLISHABLE_KEY;
-  } else {
-    process.env.SUPABASE_PUBLISHABLE_KEY = previousServerPublishable;
-  }
-
-  if (previousServerAnon === undefined) {
-    delete process.env.SUPABASE_ANON_KEY;
-  } else {
-    process.env.SUPABASE_ANON_KEY = previousServerAnon;
-  }
-
-  if (previousServerKey === undefined) {
-    delete process.env.SUPABASE_KEY;
-  } else {
-    process.env.SUPABASE_KEY = previousServerKey;
-  }
+test("optional supabase secret key resolves once configured", () => {
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-value";
+  assert.equal(getOptionalSupabaseSecretKey(), "service-role-value");
 });

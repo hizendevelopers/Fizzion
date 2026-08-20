@@ -3,9 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
+import { createPortal } from "react-dom";
 
 import type { OverviewFilters, OverviewResponse } from "@/lib/overview-analytics";
+import { formatCompactUsdFromCurrency, formatUsdFromCurrency } from "@/lib/display-currency";
 import { cn } from "@/lib/utils";
+import { ShareOfVoiceCard, StackedSpendingChartCard } from "@/components/states/insight-charts";
 import {
   BrandIcon,
   CalendarIcon,
@@ -28,20 +31,58 @@ type AsyncState = {
   error: string | null;
 };
 
+type OverviewFilterPanel = "date" | "brands" | "campaigns" | "platforms" | null;
+
 /* ──────────────────────── Helpers ──────────────────────── */
 
 function formatCurrency(value: number, currency: string) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  }).format(value);
+  return formatUsdFromCurrency(value, currency);
+}
+
+function SharedOverviewSovCard({
+  data,
+  currency,
+}: {
+  data: OverviewResponse["shareOfVoice"];
+  currency: string;
+}) {
+  return (
+    <ShareOfVoiceCard
+      title="Spending SOV"
+      subtitle="Share of total spend by brand"
+      data={data.map((entry) => ({
+        label: entry.brandName,
+        share: entry.percentage / 100,
+        note: `${formatCurrency(entry.spend, currency)} • ${entry.activeCampaignCount} campaigns`,
+        color: entry.color,
+        valueLabel: `${entry.percentage.toFixed(1)}%`,
+      }))}
+      emptyLabel="No spending data is available for the selected filters."
+    />
+  );
 }
 
 function formatDelta(value: number | null) {
   if (value == null) return "—";
   const prefix = value > 0 ? "+" : "";
   return `${prefix}${value.toFixed(1)}%`;
+}
+
+function getTextColorForBg(bgColor: string) {
+  const hex = bgColor.replace("#", "");
+  if (hex.length < 6) return "#FFFFFF";
+  const r = Number.parseInt(hex.slice(0, 2), 16);
+  const g = Number.parseInt(hex.slice(2, 4), 16);
+  const b = Number.parseInt(hex.slice(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.55 ? "#111827" : "#FFFFFF";
+}
+
+function formatSovLabel(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "0";
+  if (value >= 10) return `${Math.round(value)}`;
+  if (value >= 1) return value % 1 === 0 ? `${Math.round(value)}` : value.toFixed(1);
+  return value.toFixed(1);
 }
 
 function toIsoDate(date: Date) {
@@ -69,42 +110,10 @@ function getPresetDates(preset: OverviewFilters["preset"]) {
   return { startDate: toIsoDate(start), endDate: toIsoDate(end) };
 }
 
-function getTextColorForBg(bgColor: string) {
-  const hex = bgColor.replace("#", "");
-  if (hex.length < 6) return "#FFFFFF";
-  const r = Number.parseInt(hex.slice(0, 2), 16);
-  const g = Number.parseInt(hex.slice(2, 4), 16);
-  const b = Number.parseInt(hex.slice(4, 6), 16);
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.55 ? "#111827" : "#FFFFFF";
-}
-
 function getBrandInitials(name: string) {
   const parts = name.split(/[\s-]+/).filter(Boolean);
   if (parts.length >= 2) return parts.slice(0, 2).map((p) => p.charAt(0).toUpperCase()).join("");
   return name.slice(0, 2).toUpperCase();
-}
-
-function buildCanBodyPath(cx: number, topY: number, tw: number, bw: number, bh: number, sr: number, br: number) {
-  const t = topY, b = topY + bh;
-  return [
-    `M ${cx - tw + sr} ${t}`,
-    `Q ${cx - tw} ${t}, ${cx - tw} ${t + sr}`,
-    `L ${cx - bw} ${b - br}`,
-    `Q ${cx - bw} ${b}, ${cx - bw + br} ${b}`,
-    `L ${cx + bw - br} ${b}`,
-    `Q ${cx + bw} ${b}, ${cx + bw} ${b - br}`,
-    `L ${cx + tw} ${t + sr}`,
-    `Q ${cx + tw} ${t}, ${cx + tw - sr} ${t}`,
-    "Z",
-  ].join(" ");
-}
-
-function formatSovLabel(value: number): string {
-  if (!Number.isFinite(value) || value <= 0) return "0";
-  if (value >= 10) return `${Math.round(value)}`;
-  if (value >= 1) return value % 1 === 0 ? `${Math.round(value)}` : value.toFixed(1);
-  return value.toFixed(1);
 }
 
 /* ──────────────────── Main Dashboard ───────────────────── */
@@ -116,13 +125,41 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
   const abortRef = useRef<AbortController | null>(null);
   const [pendingFilters, setPendingFilters] = useState<OverviewFilters>(initialData.filters);
   const [state, setState] = useState<AsyncState>({ data: initialData, loading: false, error: null });
+  const [openFilterPanel, setOpenFilterPanel] = useState<OverviewFilterPanel>(null);
 
   useEffect(() => {
     setPendingFilters(initialData.filters);
     setState({ data: initialData, loading: false, error: null });
   }, [initialData]);
 
+  useEffect(() => {
+    setOpenFilterPanel(null);
+  }, [pathname]);
+
   const hasDirtyFilters = JSON.stringify(pendingFilters) !== JSON.stringify(state.data.filters);
+
+  const campaignFilterOptions = useMemo(() => {
+    return state.data.filterOptions.campaigns
+      .filter((campaign) => {
+        if (pendingFilters.brandIds.length > 0 && campaign.brandId && !pendingFilters.brandIds.includes(campaign.brandId)) {
+          return false;
+        }
+        if (
+          pendingFilters.platformIds.length > 0 &&
+          campaign.platformIds.length > 0 &&
+          !pendingFilters.platformIds.some((platformId) => campaign.platformIds.includes(platformId))
+        ) {
+          return false;
+        }
+        return true;
+      })
+      .map((campaign) => ({
+        id: campaign.id,
+        label: campaign.name,
+        description: campaign.brandName,
+        status: campaign.status,
+      }));
+  }, [pendingFilters.brandIds, pendingFilters.platformIds, state.data.filterOptions.campaigns]);
 
   const buildQuery = useCallback((filters: OverviewFilters) => {
     const query = new URLSearchParams();
@@ -169,6 +206,7 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
   const applyFilters = useCallback(() => {
     const next = { ...pendingFilters, page: 1 };
     setPendingFilters(next);
+    setOpenFilterPanel(null);
     void loadData(next);
   }, [pendingFilters, loadData]);
 
@@ -185,10 +223,11 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
       sortCampaigns: "spend" as const,
       campaignSearch: "",
       page: 1,
-      pageSize: 8,
+      pageSize: 50,
       activeFilterCount: 0,
     };
     setPendingFilters(defaults);
+    setOpenFilterPanel(null);
     void loadData(defaults);
   }, [pendingFilters, loadData]);
 
@@ -212,41 +251,19 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
     }));
   }, []);
 
-  const toggleMultiSelect = useCallback((field: "brandIds" | "campaignIds" | "platformIds", id: string, checked: boolean) => {
-    setPendingFilters((prev) => {
-      const arr = prev[field];
-      const next = checked ? [...arr, id] : arr.filter((x) => x !== id);
-      return { ...prev, [field]: next, campaignIds: field === "brandIds" ? [] : prev.campaignIds, page: 1 };
-    });
-  }, []);
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-2">
       {/* ─── Page Header ─── */}
-      <Section dark>
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/50">Overview</p>
-            <h1 className="mt-2 text-2xl font-bold tracking-tight text-white lg:text-3xl">Dashboard Overview</h1>
-            <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-[#AEB5C2]">
-              Coca-Cola Iraq media monitoring across brands, campaigns, and paid platforms.
-            </p>
-          </div>
-          <div className="shrink-0 rounded-xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm leading-relaxed text-[#AEB5C2]">
-            <p><span className="text-white/70">Period:</span> {state.data.summary.rangeLabel}</p>
-            <p><span className="text-white/70">Currency:</span> {state.data.summary.currency}</p>
-            <p><span className="text-white/70">Filters:</span> {state.data.summary.activeFilterCount}</p>
-          </div>
-        </div>
-      </Section>
 
       {/* ─── Filter Bar ─── */}
-      <section className="rounded-2xl border border-white/[0.07] bg-[#12151C] p-4 shadow-[0_8px_24px_rgba(0,0,0,0.24)]">
-        <div className="grid gap-2.5 xl:grid-cols-[1.2fr_1fr_1fr_1fr_auto]">
+      <section className="overflow-hidden rounded-[1.85rem] border border-white/8 bg-[radial-gradient(circle_at_bottom_right,rgba(53,199,111,0.18),transparent_18%),radial-gradient(circle_at_bottom_left,rgba(244,0,9,0.18),transparent_18%),linear-gradient(135deg,#0c0c14_0%,#12111a_52%,#191117_100%)] p-4 shadow-[0_26px_60px_rgba(16,9,12,0.24)]">
+        <div className="grid gap-3 xl:grid-cols-[1.1fr_1fr_1fr_1fr_auto_auto] xl:items-end">
           <DateRangeFilter
             preset={pendingFilters.preset}
             startDate={pendingFilters.startDate}
             endDate={pendingFilters.endDate}
+            isOpen={openFilterPanel === "date"}
+            onOpenChange={(next) => setOpenFilterPanel(next ? "date" : null)}
             onPresetChange={updatePreset}
             onStartDateChange={(v) => updateDate("startDate", v)}
             onEndDateChange={(v) => updateDate("endDate", v)}
@@ -256,13 +273,19 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
             label="Brands"
             options={state.data.filterOptions.brands.map((b) => ({ id: b.id, label: b.name, color: b.color }))}
             selectedIds={pendingFilters.brandIds}
+            isOpen={openFilterPanel === "brands"}
+            onOpenChange={(next) => setOpenFilterPanel(next ? "brands" : null)}
+            emptyLabel="No brands found."
             onChange={(ids) => setPendingFilters((prev) => ({ ...prev, brandIds: ids, campaignIds: [], page: 1 }))}
           />
           <MultiSelectFilter
             icon={<CampaignIcon className="h-4 w-4" />}
             label="Campaigns"
-            options={state.data.filterOptions.campaigns.map((c) => ({ id: c.id, label: c.name, description: c.brandName }))}
+            options={campaignFilterOptions}
             selectedIds={pendingFilters.campaignIds}
+            isOpen={openFilterPanel === "campaigns"}
+            onOpenChange={(next) => setOpenFilterPanel(next ? "campaigns" : null)}
+            emptyLabel="No campaigns found."
             onChange={(ids) => setPendingFilters((prev) => ({ ...prev, campaignIds: ids, page: 1 }))}
           />
           <MultiSelectFilter
@@ -270,11 +293,15 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
             label="Platforms"
             options={state.data.filterOptions.platforms.map((p) => ({ id: p.id, label: p.name, color: p.color }))}
             selectedIds={pendingFilters.platformIds}
+            isOpen={openFilterPanel === "platforms"}
+            onOpenChange={(next) => setOpenFilterPanel(next ? "platforms" : null)}
+            emptyLabel="No platforms found."
+            align="end"
             onChange={(ids) => setPendingFilters((prev) => ({ ...prev, platformIds: ids, page: 1 }))}
           />
           <div className="flex items-end gap-2">
             <button
-              className="inline-flex h-11 items-center justify-center rounded-xl bg-[#F40009] px-5 text-sm font-semibold text-white transition hover:bg-[#d60008] disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-12 items-center justify-center rounded-[1.1rem] bg-[linear-gradient(135deg,#ff4d45_0%,#f40009_52%,#b10a10_100%)] px-6 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(244,0,9,0.28)] transition hover:-translate-y-0.5 hover:shadow-[0_24px_42px_rgba(244,0,9,0.32)] disabled:cursor-not-allowed disabled:opacity-50"
               disabled={state.loading || !hasDirtyFilters}
               onClick={applyFilters}
               type="button"
@@ -282,7 +309,7 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
               {state.loading ? "Applying…" : "Apply"}
             </button>
             <button
-              className="inline-flex h-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] px-4 text-sm font-semibold text-white/70 transition hover:bg-white/10"
+              className="inline-flex h-12 items-center justify-center rounded-[1.1rem] border border-white/10 bg-white/[0.04] px-5 text-sm font-semibold text-white/78 transition hover:bg-white/10"
               disabled={state.loading}
               onClick={resetFilters}
               type="button"
@@ -290,23 +317,25 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
               Reset
             </button>
           </div>
+          <div className="flex items-end">
+            <button
+              className="inline-flex h-12 items-center justify-center rounded-[1.1rem] border border-[#2f6d3f] bg-[linear-gradient(135deg,rgba(25,33,28,0.92)_0%,rgba(16,31,22,0.96)_100%)] px-5 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(0,0,0,0.2)] transition hover:-translate-y-0.5"
+              disabled={state.loading}
+              onClick={() => void loadData(state.data.filters)}
+              type="button"
+            >
+              {state.loading ? "Refreshing..." : "Refresh Data"}
+            </button>
+          </div>
         </div>
 
         {/* Filter chips */}
-        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+        <div className="mt-4 flex flex-wrap items-center gap-2">
           <FilterChip label={`${state.data.summary.activeFilterCount} active`} tone="accent" />
           <FilterChip label={`${state.data.filterOptions.brands.length} brands`} />
           <FilterChip label={`${state.data.activeCampaigns.total} campaigns`} />
           <FilterChip label={`${state.data.platformSplit.length || state.data.filterOptions.platforms.length} platforms`} />
-          <FilterChip label={formatCurrency(state.data.spending.total, state.data.summary.currency)} />
-          <button
-            className="rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1 text-xs font-medium text-white/60 transition hover:bg-white/10"
-            disabled={state.loading}
-            onClick={() => void loadData(state.data.filters)}
-            type="button"
-          >
-            Retry
-          </button>
+          <FilterChip label={`${formatCurrency(state.data.spending.total, state.data.summary.currency)} total spending`} tone="metric" />
         </div>
       </section>
 
@@ -344,66 +373,97 @@ export function OverviewDashboard({ initialData }: OverviewDashboardProps) {
         />
       </section>
 
-      {/* ─── Total Spending (70%) + Spending SOV (30%) ─── */}
-      <section className="grid gap-5 lg:grid-cols-[1.6fr_1fr]">
-        {/* Total Spending */}
-        <article className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-[0_4px_16px_rgba(0,0,0,0.04)]">
-          <div className="flex items-center justify-between border-b border-[#F1F3F5] px-5 py-4">
-            <div>
-              <h2 className="text-lg font-semibold text-[#111827]">Total Spending</h2>
-              <p className="mt-0.5 text-sm text-[#6B7280]">Brand spending trend over time</p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs font-medium uppercase tracking-wider text-[#9CA3AF]">Total</p>
-              <p className="text-xl font-bold text-[#111827]">
-                {formatCurrency(state.data.spending.total, state.data.summary.currency)}
-              </p>
-            </div>
-          </div>
-          <div className="p-5">
-            <MultiLineChart
+      <section className="space-y-4">
+        <div className="overflow-hidden rounded-[2rem]">
+        <StackedSpendingChartCard
+          title="Total Spending"
+          subtitle="Brand spending trend over time"
+          buckets={state.data.spending.timeSeries.map((bucket) => ({
+            key: bucket.key,
+            label: bucket.label,
+            total: bucket.total,
+            segments: bucket.brands.map((brand) => {
+              const match = state.data.spending.totalsByBrand.find((item) => item.brandId === brand.brandId);
+              return {
+                id: brand.brandId,
+                label: match?.brandName ?? brand.brandId,
+                value: brand.value,
+                color: match?.color,
+              };
+            }),
+          }))}
+          breakdown={state.data.spending.totalsByBrand.map((brand) => ({
+            id: brand.brandId,
+            label: brand.brandName,
+            amount: brand.totalSpend,
+            share: brand.percentage,
+            color: brand.color,
+            note: `${brand.percentage.toFixed(1)}% of filtered spend`,
+            secondaryLabel:
+              brand.previousChangePercent == null
+                ? "New"
+                : `${brand.previousChangePercent > 0 ? "+" : ""}${brand.previousChangePercent.toFixed(1)}%`,
+          }))}
+          totalLabel="Current total"
+          totalValue={formatCurrency(state.data.spending.total, state.data.summary.currency)}
+          summaryPills={[
+            `${state.data.spending.totalsByBrand.length} brands`,
+            state.data.summary.rangeLabel,
+          ]}
+          comparisonValue={
+            state.data.kpis.totalSpending.changePercent == null
+              ? "New"
+              : `${state.data.kpis.totalSpending.changePercent > 0 ? "+" : ""}${state.data.kpis.totalSpending.changePercent.toFixed(1)}%`
+          }
+          comparisonLabel="Compared with the equivalent previous period."
+          emptyLabel="No spend data matched the current filters."
+          formatter={(value) => formatCurrency(value, state.data.summary.currency)}
+          compactFormatter={(value) => formatCompactUsdFromCurrency(value, state.data.summary.currency)}
+          loading={state.loading}
+          svgHeight={340}
+          plotHeight={228}
+        />
+        </div>
+
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1.24fr)_minmax(300px,0.76fr)] xl:items-start">
+          <div className="grid gap-3">
+            {state.error ? (
+              <SpendingSovCard
+                data={state.data.shareOfVoice}
+                currency={state.data.summary.currency}
+                loading={state.loading}
+                error={state.error}
+                onRetry={() => void loadData(pendingFilters)}
+              />
+            ) : (
+              <SharedOverviewSovCard
+                data={state.data.shareOfVoice}
+                currency={state.data.summary.currency}
+              />
+            )}
+            <CampaignListCard
+              campaigns={state.data.activeCampaigns}
               currency={state.data.summary.currency}
-              data={state.data.spending.timeSeries}
-              brands={state.data.spending.totalsByBrand}
+              activeSearch={pendingFilters.campaignSearch}
+              sort={pendingFilters.sortCampaigns}
+              loading={state.loading}
+              onSearchChange={(v) => setPendingFilters((prev) => ({ ...prev, campaignSearch: v, page: 1 }))}
+              onSortChange={(v) => setPendingFilters((prev) => ({ ...prev, sortCampaigns: v, page: 1 }))}
+              onApplySearch={applyFilters}
             />
           </div>
-        </article>
-
-        {/* Spending SOV */}
-        <SpendingSovCard
-          data={state.data.shareOfVoice}
-          currency={state.data.summary.currency}
-          loading={state.loading}
-          error={state.error}
-          onRetry={() => void loadData(pendingFilters)}
-        />
+          <div className="grid gap-3">
+            <PlatformSplitCard data={state.data.platformSplit} currency={state.data.summary.currency} />
+            <ActiveBrandsCard
+              brands={state.data.activeBrands}
+              currency={state.data.summary.currency}
+              expectedCount={state.data.kpis.activeBrands.value}
+              loading={state.loading}
+            />
+          </div>
+        </div>
       </section>
 
-      {/* ─── Platform Split + Active Campaigns + Active Brands ─── */}
-      <section className="grid gap-5 lg:grid-cols-2 xl:grid-cols-[1.1fr_1.4fr_1fr]">
-        <PlatformSplitCard data={state.data.platformSplit} currency={state.data.summary.currency} />
-        <CampaignListCard
-          campaigns={state.data.activeCampaigns}
-          currency={state.data.summary.currency}
-          activeSearch={pendingFilters.campaignSearch}
-          sort={pendingFilters.sortCampaigns}
-          loading={state.loading}
-          onSearchChange={(v) => setPendingFilters((prev) => ({ ...prev, campaignSearch: v, page: 1 }))}
-          onSortChange={(v) => setPendingFilters((prev) => ({ ...prev, sortCampaigns: v, page: 1 }))}
-          onApplySearch={applyFilters}
-          onViewMore={() => {
-            const next = { ...pendingFilters, page: pendingFilters.page + 1 };
-            setPendingFilters(next);
-            void loadData(next);
-          }}
-        />
-        <ActiveBrandsCard
-          brands={state.data.activeBrands}
-          currency={state.data.summary.currency}
-          expectedCount={state.data.kpis.activeBrands.value}
-          loading={state.loading}
-        />
-      </section>
     </div>
   );
 }
@@ -427,132 +487,375 @@ function Section({ dark, children }: { dark?: boolean; children: React.ReactNode
 
 /* ────────────────── Date Range Filter ──────────────────── */
 
+function formatDateRangeSummary(startDate: string, endDate: string) {
+  if (!startDate || !endDate) return "Choose dates";
+
+  const formatter = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return `${formatter.format(new Date(`${startDate}T00:00:00`))} – ${formatter.format(new Date(`${endDate}T00:00:00`))}`;
+}
+
+function useFilterPopover({
+  isOpen,
+  onOpenChange,
+}: {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const [position, setPosition] = useState({ top: 0, left: 0, width: 320 });
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const updatePosition = () => {
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+
+      const rect = trigger.getBoundingClientRect();
+      const width = Math.min(Math.max(rect.width, 320), window.innerWidth - 24);
+      setPosition({
+        top: rect.bottom + 10,
+        left: Math.max(12, Math.min(rect.left, window.innerWidth - width - 12)),
+        width,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (triggerRef.current?.contains(target) || panelRef.current?.contains(target)) return;
+      onOpenChange(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onOpenChange(false);
+        triggerRef.current?.focus();
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen, onOpenChange]);
+
+  return {
+    triggerRef,
+    panelRef,
+    position,
+    close: () => {
+      onOpenChange(false);
+      triggerRef.current?.focus();
+    },
+  };
+}
+
+function FilterPopoverShell({
+  isOpen,
+  onOpenChange,
+  panelRef,
+  position,
+  align = "start",
+  children,
+}: {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  panelRef: React.RefObject<HTMLDivElement | null>;
+  position: { top: number; left: number; width: number };
+  align?: "start" | "end";
+  children: React.ReactNode;
+}) {
+  if (typeof document === "undefined" || !isOpen) return null;
+
+  const mobile = typeof window !== "undefined" && window.innerWidth < 768;
+  const width = Math.min(position.width, 392);
+  const left = align === "end" ? Math.max(12, position.left + position.width - width) : position.left;
+
+  return createPortal(
+    <>
+      <div className="fixed inset-0 z-40 bg-transparent" aria-hidden="true" onClick={() => onOpenChange(false)} />
+      <div
+        ref={panelRef}
+        className={cn(
+          "z-50 overflow-hidden rounded-2xl border border-white/[0.08] bg-[#151922] shadow-[0_24px_80px_rgba(0,0,0,0.45)]",
+          mobile ? "fixed inset-x-4 bottom-4 max-h-[72vh]" : "fixed max-h-[min(28rem,calc(100vh-2rem))]",
+        )}
+        style={mobile ? undefined : { top: position.top, left, width }}
+      >
+        {children}
+      </div>
+    </>,
+    document.body,
+  );
+}
+
 function DateRangeFilter({
-  preset, startDate, endDate,
-  onPresetChange, onStartDateChange, onEndDateChange,
+  preset,
+  startDate,
+  endDate,
+  isOpen,
+  onOpenChange,
+  onPresetChange,
+  onStartDateChange,
+  onEndDateChange,
 }: {
   preset: OverviewFilters["preset"];
-  startDate: string; endDate: string;
+  startDate: string;
+  endDate: string;
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
   onPresetChange: (v: OverviewFilters["preset"]) => void;
   onStartDateChange: (v: string) => void;
   onEndDateChange: (v: string) => void;
 }) {
+  const { triggerRef, panelRef, position, close } = useFilterPopover({ isOpen, onOpenChange });
+
   return (
-    <div className="rounded-xl border border-white/[0.07] bg-white/[0.04] p-3">
-      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-white">
-        <CalendarIcon className="h-3.5 w-3.5 text-[#FF3340]" />
-        Date Range
-      </div>
-      <div className="mt-2 grid gap-2 md:grid-cols-[auto_1fr_1fr]">
-        <select
-          className="h-10 rounded-lg border border-white/10 bg-[#1A1F29] px-2.5 text-sm text-white outline-none"
-          onChange={(e) => onPresetChange(e.target.value as OverviewFilters["preset"])}
-          value={preset}
-        >
-          <option value="last7">Last 7 Days</option>
-          <option value="last30">Last 30 Days</option>
-          <option value="last90">Last 90 Days</option>
-          <option value="thisMonth">This Month</option>
-          <option value="previousMonth">Previous Month</option>
-          <option value="custom">Custom</option>
-        </select>
-        <input
-          className="h-10 rounded-lg border border-white/10 bg-[#1A1F29] px-2.5 text-sm text-white outline-none [color-scheme:dark]"
-          type="date"
-          value={startDate}
-          max={endDate || undefined}
-          onChange={(e) => onStartDateChange(e.target.value)}
-        />
-        <input
-          className="h-10 rounded-lg border border-white/10 bg-[#1A1F29] px-2.5 text-sm text-white outline-none [color-scheme:dark]"
-          type="date"
-          value={endDate}
-          min={startDate || undefined}
-          onChange={(e) => onEndDateChange(e.target.value)}
-        />
-      </div>
-    </div>
+    <>
+      <button
+        ref={triggerRef}
+        className="flex h-11 w-full items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.04] px-3 text-left transition hover:border-white/15 hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F40009]/70"
+        type="button"
+        aria-expanded={isOpen}
+        aria-haspopup="dialog"
+        onClick={() => onOpenChange(!isOpen)}
+      >
+        <span className="flex min-w-0 items-center gap-2.5">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#F40009]/12 text-[#FF4D55]">
+            <CalendarIcon className="h-4 w-4" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45">Date Range</span>
+            <span className="block truncate text-sm font-medium text-white">{formatDateRangeSummary(startDate, endDate)}</span>
+          </span>
+        </span>
+        <ChevronDownIcon className={cn("h-4 w-4 shrink-0 text-white/45 transition", isOpen && "rotate-180")} />
+      </button>
+      <FilterPopoverShell
+        isOpen={isOpen}
+        onOpenChange={onOpenChange}
+        panelRef={panelRef}
+        position={position}
+      >
+        <div className="space-y-4 p-4">
+          <div className="space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/45">Date Range</p>
+            <p className="text-sm text-white/65">Choose a preset or set a custom range.</p>
+          </div>
+          <div className="grid gap-3">
+            <label className="space-y-1.5">
+              <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-white/45">Preset</span>
+              <select
+                className="h-10 w-full rounded-xl border border-white/10 bg-[#10141C] px-3 text-sm text-white outline-none transition focus:border-[#F40009]/70"
+                onChange={(e) => onPresetChange(e.target.value as OverviewFilters["preset"])}
+                value={preset}
+              >
+                <option value="last7">Last 7 Days</option>
+                <option value="last30">Last 30 Days</option>
+                <option value="last90">Last 90 Days</option>
+                <option value="last2Years">Last 2 Years</option>
+                <option value="thisMonth">This Month</option>
+                <option value="previousMonth">Previous Month</option>
+                <option value="custom">Custom</option>
+              </select>
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <input
+                className="h-10 rounded-xl border border-white/10 bg-[#10141C] px-3 text-sm text-white outline-none transition focus:border-[#F40009]/70 [color-scheme:dark]"
+                type="date"
+                value={startDate}
+                max={endDate || undefined}
+                onChange={(e) => onStartDateChange(e.target.value)}
+              />
+              <input
+                className="h-10 rounded-xl border border-white/10 bg-[#10141C] px-3 text-sm text-white outline-none transition focus:border-[#F40009]/70 [color-scheme:dark]"
+                type="date"
+                value={endDate}
+                min={startDate || undefined}
+                onChange={(e) => onEndDateChange(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex items-center justify-end border-t border-white/[0.08] pt-3">
+            <button
+              className="inline-flex h-9 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] px-3 text-xs font-semibold text-white/70 transition hover:bg-white/[0.08]"
+              type="button"
+              onClick={close}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      </FilterPopoverShell>
+    </>
   );
 }
 
 /* ─────────────────── Multi-Select Filter ───────────────── */
 
 function MultiSelectFilter({
-  label, icon, options, selectedIds, onChange,
+  label,
+  icon,
+  options,
+  selectedIds,
+  isOpen,
+  onOpenChange,
+  onChange,
+  emptyLabel,
+  align = "start",
 }: {
   label: string;
   icon: React.ReactNode;
-  options: Array<{ id: string; label: string; color?: string; description?: string }>;
+  options: Array<{ id: string; label: string; color?: string; description?: string; status?: string }>;
   selectedIds: string[];
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
   onChange: (ids: string[]) => void;
+  emptyLabel: string;
+  align?: "start" | "end";
 }) {
   const [query, setQuery] = useState("");
+  const { triggerRef, panelRef, position, close } = useFilterPopover({ isOpen, onOpenChange });
   const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
   const filtered = useMemo(
-    () => options.filter((o) => `${o.label} ${o.description ?? ""}`.toLowerCase().includes(query.toLowerCase())),
+    () => options.filter((o) => `${o.label} ${o.description ?? ""} ${o.status ?? ""}`.toLowerCase().includes(query.toLowerCase())),
     [options, query],
   );
+  const summaryLabel = selectedIds.length === 0
+    ? "All"
+    : selectedIds.length === 1
+      ? options.find((option) => option.id === selectedIds[0])?.label ?? "1 selected"
+      : `${selectedIds.length} selected`;
 
   return (
-    <details className="group rounded-xl border border-white/[0.07] bg-white/[0.04] p-3">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wider text-white">
-        <span className="flex items-center gap-2">
-          <span className="text-[#FF3340]">{icon}</span>
-          {label}
-        </span>
-        <span className="flex items-center gap-2">
-          <span className="rounded-md border border-white/10 bg-white/[0.06] px-2 py-0.5 text-[11px] text-white/60">
-            {selectedIds.length === 0 ? "All" : selectedIds.length}
+    <>
+      <button
+        ref={triggerRef}
+        className="flex h-11 w-full items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.04] px-3 text-left transition hover:border-white/15 hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F40009]/70"
+        type="button"
+        aria-expanded={isOpen}
+        aria-haspopup="dialog"
+        onClick={() => onOpenChange(!isOpen)}
+      >
+        <span className="flex min-w-0 items-center gap-2.5">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#F40009]/12 text-[#FF4D55]">
+            {icon}
           </span>
-          <ChevronDownIcon className="h-3 w-3 text-white/50 transition group-open:rotate-180" />
+          <span className="min-w-0">
+            <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45">{label}</span>
+            <span className="block truncate text-sm font-medium text-white">{summaryLabel}</span>
+          </span>
         </span>
-      </summary>
-      <div className="mt-2.5 space-y-2">
-        <input
-          className="h-9 w-full rounded-lg border border-white/10 bg-[#1A1F29] px-2.5 text-xs text-white outline-none placeholder:text-white/30"
-          placeholder={`Search ${label.toLowerCase()}…`}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          type="search"
-        />
-        <button className="text-xs font-medium text-[#AEB5C2] hover:text-white" onClick={() => onChange([])} type="button">
-          Clear all
-        </button>
-        <div className="max-h-44 space-y-1 overflow-y-auto">
-          {filtered.map((opt) => {
-            const checked = selected.has(opt.id);
-            return (
-              <label
-                key={opt.id}
-                className={cn(
-                  "flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2 text-xs transition",
-                  checked ? "border-white/15 bg-white/[0.08]" : "border-transparent hover:bg-white/[0.04]",
-                )}
-              >
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  className="mt-0.5"
-                  onChange={() => onChange(checked ? selectedIds.filter((id) => id !== opt.id) : [...selectedIds, opt.id])}
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    {opt.color && <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: opt.color }} />}
-                    <span className="truncate font-medium text-white">{opt.label}</span>
-                  </div>
-                  {opt.description && <p className="mt-0.5 text-[10px] text-white/40">{opt.description}</p>}
-                </div>
-              </label>
-            );
-          })}
+        <ChevronDownIcon className={cn("h-4 w-4 shrink-0 text-white/45 transition", isOpen && "rotate-180")} />
+      </button>
+      <FilterPopoverShell
+        isOpen={isOpen}
+        onOpenChange={onOpenChange}
+        panelRef={panelRef}
+        position={position}
+        align={align}
+      >
+        <div className="space-y-3 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/45">{label}</p>
+              <p className="mt-1 text-sm text-white/65">Search and refine selections.</p>
+            </div>
+            <span className="rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[11px] font-semibold text-white/60">
+              {selectedIds.length === 0 ? "All" : selectedIds.length}
+            </span>
+          </div>
+          <div className="relative">
+            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/30" />
+            <input
+              className="h-10 w-full rounded-xl border border-white/10 bg-[#10141C] pl-9 pr-3 text-sm text-white outline-none placeholder:text-white/28 transition focus:border-[#F40009]/70"
+              placeholder={`Search ${label.toLowerCase()}...`}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              type="search"
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3 text-xs">
+            <button className="font-semibold text-white/70 transition hover:text-white" onClick={() => onChange(filtered.map((option) => option.id))} type="button">
+              Select all
+            </button>
+            <button className="font-semibold text-white/55 transition hover:text-white" onClick={() => onChange([])} type="button">
+              Clear all
+            </button>
+          </div>
+          <div className="max-h-72 space-y-1.5 overflow-y-auto pr-1">
+            {filtered.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-white/[0.08] bg-white/[0.03] px-3 py-6 text-center text-sm text-white/45">
+                {emptyLabel}
+              </div>
+            ) : (
+              filtered.map((opt) => {
+                const checked = selected.has(opt.id);
+                return (
+                  <label
+                    key={opt.id}
+                    className={cn(
+                      "flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-2.5 transition",
+                      checked ? "border-white/18 bg-white/[0.08]" : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05]",
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      className="mt-1"
+                      onChange={() => onChange(checked ? selectedIds.filter((id) => id !== opt.id) : [...selectedIds, opt.id])}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        {opt.color && <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: opt.color }} />}
+                        <span className="truncate text-sm font-medium text-white">{opt.label}</span>
+                        {opt.status && (
+                          <span className="rounded-full border border-white/[0.08] bg-white/[0.05] px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-white/45">
+                            {opt.status}
+                          </span>
+                        )}
+                      </div>
+                      {opt.description && <p className="mt-1 truncate text-xs text-white/45">{opt.description}</p>}
+                    </div>
+                  </label>
+                );
+              })
+            )}
+          </div>
+          <div className="flex items-center justify-end border-t border-white/[0.08] pt-3">
+            <button
+              className="inline-flex h-9 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] px-3 text-xs font-semibold text-white/70 transition hover:bg-white/[0.08]"
+              type="button"
+              onClick={close}
+            >
+              Done
+            </button>
+          </div>
         </div>
-      </div>
-    </details>
+      </FilterPopoverShell>
+    </>
   );
 }
 
-/* ───────────────────────── KPI Card ────────────────────── */
-
+/* KPI Card */
 function KpiCard({
   title, value, delta, icon, color, tooltip, loading, trend,
 }: {
@@ -561,28 +864,33 @@ function KpiCard({
   trend: Array<{ value: number }>;
 }) {
   return (
-    <article className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-[0_4px_16px_rgba(0,0,0,0.04)] transition hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)]" title={tooltip}>
+    <article
+      className="relative overflow-hidden rounded-[1.9rem] border border-[#ead7d2] bg-[linear-gradient(145deg,#ffffff_0%,#fff9f7_100%)] p-5 shadow-[0_16px_34px_rgba(93,31,27,0.08)] transition hover:-translate-y-0.5 hover:shadow-[0_22px_42px_rgba(93,31,27,0.12)]"
+      title={tooltip}
+    >
+      <div className="pointer-events-none absolute left-0 top-0 h-full w-3 rounded-l-[1.9rem]" style={{ background: `linear-gradient(180deg, ${color}, ${color}22)` }} />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-[radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.02),transparent_48%)]" />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-wider text-[#6B7280]">{title}</p>
-          <p className="mt-1.5 text-2xl font-bold tracking-tight text-[#111827]">
-            {loading ? <span className="inline-block h-7 w-24 animate-pulse rounded-md bg-[#E5E7EB]" /> : value}
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6f5d59]">{title}</p>
+          <p className="mt-2 text-[2.35rem] font-bold leading-none tracking-[-0.05em] text-[#0f1724]">
+            {loading ? <span className="inline-block h-9 w-24 animate-pulse rounded-md bg-[#E5E7EB]" /> : value}
           </p>
         </div>
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white" style={{ backgroundColor: color }}>
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-white shadow-[0_12px_24px_rgba(0,0,0,0.12)]" style={{ backgroundColor: color }}>
           {icon}
         </span>
       </div>
-      <div className="mt-3 h-10">
+      <div className="mt-4 h-12">
         {loading ? (
           <div className="h-full w-full animate-pulse rounded-lg bg-[#F3F4F6]" />
         ) : (
           <MiniSparkline color={color} data={trend} />
         )}
       </div>
-      <div className="mt-2 flex items-center justify-between">
-        <span className="text-xs text-[#6B7280]">vs previous period</span>
-        <span className={cn("text-xs font-semibold", delta == null ? "text-[#9CA3AF]" : delta >= 0 ? "text-[#15803D]" : "text-[#DC2626]")}>
+      <div className="mt-3 flex items-center justify-between">
+        <span className="text-sm text-[#675961]">vs previous period</span>
+        <span className={cn("rounded-full px-3 py-1 text-sm font-semibold", delta == null ? "bg-[#f2f4f7] text-[#9CA3AF]" : delta >= 0 ? "bg-[#ebf9ef] text-[#15803D]" : "bg-[#fff1f1] text-[#DC2626]")}>
           {formatDelta(delta)}
         </span>
       </div>
@@ -597,7 +905,11 @@ function MiniSparkline({ data, color }: { data: Array<{ value: number }>; color:
   const w = 240, h = 40;
   const mx = Math.max(...data.map((d) => d.value), 1);
   const step = data.length > 1 ? w / (data.length - 1) : w;
-  const pts = data.map((d, i) => `${i === 0 ? "M" : "L"}${(i * step).toFixed(1)} ${h - ((d.value / mx) * h).toFixed(1)}`).join(" ");
+  const pts = data.map((d, i) => {
+    const px = (i * step).toFixed(1);
+    const py = (h - ((d.value / mx) * h)).toFixed(1);
+    return `${i === 0 ? "M" : "L"}${px} ${py}`;
+  }).join(" ");
 
   return (
     <svg className="h-full w-full" viewBox={`0 0 ${w} ${h}`} fill="none">
@@ -607,132 +919,6 @@ function MiniSparkline({ data, color }: { data: Array<{ value: number }>; color:
 }
 
 /* ───────────────── Multi-Line Trend Chart ──────────────── */
-
-function MultiLineChart({
-  data, brands, currency,
-}: {
-  data: OverviewResponse["spending"]["timeSeries"];
-  brands: OverviewResponse["spending"]["totalsByBrand"];
-  currency: string;
-}) {
-  const [hoveredPoint, setHoveredPoint] = useState<{ brandId: string; label: string; value: number; color: string; x: number; y: number } | null>(null);
-  const brandsById = useMemo(() => new Map(brands.map((b) => [b.brandId, b])), [brands]);
-
-  if (data.length === 0) {
-    return <EmptyState title="No data" description="No spend data matched the current filters." />;
-  }
-
-  const margin = { top: 16, right: 16, bottom: 28, left: 52 };
-  const w = 700, h = 280;
-  const pw = w - margin.left - margin.right;
-  const ph = h - margin.top - margin.bottom;
-
-  // Collect unique brand IDs across all time points
-  const allBrandIds = [...new Set(data.flatMap((d) => d.brands.map((b) => b.brandId)))];
-  const maxVal = Math.max(...data.map((d) => d.total), 1);
-
-  // Grid lines
-  const gridLines = 5;
-  const yTicks = Array.from({ length: gridLines }, (_, i) => (maxVal / (gridLines - 1)) * i);
-
-  const xStep = data.length > 1 ? pw / (data.length - 1) : pw / 2;
-
-  return (
-    <div className="relative">
-      <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ maxHeight: h }}>
-        {/* Grid */}
-        {yTicks.map((val, i) => (
-          <g key={i}>
-            <line x1={margin.left} x2={w - margin.right} y1={margin.top + ph - (val / maxVal) * ph} y2={margin.top + ph - (val / maxVal) * ph} stroke="#F1F3F5" strokeWidth={1} />
-            <text x={margin.left - 8} y={margin.top + ph - (val / maxVal) * ph + 4} fill="#9CA3AF" fontSize={10} textAnchor="end">
-              {formatCurrency(val, currency)}
-            </text>
-          </g>
-        ))}
-        {/* X labels */}
-        {data.filter((_, i) => i % Math.max(1, Math.floor(data.length / 8)) === 0).map((d, i, arr) => {
-          const idx = data.indexOf(d);
-          const x = margin.left + idx * xStep;
-          return (
-            <text key={d.key} x={x} y={h - margin.bottom + 16} fill="#9CA3AF" fontSize={9} textAnchor="middle">
-              {d.label}
-            </text>
-          );
-        })}
-
-        {/* Lines */}
-        {allBrandIds.map((brandId) => {
-          const brand = brandsById.get(brandId);
-          const color = brand?.color ?? "#F40009";
-          const pts = data.map((d, i) => {
-            const b = d.brands.find((b) => b.brandId === brandId);
-            const v = b?.value ?? 0;
-            const x = margin.left + i * xStep;
-            const y = margin.top + ph - (v / maxVal) * ph;
-            return `${i === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`;
-          }).join(" ");
-          return (
-            <path key={brandId} d={pts} stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" fill="none" opacity={0.85} />
-          );
-        })}
-
-        {/* Hover interaction layer */}
-        {data.map((d, i) => {
-          const x = margin.left + i * xStep;
-          return (
-            <g key={d.key}>
-              {d.brands.map((b) => {
-                const v = b.value;
-                const y = margin.top + ph - (v / maxVal) * ph;
-                return (
-                  <circle
-                    key={b.brandId}
-                    cx={x} cy={y} r={4}
-                    fill="transparent"
-                    style={{ cursor: "pointer" }}
-                    onMouseEnter={(e) => {
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      setHoveredPoint({
-                        brandId: b.brandId,
-                        label: d.label,
-                        value: v,
-                        color: brandsById.get(b.brandId)?.color ?? "#F40009",
-                        x: rect.left + rect.width / 2,
-                        y: rect.top,
-                      });
-                    }}
-                    onMouseLeave={() => setHoveredPoint(null)}
-                  />
-                );
-              })}
-            </g>
-          );
-        })}
-      </svg>
-
-      {/* Legend */}
-      <div className="mt-2 flex flex-wrap gap-2">
-        {brands.map((b) => (
-          <span key={b.brandId} className="inline-flex items-center gap-1.5 rounded-full border border-[#E5E7EB] bg-white px-2.5 py-1 text-[11px] font-medium text-[#374151]">
-            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: b.color }} />
-            {b.brandName}
-          </span>
-        ))}
-      </div>
-
-      {/* Tooltip */}
-      {hoveredPoint && (
-        <div
-          className="pointer-events-none fixed z-50 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs shadow-[0_8px_20px_rgba(0,0,0,0.1)]"
-          style={{ left: Math.min(hoveredPoint.x, window.innerWidth - 160), top: Math.max(hoveredPoint.y - 48, 4) }}
-        >
-          <p className="font-semibold text-[#111827]">{brandsById.get(hoveredPoint.brandId)?.brandName ?? hoveredPoint.brandId}</p>
-          <p className="mt-0.5 text-[#6B7280]">{hoveredPoint.label}: <span className="font-semibold text-[#111827]">{formatCurrency(hoveredPoint.value, currency)}</span></p>
-        </div>
-      )}
-    </div>
-  );
-}
 
 /* ──────────────────── Can Body Path Builder ────────────── */
 
@@ -1018,12 +1204,12 @@ function PlatformSplitCard({ data, currency }: { data: OverviewResponse["platfor
 
 function CampaignListCard({
   campaigns, currency, activeSearch, sort,
-  onSearchChange, onSortChange, onApplySearch, onViewMore, loading,
+  onSearchChange, onSortChange, onApplySearch, loading: _loading,
 }: {
   campaigns: OverviewResponse["activeCampaigns"];
   currency: string; activeSearch: string; sort: OverviewFilters["sortCampaigns"];
   onSearchChange: (v: string) => void; onSortChange: (v: OverviewFilters["sortCampaigns"]) => void;
-  onApplySearch: () => void; onViewMore: () => void; loading: boolean;
+  onApplySearch: () => void; loading: boolean;
 }) {
   return (
     <article className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-[0_4px_16px_rgba(0,0,0,0.04)]">
@@ -1048,7 +1234,7 @@ function CampaignListCard({
         </select>
         <button className="inline-flex h-9 items-center justify-center rounded-lg bg-[#111827] px-3 text-xs font-semibold text-white transition hover:bg-[#1F2937]" onClick={onApplySearch} type="button">Go</button>
       </div>
-      <div className="mt-3 space-y-2">
+      <div className="mt-3 max-h-[36rem] space-y-2 overflow-y-auto pe-1">
         {campaigns.items.length === 0
           ? <EmptyState title="No campaigns" description="No active campaigns matched." />
           : campaigns.items.map((c) => (
@@ -1079,10 +1265,7 @@ function CampaignListCard({
             </div>
           ))}
       </div>
-      {campaigns.hasMore && (
-        <button className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-lg border border-[#E5E7EB] text-xs font-semibold text-[#374151] transition hover:bg-[#F9FAFB] disabled:opacity-50"
-          disabled={loading} onClick={onViewMore} type="button">View More</button>
-      )}
+      {campaigns.total > campaigns.items.length ? <p className="mt-3 text-center text-[11px] text-[#9CA3AF]">Showing {campaigns.items.length} of {campaigns.total} campaigns</p> : null}
     </article>
   );
 }
@@ -1114,7 +1297,7 @@ function ActiveBrandsCard({ brands, currency, expectedCount, loading }: {
     <article className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-[0_4px_16px_rgba(0,0,0,0.04)]">
       <h2 className="text-base font-semibold text-[#111827]">Active Brands</h2>
       <p className="mt-0.5 text-xs text-[#6B7280]">Matches the KPI for same filters</p>
-      <div className="mt-3 space-y-2">
+      <div className="mt-3 max-h-[36rem] space-y-2 overflow-y-auto pe-1">
         {loading && brands.length === 0
           ? <div className="rounded-xl border border-[#F1F3F5] bg-[#F9FAFB] px-4 py-6 text-center text-xs text-[#9CA3AF]">Loading…</div>
           : brands.length === 0
@@ -1167,14 +1350,20 @@ function ErrorBanner({ message, onRetry }: { message: string; onRetry: () => voi
 
 /* ──────────────────── Filter Chip ──────────────────────── */
 
-function FilterChip({ label, tone = "default" }: { label: string; tone?: "default" | "accent" }) {
+function FilterChip({ label, tone = "default" }: { label: string; tone?: "default" | "accent" | "metric" }) {
   return (
     <span className={cn(
-      "inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium",
-      tone === "accent" ? "bg-[#F40009] text-white" : "border border-white/[0.08] bg-white/[0.04] text-white/60",
+      "inline-flex rounded-full px-3.5 py-2 text-xs font-medium",
+      tone === "accent"
+        ? "bg-[linear-gradient(135deg,#ff493f_0%,#f40009_100%)] text-white shadow-[0_10px_24px_rgba(244,0,9,0.24)]"
+        : tone === "metric"
+          ? "border border-[#5a1b1e] bg-[linear-gradient(135deg,rgba(42,10,14,0.96)_0%,rgba(67,10,14,0.96)_100%)] text-white"
+          : "border border-white/[0.08] bg-white/[0.04] text-white/68",
     )}>
       {label}
     </span>
   );
 }
+
+
 

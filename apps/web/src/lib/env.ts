@@ -1,5 +1,10 @@
-const DEFAULT_SUPABASE_PROJECT_ID = "urhfqdjhecohdapynglm";
-const DEFAULT_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_DnSUdzVV1z24mMrG-IvxNA_dW223WKV";
+// Intentionally no hardcoded Supabase project/key fallback here.
+// Every deployment (including local dev) must configure its own
+// SUPABASE_PROJECT_ID / SUPABASE_PUBLISHABLE_KEY via .env.local or the
+// hosting platform's env vars. A silent fallback to a specific project
+// previously meant any unconfigured environment connected to the same
+// live Supabase project, and that project ID/key pair was committed to
+// source control as a real, working credential. See the security audit.
 let serverEnvFileCache: Record<string, string> | null = null;
 
 function readServerEnvFileValue(key: string) {
@@ -86,13 +91,15 @@ function buildSupabaseUrlFromProjectId(projectId?: string) {
 }
 
 export function getSupabaseUrl() {
-  const projectId = getEnvValue(["SUPABASE_PROJECT_ID"], DEFAULT_SUPABASE_PROJECT_ID);
+  const projectId = getEnvValue(["SUPABASE_PROJECT_ID"]);
   const value = getEnvValue(
     ["NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PROJECT_URL"],
     buildSupabaseUrlFromProjectId(projectId),
   );
   if (!value) {
-    throw new Error("Supabase URL is not configured.");
+    throw new Error(
+      "Supabase URL is not configured. Set SUPABASE_PROJECT_ID or NEXT_PUBLIC_SUPABASE_URL in your environment.",
+    );
   }
 
   return value;
@@ -106,10 +113,12 @@ export function getSupabasePublishableKey() {
     "SUPABASE_PUBLISHABLE_KEY",
     "SUPABASE_ANON_KEY",
     "SUPABASE_KEY",
-  ], DEFAULT_SUPABASE_PUBLISHABLE_KEY);
+  ]);
 
   if (!value) {
-    throw new Error("Supabase publishable key is not configured.");
+    throw new Error(
+      "Supabase publishable key is not configured. Set NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY in your environment.",
+    );
   }
 
   return value;
@@ -133,7 +142,7 @@ export function getOptionalSupabaseSecretKey() {
 }
 
 export function getSupabaseProjectId() {
-  return getEnvValue(["SUPABASE_PROJECT_ID"], DEFAULT_SUPABASE_PROJECT_ID);
+  return getEnvValue(["SUPABASE_PROJECT_ID"]);
 }
 
 export function getApifyApiToken(): string {
@@ -158,4 +167,51 @@ export function getYouTubeApiKey(): string {
 
 export function getOptionalCronSecret() {
   return getEnvValue(["CRON_SECRET", "TV_YOUTUBE_SYNC_SECRET"]);
+}
+
+export function getOptionalMetaAppSecret() {
+  return getEnvValue(["META_APP_SECRET"]);
+}
+
+export function getOptionalMetaAdsInsightsAccessToken() {
+  return getEnvValue(["META_ADS_INSIGHTS_ACCESS_TOKEN", "META_ACCESS_TOKEN"]);
+}
+
+export function getMetaAdsInsightsAccessToken() {
+  const value = getOptionalMetaAdsInsightsAccessToken();
+  if (!value) {
+    throw new Error("META_ADS_INSIGHTS_ACCESS_TOKEN is not configured. Add an authorized Meta Ads Insights token to your server env.");
+  }
+  return value;
+}
+
+export function getOptionalMetaAdsApiVersion() {
+  return getEnvValue(["META_ADS_API_VERSION"]);
+}
+
+export function getMetaAdsApiVersion() {
+  return getOptionalMetaAdsApiVersion() ?? "v23.0";
+}
+
+export function getOptionalMetaAdsAccountIds() {
+  const raw = getEnvValue(["META_ADS_ACCOUNT_IDS"]);
+  if (!raw) {
+    return [];
+  }
+
+  return raw
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Test-only escape hatch: pins the lazily-computed .env-file fallback
+ * cache to an explicit value (or clears it with `null`) so tests can
+ * exercise the "nothing configured"/"only process.env is set" paths
+ * deterministically, regardless of whether a real .env.local happens to
+ * exist on the machine running the tests. Not used by application code.
+ */
+export function __setEnvFileCacheForTests(cache: Record<string, string> | null) {
+  serverEnvFileCache = cache;
 }

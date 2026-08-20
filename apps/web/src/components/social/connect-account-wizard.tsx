@@ -6,6 +6,8 @@ import { useState } from "react";
 import { PlatformIcon } from "./platform-icon";
 
 type ProviderKey = "tiktok" | "instagram" | "youtube" | "facebook";
+type WizardPersona = "brand" | "influencer";
+type WizardTab = "brands" | "influencers";
 
 type DiscoveryPreview = {
   provider: ProviderKey;
@@ -29,26 +31,32 @@ const PROVIDERS: Array<{
   {
     key: "tiktok",
     title: "TikTok",
-    description: "Scrape public TikTok profile data, videos, and metrics via Apify.",
+    description: "Import public TikTok profile data, videos, and metrics.",
   },
   {
     key: "instagram",
     title: "Instagram",
-    description: "Scrape public Instagram profile posts, reels, and metrics via Apify.",
+    description: "Import public Instagram posts, reels, profile details, and metrics.",
   },
   {
     key: "youtube",
     title: "YouTube",
-    description: "Scrape public YouTube channel videos, shorts, and stats via Apify.",
+    description: "Import public YouTube channel videos, shorts, and stats.",
   },
   {
     key: "facebook",
     title: "Facebook",
-    description: "Scrape public Facebook Page posts and metrics via Apify.",
+    description: "Import public Facebook Page posts and metrics.",
   },
 ];
 
-export function ConnectAccountWizard() {
+export function ConnectAccountWizard({
+  personaHint = "brand",
+  redirectTab = "brands",
+}: {
+  personaHint?: WizardPersona;
+  redirectTab?: WizardTab;
+}) {
   const [provider, setProvider] = useState<ProviderKey>("tiktok");
   const [input, setInput] = useState("");
   const [preview, setPreview] = useState<DiscoveryPreview | null>(null);
@@ -95,7 +103,7 @@ export function ConnectAccountWizard() {
       const response = await fetch("/api/social/connections/apify-connect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ platform: provider, input: input.trim() }),
+        body: JSON.stringify({ platform: provider, input: input.trim(), persona: personaHint }),
       });
       const payload = (await response.json()) as {
         connectionId?: string;
@@ -104,9 +112,9 @@ export function ConnectAccountWizard() {
       if (!response.ok || !payload.connectionId) {
         throw new Error(payload?.error?.message || "Failed to connect account.");
       }
-      setSuccess("Scraping started. Redirecting to the account dashboard...");
+      setSuccess(`Scraping started. Redirecting to the ${redirectTab === "influencers" ? "Influencer" : "Brand"} view...`);
       window.setTimeout(() => {
-        window.location.href = `/social/accounts/${payload.connectionId}`;
+        window.location.href = `/social-intelligence?tab=${redirectTab}&selected=${payload.connectionId}`;
       }, 1200);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Failed to connect account.");
@@ -130,8 +138,7 @@ export function ConnectAccountWizard() {
         <div>
           <h2 className="text-xl font-semibold text-foreground">Connect Social Account</h2>
           <p className="text-sm text-muted-foreground">
-            Enter a public profile URL, handle, or username. This workflow uses Apify scrapers and
-            imports only publicly available data.
+            Enter a public profile URL, handle, or username to import publicly available account data.
           </p>
         </div>
         <span className="rounded-full bg-panel-soft px-3 py-1 text-xs text-muted-foreground">
@@ -201,7 +208,7 @@ export function ConnectAccountWizard() {
         </div>
         {!importBusy && !preview ? (
           <p className="mt-2 text-xs text-muted-foreground">
-            Click <strong>Connect &amp; Import</strong> to start the public-data scrape.
+            Click <strong>Connect &amp; Import</strong> to start pulling public account data.
           </p>
         ) : null}
       </div>
@@ -230,10 +237,6 @@ export function ConnectAccountWizard() {
                 <p className="mt-2 break-all text-xs text-muted-foreground">{preview.normalizedUrl}</p>
               ) : null}
             </div>
-          </div>
-          <div className="mt-3 rounded bg-amber-50 p-2 text-sm text-amber-800">
-            Public data only via Apify. Unavailable metrics will be shown as not available from
-            this data source.
           </div>
           <div className="mt-3 flex gap-2">
             <button
