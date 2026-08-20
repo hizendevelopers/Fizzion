@@ -23,6 +23,7 @@ type MetaAdsInsightsRow = {
   spend?: string;
   publisher_platform?: string;
   platform_position?: string;
+  country?: string;
 };
 
 type MetaAdsInsightsResponse = {
@@ -80,7 +81,7 @@ function deriveFrequency(row: MetaAdsInsightsRow) {
   return impressions / reach;
 }
 
-function buildGroundTruthRecord(
+export function buildGroundTruthRecord(
   accountId: string,
   row: MetaAdsInsightsRow,
 ): GroundTruthLabelRecord {
@@ -93,12 +94,18 @@ function buildGroundTruthRecord(
   const platformPositions = row.platform_position ? [row.platform_position] : [];
   const advertiserName = row.ad_name ?? row.ad_id ?? accountId;
 
+  // country (and platform) must be part of the record id: with
+  // breakdowns=country the same ad_id/date_range now comes back as one
+  // row per country it delivered in, and without this they'd collide on
+  // upsert and silently overwrite one another.
+  const recordKeySuffix = `${row.country ?? "all"}-${row.publisher_platform ?? "all"}`;
+
   return {
-    recordId: `meta-insights-${accountId}-${row.ad_id ?? "unknown"}-${measurementStart}-${measurementEnd}`,
+    recordId: `meta-insights-${accountId}-${row.ad_id ?? "unknown"}-${measurementStart}-${measurementEnd}-${recordKeySuffix}`,
     source: "META_ADS_INSIGHTS",
     labelQuality: "EXACT_AUTHORIZED_META",
     labelStrength: "STRONG",
-    sourceRecordId: `${accountId}:${row.ad_id ?? "unknown"}:${measurementStart}:${measurementEnd}:${row.publisher_platform ?? "all"}`,
+    sourceRecordId: `${accountId}:${row.ad_id ?? "unknown"}:${measurementStart}:${measurementEnd}:${recordKeySuffix}`,
     adLibraryId: null,
     metaAdId: row.ad_id ?? null,
     advertiserId: accountId,
@@ -107,7 +114,7 @@ function buildGroundTruthRecord(
     adsetId: row.adset_id ?? null,
     platforms,
     platformPositions,
-    country: null,
+    country: row.country ? row.country.trim().toUpperCase().slice(0, 2) : null,
     geoScope: "AUTHORIZED_META_AD_LEVEL",
     measurementScope: "AUTHORIZED_META_AD_LEVEL",
     measurementStart,
@@ -313,10 +320,15 @@ export async function importAuthorizedMetaAdsInsights(
   try {
     for (const rawAccountId of accountIds) {
       const accountId = normalizeAccountId(rawAccountId);
+      // breakdowns=country gives real delivery-country granularity (where
+      // impressions actually landed), not just ad-set targeting — needed
+      // so the calibration layer can build country-specific CPM bands
+      // instead of one pooled-across-all-markets number.
       let nextUrl =
         `https://graph.facebook.com/${apiVersion}/${accountId}/insights` +
         `?level=ad&limit=${options.limit ?? 100}` +
         `&fields=ad_id,ad_name,campaign_id,adset_id,date_start,date_stop,impressions,reach,frequency,spend,publisher_platform,platform_position` +
+        `&breakdowns=country` +
         `&time_range=${encodeURIComponent(JSON.stringify({ since: options.since, until: options.until }))}`;
 
       while (nextUrl) {

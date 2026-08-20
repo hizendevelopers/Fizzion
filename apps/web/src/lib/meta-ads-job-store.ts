@@ -352,7 +352,7 @@ async function applyExperimentalImpressionFallback(ad: MetaLibraryAd) {
   // video cross-checks, combined per the specified methodology. This
   // wraps (not replaces) the existing baseline above — its prediction
   // is passed in as one of the cross-check models.
-  const assessment = buildImpressionsAssessment(
+  const assessment = await buildImpressionsAssessment(
     ad,
     result.prediction
       ? {

@@ -1,4 +1,5 @@
 import type { InHouseModelConfidence, MetaLibraryAd, MetaMetric } from "@/lib/meta-library";
+import { getCalibratedCpmBenchmark } from "@/lib/meta-owned-account-calibration";
 
 /**
  * Confidence-weighted impressions estimator implementing the
@@ -238,7 +239,7 @@ function computeLowerBoundModel(ad: MetaLibraryAd): SubModelOutput {
 // Sub-model 2 — Spend / CPM cross-check (Step 6)
 // ---------------------------------------------------------------------------
 
-function computeSpendCpmModel(ad: MetaLibraryAd, countryHint: string | null): SubModelOutput {
+async function computeSpendCpmModel(ad: MetaLibraryAd, countryHint: string | null): Promise<SubModelOutput> {
   const formula = "I = (Spend / CPM) × 1,000";
   const spend = ad.finalMetrics.spend;
 
@@ -262,7 +263,18 @@ function computeSpendCpmModel(ad: MetaLibraryAd, countryHint: string | null): Su
 
   const spendLow = spend.min ?? spend.max ?? 0;
   const spendHigh = spend.max ?? spend.min ?? 0;
-  const cpm = getCpmBenchmark(countryHint);
+
+  // Prefer a CPM band calibrated from the org's own real, authorized
+  // campaign data over the generic public-benchmark band — real first-
+  // party evidence beats an industry-average guess. Falls back to the
+  // public benchmark when there isn't enough owned-account data yet.
+  const calibrated = await getCalibratedCpmBenchmark(countryHint);
+  const cpm = calibrated ?? getCpmBenchmark(countryHint);
+  const cpmDescription = calibrated
+    ? `calibrated from ${calibrated.sampleRows} of your own campaign record(s)${calibrated.country ? ` in ${calibrated.country}` : " (pooled across the markets you have data for — no exact country match yet)"}`
+    : countryHint === "PK"
+      ? "Pakistan public benchmark"
+      : "global public benchmark default";
 
   // Higher CPM -> fewer impressions for the same spend, and vice versa.
   const impressionsLow = (spendLow / cpm.high) * 1000;
@@ -276,12 +288,14 @@ function computeSpendCpmModel(ad: MetaLibraryAd, countryHint: string | null): Su
     low: impressionsLow,
     high: impressionsHigh,
     best,
-    confidence: "LOW",
-    baseWeight: 0.2,
+    confidence: calibrated ? "MEDIUM" : "LOW",
+    baseWeight: calibrated ? 0.3 : 0.2,
     effectiveWeight: 0,
     formula,
-    calculation: `Spend disclosed: $${formatWithCommas(spendLow)}–$${formatWithCommas(spendHigh)}. CPM benchmark: $${cpm.low.toFixed(2)}–$${cpm.high.toFixed(2)} (${countryHint === "PK" ? "Pakistan" : "global default"}). I_low = ($${formatWithCommas(spendLow)} / $${cpm.high.toFixed(2)}) × 1000 = ${formatWithCommas(impressionsLow)}. I_high = ($${formatWithCommas(spendHigh)} / $${cpm.low.toFixed(2)}) × 1000 = ${formatWithCommas(impressionsHigh)}.`,
-    assumptions: [`CPM benchmark $${cpm.low.toFixed(2)}–$${cpm.high.toFixed(2)} (assumption, not a Meta metric). Source: ${cpm.source}`],
+    calculation: `Spend disclosed: $${formatWithCommas(spendLow)}–$${formatWithCommas(spendHigh)}. CPM: $${cpm.low.toFixed(2)}–$${cpm.high.toFixed(2)} (${cpmDescription}). I_low = ($${formatWithCommas(spendLow)} / $${cpm.high.toFixed(2)}) × 1000 = ${formatWithCommas(impressionsLow)}. I_high = ($${formatWithCommas(spendHigh)} / $${cpm.low.toFixed(2)}) × 1000 = ${formatWithCommas(impressionsHigh)}.`,
+    assumptions: calibrated
+      ? [`CPM $${cpm.low.toFixed(2)}–$${cpm.high.toFixed(2)} is not a public assumption — it's the real interquartile CPM range observed across ${calibrated.sampleRows} of your own authorized campaign record(s) ($${formatWithCommas(calibrated.totalSpend)} total spend / ${formatWithCommas(calibrated.totalImpressions)} total impressions).`]
+      : [`CPM benchmark $${cpm.low.toFixed(2)}–$${cpm.high.toFixed(2)} (assumption, not a Meta metric). Source: ${cpm.source}`],
     reason: null,
   };
 }
@@ -534,10 +548,10 @@ function deriveActiveDays(ad: MetaLibraryAd): number | null {
   return Math.max(1, Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1);
 }
 
-export function buildImpressionsAssessment(
+export async function buildImpressionsAssessment(
   ad: MetaLibraryAd,
   reachFrequencyPrediction: { low: number; high: number; estimate: number; confidenceLabel: ModelConfidence | null; predictedFrequency: number } | null,
-): ImpressionsAssessment {
+): Promise<ImpressionsAssessment> {
   const countryHint = ad.countryHint;
 
   const observedData: string[] = [];
@@ -558,7 +572,7 @@ export function buildImpressionsAssessment(
   if (countryHint) observedData.push(`Country hint: ${countryHint}`);
 
   const metaModel = computeLowerBoundModel(ad);
-  const spendModel = computeSpendCpmModel(ad, countryHint);
+  const spendModel = await computeSpendCpmModel(ad, countryHint);
   const reachModel = computeReachFrequencyModel(ad, reachFrequencyPrediction);
   const engagementModel = computeEngagementModel(ad, countryHint);
   const videoModel = computeVideoModel(ad);
